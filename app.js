@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v2.0
+   GRIMORIO — app.js  ·  v2.3
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.2';
+const APP_VERSION = '2.3';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -246,6 +246,73 @@ function levelLabel(l){ return l === 0 ? 'Trucchetto' : l + '° livello'; }
 function pluralize(n, one, many){ return n === 1 ? one : many; }
 function scrollTop(){ window.scrollTo({top:0, behavior:'auto'}); }
 
+/* ─── Ritratto ───────────────────────────────────────────────────
+   Se c'è una foto la si mostra dentro il sigillo, altrimenti resta
+   il simbolo. L'immagine viene ridotta a 320px e salvata insieme al
+   personaggio, quindi si sincronizza su tutti i dispositivi.
+*/
+function avatarHTML(e, size, extra){
+  const s = size || 54;
+  const cls = 'seal' + (extra ? ' ' + extra : '');
+  if (e && e.portrait){
+    return `<span class="${cls} portrait" style="width:${s}px;height:${s}px"><img src="${e.portrait}" alt=""></span>`;
+  }
+  return `<span class="${cls}" style="width:${s}px;height:${s}px;font-size:${Math.round(s*0.44)}px">${(e && e.avatar) || '⚔️'}</span>`;
+}
+function resizeImageFile(file, max){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side)/2, sy = (img.height - side)/2;
+          const cv = document.createElement('canvas');
+          cv.width = cv.height = max;
+          const ctx = cv.getContext('2d');
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, max, max);
+          resolve(cv.toDataURL('image/jpeg', 0.82));
+        } catch(e){ reject(e); }
+      };
+      img.onerror = () => reject(new Error('immagine non leggibile'));
+      img.src = fr.result;
+    };
+    fr.onerror = () => reject(new Error('lettura non riuscita'));
+    fr.readAsDataURL(file);
+  });
+}
+function choosePortrait(onDone){
+  // L'input resta nel documento (nascosto): staccato dal DOM alcuni
+  // browser non aprono affatto la finestra di scelta file.
+  let input = document.getElementById('portrait-file-input');
+  if (!input){
+    input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*'; input.id = 'portrait-file-input';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+  }
+  input.value = '';
+  input.onchange = async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    if (f.size > 20*1024*1024){ toast('⚠️ Immagine troppo grande (oltre 20 MB)'); return; }
+    try {
+      const url = await resizeImageFile(f, 320);
+      onDone(url);
+    } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a leggere l\'immagine'); }
+  };
+  input.click();
+}
+function setDraftPortrait(url){ if (draftChar){ draftChar.portrait = url; renderModalRoot(); } }
+function setNpcPortrait(url){ if (draftNpc){ draftNpc.portrait = url; renderModalRoot(); } }
+function setCharPortrait(charId, url){
+  const c = charById(charId); if (!c) return;
+  c.portrait = url;
+  scheduleSave('characters', c); render();
+  toast(url ? '📷 Ritratto aggiornato' : 'Ritratto rimosso');
+}
+
 /* ─── 4. STATO GLOBALE ─── */
 const state = {
   view: 'party',
@@ -440,7 +507,7 @@ function newCharacter(){
   return {
     id: uid(),
     name: '', race: '', classField: '', level: 1, background: '', alignment: '',
-    playerName: '', xp: '',
+    playerName: '', xp: '', xpNext: '', portrait: null,
     avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)],
     abilities: { str:10, dex:10, con:10, int:10, wis:10, cha:10 },
     skillProf: [], skillExpert: [], saveProf: [],
@@ -452,7 +519,8 @@ function newCharacter(){
     slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null, spellNotes: {},
     inventory: [], coins: { pp:0, gp:0, ep:0, sp:0, cp:0 },
     attacks: [], resources: [],
-    armor: '', senses: '', languages: '', tools: '', feats: '',
+    armor: '', senses: '', languages: '', tools: '', feats: '', profOther: '',
+    hitDie2: 0, hitDiceUsed2: 0, carryCapacity: '',
     inspiration: false, exhaustion: 0,
     appearance: { age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' },
     faction: '', symbol: '', allies: '', enemies: '',
@@ -471,8 +539,11 @@ function migrateCharacter(c){
   c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || []; c.skillExpert = c.skillExpert || [];
   c.attacks = c.attacks || []; c.resources = c.resources || [];
   c.appearance = Object.assign({ age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' }, c.appearance || {});
-  ['playerName','xp','armor','senses','languages','tools','feats','faction','symbol','allies','enemies','notesRace','notesExtra']
+  ['playerName','xp','xpNext','armor','senses','languages','tools','feats','profOther','faction','symbol','allies','enemies','notesRace','notesExtra','carryCapacity']
     .forEach(k => { if (c[k] == null) c[k] = ''; });
+  if (c.portrait === undefined) c.portrait = null;
+  c.hitDie2 = Number(c.hitDie2) || 0; c.hitDiceUsed2 = Number(c.hitDiceUsed2) || 0;
+  c.inventory.forEach(it => { if (it.weight == null) it.weight = ''; if (it.attuned == null) it.attuned = false; });
   if (c.inspiration == null) c.inspiration = false;
   c.exhaustion = clamp(c.exhaustion || 0, 0, 6);
   if (c.slotsOverride === undefined) c.slotsOverride = null;
@@ -704,7 +775,7 @@ function charCardHTML(c){
   const pct = hpPctFor(c);
   return `
     <button class="char-card" onclick="openSheet('${c.id}')">
-      <div class="seal" style="font-size:1.6rem;">${c.avatar||'⚔️'}</div>
+      ${avatarHTML(c, 56)}
       <div class="char-card-body">
         <div class="char-card-name">${escapeHtml(c.name||'Senza nome')}</div>
         <div class="char-card-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
@@ -776,9 +847,17 @@ function characterFormHTML(isEdit){
         </div>
       </div>
       <div class="field">
-        <label>Simbolo</label>
+        <label>Ritratto</label>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+          ${avatarHTML(d, 64)}
+          <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="choosePortrait(setDraftPortrait)">📷 ${d.portrait?'Cambia foto':'Carica una foto'}</button>
+            ${d.portrait?`<button class="btn btn-ghost btn-sm" onclick="setDraftPortrait(null)">Togli la foto</button>`:''}
+          </div>
+        </div>
+        <div class="field-hint" style="margin-bottom:8px">Senza foto viene usato il simbolo scelto qui sotto.</div>
         <div class="chip-row">
-          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g?'active':''}" style="font-size:1.1rem;padding:8px 12px;" onclick="draftChar.avatar='${g}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
+          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g&&!d.portrait?'active':''}" style="font-size:1.1rem;padding:8px 12px;" onclick="draftChar.avatar='${g}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
         </div>
       </div>
       <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="saveCharacterDraft(${isEdit})">${isEdit?'Salva modifiche':'Crea personaggio'}</button>
@@ -952,6 +1031,7 @@ function renderCharacterSheet(){
   return `
     <div class="topbar">
       <button class="topbar-back" onclick="goView('party')" aria-label="Torna al party">←</button>
+      <button onclick="choosePortrait(u=>setCharPortrait('${c.id}',u))" title="Tocca per cambiare il ritratto" style="flex-shrink:0">${avatarHTML(c, 42)}</button>
       <div style="flex:1; min-width:0;">
         <div class="topbar-title">${escapeHtml(c.name||'Senza nome')}</div>
         <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''} · Comp. ${signStr(profBonus(c.level))}</div>
@@ -1270,7 +1350,9 @@ function renderSheetNotes(c){
         ${f('Linguaggi','languages','Es. Comune, Elfico')}
         ${f('Strumenti e competenze','tools','Es. Kit da erborista, armi semplici')}
         ${f('Armatura indossata','armor','Es. Vesti rinforzate')}
+        ${f('Armature e armi','profOther','Es. Armature leggere, armi semplici')}
         ${f('Sensi','senses','Es. Scurovisione 18 m')}
+        ${f('Capacità di carico (kg)','carryCapacity','Vuoto = Forza × 7,5')}
         <div class="divider"><span class="flourish">❧</span><span>Talenti</span></div>
         ${f('Talenti','feats','Es. Resiliente (Costituzione)','90')}
       </div>
@@ -1279,6 +1361,12 @@ function renderSheetNotes(c){
         ${f('Privilegi di classe e capacità','features','Privilegi, invocazioni, canalizzare divinità…','220')}
         ${f('Razza e background','notesRace','Bonus di razza e background','110')}
         ${f('Altre note','notesExtra','Famigli, compagni, promemoria…','160')}
+        <div class="divider"><span class="flourish">❧</span><span>Progressione</span></div>
+        <div class="form-row">
+          <div class="field"><label>Punti esperienza</label><input value="${attr(c.xp||'')}" oninput="updateCharField('${c.id}','xp',this.value)"></div>
+          <div class="field"><label>Al prossimo livello</label><input value="${attr(c.xpNext||'')}" oninput="updateCharField('${c.id}','xpNext',this.value)"></div>
+        </div>
+        <div class="field"><label>Giocatore</label><input value="${attr(c.playerName||'')}" oninput="updateCharField('${c.id}','playerName',this.value)"></div>
       </div>
     </div>`;
 }
@@ -1392,9 +1480,13 @@ function restModalHTML(charId){
         <span class="badge gold">${left} / ${c.level||1}</span>
       </div>
       ${left ? `<div class="btn-row">
-        <button class="btn btn-gold" onclick="spendHitDice('${charId}',1)">Spendi 1 dado</button>
-        ${left>1?`<button class="btn btn-ghost" onclick="spendHitDice('${charId}',${left})">Spendi tutti (${left})</button>`:''}
+        <button class="btn btn-gold" onclick="spendHitDice('${charId}',1)">Spendi 1 dado d${c.hitDie||8}</button>
+        ${left>1?`<button class="btn btn-ghost" onclick="spendHitDice('${charId}',${left})">Tutti (${left})</button>`:''}
       </div>` : `<p class="muted">Nessun dado vita rimasto: serve un riposo lungo.</p>`}
+      ${c.hitDie2 ? `<div class="row-between" style="margin-top:12px">
+        <span class="muted">Seconda classe: d${c.hitDie2}</span>
+        <button class="btn btn-sm btn-gold" onclick="spendHitDice('${charId}',1,2)">Spendi 1 dado d${c.hitDie2}</button>
+      </div>` : ''}
       ${(c.casterType==='pact') ? `<button class="btn btn-arcane btn-block" style="margin-top:10px" onclick="restorePactSlots('${charId}')">✦ Recupera slot del Patto</button>` : ''}
     </div>
     <div class="card">
@@ -1404,16 +1496,18 @@ function restModalHTML(charId){
     </div>`;
   return modalShell('🏕️ Riposo', inner);
 }
-function spendHitDice(charId, n){
+function spendHitDice(charId, n, which){
   const c = charById(charId); if (!c) return;
-  const avail = hitDiceLeft(c);
+  const die = which === 2 ? (c.hitDie2||8) : (c.hitDie||8);
+  const avail = which === 2 ? 99 : hitDiceLeft(c);
   n = clamp(n, 0, avail);
   if (!n) return;
   const conMod = mod(getPath(c,'abilities.con',10));
   const rolls = [];
   let healed = 0;
-  for (let i=0;i<n;i++){ const r = rollDie(c.hitDie||8); rolls.push(r); healed += Math.max(0, r + conMod); }
-  c.hitDiceUsed = (c.hitDiceUsed||0) + n;
+  for (let i=0;i<n;i++){ const r = rollDie(die); rolls.push(r); healed += Math.max(0, r + conMod); }
+  if (which === 2) c.hitDiceUsed2 = (c.hitDiceUsed2||0) + n;
+  else c.hitDiceUsed = (c.hitDiceUsed||0) + n;
   (c.resources||[]).forEach(r => { if (r.recovery === 'sr') r.left = Number(r.total)||0; });
   const max = getPath(c,'hp.max',0);
   const before = getPath(c,'hp.current',0);
@@ -1422,7 +1516,7 @@ function spendHitDice(charId, n){
   if (getPath(c,'hp.current',0) > 0) c.deathSaves = { win:0, fail:0 };
   scheduleSave('characters', c);
   closeModal(); render();
-  toast(`☀️ +${real} PF — ${n}d${c.hitDie||8} [${rolls.join(', ')}] ${signStr(conMod)} per dado`);
+  toast(`☀️ +${real} PF — ${n}d${die} [${rolls.join(', ')}] ${signStr(conMod)} per dado`);
 }
 function restorePactSlots(charId){
   const c = charById(charId); if (!c) return;
@@ -1439,7 +1533,9 @@ function longRest(charId){
   c.slotsUsed = {};
   c.deathSaves = { win:0, fail:0 };
   c.concentration = null;
-  c.hitDiceUsed = clamp((c.hitDiceUsed||0) - Math.max(1, Math.floor((c.level||1)/2)), 0, 20);
+  const back = Math.max(1, Math.floor((c.level||1)/2));
+  c.hitDiceUsed = clamp((c.hitDiceUsed||0) - back, 0, 20);
+  c.hitDiceUsed2 = clamp((c.hitDiceUsed2||0) - back, 0, 20);
   (c.resources||[]).forEach(r => { r.left = Number(r.total)||0; });
   scheduleSave('characters', c);
   closeModal(); render();
@@ -1447,9 +1543,14 @@ function longRest(charId){
 }
 
 /* ─── 17. ZAINO ─── */
+function totalWeight(c){
+  return (c.inventory||[]).reduce((sum, it) => sum + ((parseFloat(String(it.weight).replace(',','.'))||0) * (it.qty||1)), 0);
+}
 function renderSheetInventory(c){
   const items = c.inventory||[];
   const coins = c.coins || {};
+  const w = totalWeight(c);
+  const cap = parseFloat(String(c.carryCapacity).replace(',','.')) || (getPath(c,'abilities.str',10) * 7.5);
   return `
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">💰 Borsa</div>
@@ -1462,6 +1563,11 @@ function renderSheetInventory(c){
       </div>
     </div>
     <div class="divider"><span class="flourish">❧</span><span>Equipaggiamento</span></div>
+    ${w > 0 ? `<div class="card" style="margin-bottom:10px; padding:11px 14px">
+      <div class="row-between" style="margin-bottom:6px"><span class="muted">Peso trasportato</span><b>${w.toFixed(1).replace('.0','')} / ${Math.round(cap)} kg</b></div>
+      <div class="hp-bar-lg" style="height:8px;margin:0"><div class="hp-bar-lg-fill ${w>cap?'low':''}" style="width:${clamp(100*w/cap,0,100)}%; background:${w>cap?'':'linear-gradient(90deg,var(--gold-dim),var(--gold))'}"></div></div>
+      ${w>cap?`<div class="muted" style="font-size:.72rem;margin-top:6px;color:var(--warn)">Sei sovraccarico: velocità ridotta.</div>`:''}
+    </div>` : ''}
     <div class="list-gap">
       ${items.length ? items.map((it,i)=>invItemHTML(c,it,i)).join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
     </div>
@@ -1469,11 +1575,12 @@ function renderSheetInventory(c){
   `;
 }
 function invItemHTML(c, it, i){
+  const sub = [it.notes, it.weight ? it.weight + ' kg' : '', it.attuned ? '⚡ sintonizzato' : ''].filter(Boolean).join(' · ');
   return `<div class="inv-item">
     <button class="equip-toggle ${it.equipped?'on':''}" title="Indossato / impugnato" onclick="toggleEquip('${c.id}',${i}, this)">${it.equipped?'✓':'○'}</button>
     <button class="inv-item-main" onclick="editInventoryItem('${c.id}',${i})">
       <div class="inv-item-name ${it.equipped?'equipped':''}">${escapeHtml(it.name)}</div>
-      ${it.notes?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(it.notes)}</div>`:''}
+      ${sub?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(sub)}</div>`:''}
     </button>
     <span class="inv-qty">×${it.qty||1}</span>
     <button class="btn-icon" style="width:32px;height:32px;font-size:.8rem;" onclick="removeInventoryItem('${c.id}',${i})" aria-label="Rimuovi">✕</button>
@@ -1482,10 +1589,14 @@ function invItemHTML(c, it, i){
 function addInventoryItem(charId){
   const inner = `
     <div class="field"><label>Nome</label><input id="inv-name" placeholder="Es. Spada corta"></div>
-    <div class="form-row">
+    <div class="form-row-3">
       <div class="field"><label>Quantità</label><input id="inv-qty" type="number" inputmode="numeric" min="1" value="1"></div>
-      <div class="field"><label>Note</label><input id="inv-notes" placeholder="Danni, peso, dettagli…"></div>
+      <div class="field"><label>Peso (kg)</label><input id="inv-weight" inputmode="decimal" placeholder="—"></div>
+      <div class="field"><label>Sintonia</label>
+        <select id="inv-attuned"><option value="">No</option><option value="1">Sì</option></select>
+      </div>
     </div>
+    <div class="field"><label>Note</label><input id="inv-notes" placeholder="Danni, proprietà, dettagli…"></div>
     <button class="btn btn-primary btn-block" onclick="confirmAddInventory('${charId}')">Aggiungi allo zaino</button>`;
   openModal({ render: () => modalShell('Nuovo oggetto', inner), after: () => { const el = document.getElementById('inv-name'); if (el) el.focus(); } });
 }
@@ -1498,6 +1609,8 @@ function confirmAddInventory(charId){
   c.inventory.push({
     name,
     qty: clamp(parseInt((document.getElementById('inv-qty')||{}).value)||1, 1, 9999),
+    weight: ((document.getElementById('inv-weight')||{}).value||'').trim(),
+    attuned: !!((document.getElementById('inv-attuned')||{}).value),
     notes: ((document.getElementById('inv-notes')||{}).value||'').trim(),
     equipped: false
   });
@@ -1525,10 +1638,14 @@ function editInventoryItem(charId, i){
   if (!it) return;
   const inner = `
     <div class="field"><label>Nome</label><input id="inv-edit-name" value="${attr(it.name)}"></div>
-    <div class="form-row">
+    <div class="form-row-3">
       <div class="field"><label>Quantità</label><input id="inv-edit-qty" type="number" inputmode="numeric" min="1" value="${it.qty||1}"></div>
-      <div class="field"><label>Note</label><input id="inv-edit-notes" value="${attr(it.notes||'')}"></div>
+      <div class="field"><label>Peso (kg)</label><input id="inv-edit-weight" inputmode="decimal" value="${attr(it.weight||'')}"></div>
+      <div class="field"><label>Sintonia</label>
+        <select id="inv-edit-attuned"><option value="" ${!it.attuned?'selected':''}>No</option><option value="1" ${it.attuned?'selected':''}>Sì</option></select>
+      </div>
     </div>
+    <div class="field"><label>Note</label><input id="inv-edit-notes" value="${attr(it.notes||'')}"></div>
     <button class="btn btn-primary btn-block" onclick="confirmEditInventory('${charId}',${i})">Salva modifiche</button>`;
   openModal({ render: () => modalShell('Modifica oggetto', inner) });
 }
@@ -1538,6 +1655,8 @@ function confirmEditInventory(charId, i){
   if (!name){ toast('Dai un nome all\'oggetto'); return; }
   c.inventory[i].name = name;
   c.inventory[i].qty = clamp(parseInt(document.getElementById('inv-edit-qty').value)||1, 1, 9999);
+  c.inventory[i].weight = (document.getElementById('inv-edit-weight').value||'').trim();
+  c.inventory[i].attuned = !!document.getElementById('inv-edit-attuned').value;
   c.inventory[i].notes = (document.getElementById('inv-edit-notes').value||'').trim();
   scheduleSave('characters', c);
   closeModal(); render();
@@ -2129,7 +2248,7 @@ function confirmDeleteCustomSpell(id){
 }
 
 /* ─── 21. TAVOLO DEL MASTER ─── */
-function newNPC(){ return { id: uid(), name:'', type:'', avatar:'🐉', ac:10, hpMax:10, hpCurrent:null, speed:9, notes:'', createdAt: Date.now() }; }
+function newNPC(){ return { id: uid(), name:'', type:'', avatar:'🐉', portrait:null, ac:10, hpMax:10, hpCurrent:null, speed:9, notes:'', createdAt: Date.now() }; }
 
 function renderDM(){
   return `
@@ -2154,7 +2273,7 @@ function renderBestiary(){
 }
 function npcCardHTML(n){
   return `<button class="char-card npc-card" onclick="openNpcForm('${n.id}')">
-    <div class="seal">${n.avatar||'🐉'}</div>
+    ${avatarHTML(n, 46)}
     <div class="char-card-body">
       <div class="char-card-name">${escapeHtml(n.name||'Senza nome')}</div>
       <div class="char-card-sub">${n.type?escapeHtml(n.type)+' · ':''}CA ${n.ac??10} · PF ${n.hpCurrent??n.hpMax??0}/${n.hpMax??0}</div>
@@ -2186,6 +2305,14 @@ function npcFormHTML(isEdit){
         <div class="field"><label>Velocità</label><input type="number" inputmode="numeric" value="${d.speed??9}" oninput="draftNpc.speed=parseInt(this.value)||0"></div>
       </div>
       ${isEdit ? `<div class="field"><label>PF attuali</label><input type="number" inputmode="numeric" value="${d.hpCurrent??d.hpMax??10}" oninput="draftNpc.hpCurrent=parseInt(this.value)||0"></div>` : ''}
+      <div class="field">
+        <label>Ritratto</label>
+        <div style="display:flex; align-items:center; gap:12px;">
+          ${avatarHTML(d, 56)}
+          <button class="btn btn-ghost btn-sm" onclick="choosePortrait(setNpcPortrait)">📷 ${d.portrait?'Cambia':'Carica'}</button>
+          ${d.portrait?`<button class="btn btn-ghost btn-sm" onclick="setNpcPortrait(null)">Togli</button>`:''}
+        </div>
+      </div>
       <div class="field"><label>Azioni / Note</label><textarea style="min-height:110px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
       <button class="btn btn-primary btn-block" onclick="saveNpcDraft()">${isEdit?'Salva modifiche':'Aggiungi al bestiario'}</button>
       ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:10px;" onclick="addNpcToInitiative('${d.id}')">⚔️ Aggiungi all'iniziativa</button>

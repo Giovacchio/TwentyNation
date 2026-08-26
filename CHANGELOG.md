@@ -1,5 +1,33 @@
 # Grimorio — lista dei cambiamenti
 
+## v2.3 — 26 agosto 2026
+Ritratti dei personaggi e copertura completa della scheda cartacea.
+
+### 📷 Ritratto al posto dell'emoji
+- Puoi caricare una foto del personaggio: nel modulo di creazione/modifica, oppure toccando il sigillo in cima alla scheda.
+- L'immagine viene ritagliata al centro, ridotta a 320px e salvata insieme al personaggio, quindi si sincronizza su tutti i dispositivi e resta disponibile offline (circa 25 KB l'una).
+- Compare nell'elenco del party, nell'intestazione della scheda e nel bestiario: anche i PNG e i mostri possono avere il ritratto.
+- Se togli la foto si torna al simbolo scelto.
+
+### 🎒 Zaino completo
+- Ogni oggetto ha **peso** e indicatore di **sintonizzazione** (⚡).
+- Barra del **peso trasportato** con capacità di carico (di default Forza × 7,5 kg) e avviso di sovraccarico.
+
+### 📋 Campi della scheda che mancavano
+- **Competenze in armature e armi** (leggere/medie/pesanti, scudi, armi semplici e da guerra) e svantaggio a Furtività dovuto all'armatura.
+- **Consumabili, munizioni e oggetti magici sintonizzati** finiscono nello zaino con le cariche rimaste.
+- **Punti esperienza** e "al prossimo livello", nome del giocatore, capacità di carico.
+- **Secondo dado vita** per i personaggi multiclasse, spendibile dal riposo breve.
+- **Slot incantesimo già usati** letti dalla scheda, non solo i totali.
+- **Incantesimi preparati**: le caselle spuntate accanto a ogni riga vengono riconosciute.
+- Peso dei singoli oggetti letto dalle colonne della scheda.
+
+### 🔍 Controllo di coerenza
+- Dopo la lettura del PDF, se un numero scritto sulla scheda non coincide con quello calcolato dall'app (di solito per bonus da talenti o oggetti) te lo dico nell'anteprima, invece di importare in silenzio un valore diverso.
+
+### ✅ Verifica delle abilità
+- Le 18 abilità della scheda ci sono tutte e coincidono una a una (Acrobazia, Addestrare Animali, Arcano, Atletica, Inganno, Storia, Intuizione, Intimidire, Investigare, Medicina, Natura, Percezione, Intrattenere, Persuasione, Religione, Rapidità di Mano, Furtività, Sopravvivenza), con competenza semplice o doppia.
+
 ## v2.2 — 26 agosto 2026
 Importazione delle schede PDF e scheda personaggio molto più completa.
 

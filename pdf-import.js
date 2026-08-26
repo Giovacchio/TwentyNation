@@ -315,6 +315,25 @@ function analyzeSheet(fields){
   c.languages = [pickField(idx,['Languages 1','ProficienciesLang','Linguaggi']), pickField(idx,['Languages 2'])].filter(Boolean).join(', ');
   c.tools = ['TOOLS 1','TOOLS 2','TOOLS 3','Strumenti'].map(n=>pickField(idx,[n])).filter(Boolean).join(', ');
   c.armor = pickField(idx, ['Armor','Armatura']);
+  if (pickChecked(idx, ['StealthDisv']) && c.armor) c.armor += ' (svantaggio a Furtività)';
+  const profBits = [];
+  if (pickChecked(idx, ['ArmorLight'])) profBits.push('armature leggere');
+  if (pickChecked(idx, ['ArmorMed'])) profBits.push('armature medie');
+  if (pickChecked(idx, ['ArmorHea'])) profBits.push('armature pesanti');
+  if (pickChecked(idx, ['Shield','Shields'])) profBits.push('scudi');
+  if (pickChecked(idx, ['WpnSim'])) profBits.push('armi semplici');
+  if (pickChecked(idx, ['WpnMar'])) profBits.push('armi da guerra');
+  ['WpnOth 1','WpnOth 2','WEAPONStype 1','WEAPONStype 2'].forEach(n => { const v = pickField(idx,[n]); if (v) profBits.push(v); });
+  c.profOther = profBits.join(', ');
+  const capRaw = pickField(idx, ['PesoTrasportabile','PesoMassimo','Capacita']);
+  c.carryCapacity = (parseFloat(String(capRaw).replace(',','.')) > 0) ? capRaw : '';
+  c.xpNext = pickField(idx, ['Nex_XP','NextLevel']);
+  // Secondo dado vita solo se è davvero diverso: molte schede ripetono
+  // lo stesso valore nella seconda riga anche senza multiclasse.
+  const hd2raw = pickField(idx, ['HD2']);
+  const hd2m = /d\s*(\d+)/i.exec(hd2raw);
+  const hd2n = hd2m ? parseInt(hd2m[1]) : firstNumber(hd2raw);
+  if ([6,8,10,12].includes(hd2n) && hd2n !== c.hitDie) c.hitDie2 = hd2n;
   c.feats = pickField(idx, ['Talenti1','Talenti','Feats']);
   c.notesRace = pickField(idx, ['Testo2']);
   c.features = pickField(idx, ['Testo3','Features and Traits','Privilegi']);
@@ -364,17 +383,39 @@ function analyzeSheet(fields){
     c.resources.push({ name, total: clamp(total,0,99), left: left != null ? clamp(left,0,total) : total, recovery: rec });
   }
 
-  // ── equipaggiamento ──
-  const eq = [];
-  fields.forEach(f => { if (/^eq\s*\d+$/i.test(f.name) && f.value) eq.push(f.value); });
-  const eqText = pickField(idx, ['Equipment','Equipaggiamento']);
-  if (eqText) eqText.split(/\n+/).forEach(l => { if (l.trim()) eq.push(l.trim()); });
-  eq.forEach(line => {
+  // ── equipaggiamento (con il peso, se la scheda lo riporta) ──
+  const addItem = (line, opts) => {
+    if (!line) return;
+    let name = line, qty = 1;
     const m = /^(\d+)\s*[x×]\s*(.+)$/i.exec(line) || /^(.+?)\s*[x×]\s*(\d+)$/i.exec(line);
-    if (m && /^\d+$/.test(m[1])) c.inventory.push({ name: m[2].trim(), qty: clamp(parseInt(m[1]),1,9999), notes:'', equipped:false });
-    else if (m) c.inventory.push({ name: m[1].trim(), qty: clamp(parseInt(m[2]),1,9999), notes:'', equipped:false });
-    else c.inventory.push({ name: line, qty: 1, notes:'', equipped:false });
+    if (m && /^\d+$/.test(m[1])){ qty = clamp(parseInt(m[1]),1,9999); name = m[2].trim(); }
+    else if (m){ qty = clamp(parseInt(m[2]),1,9999); name = m[1].trim(); }
+    c.inventory.push(Object.assign({ name, qty, weight:'', notes:'', equipped:false, attuned:false }, opts||{}));
+  };
+  fields.forEach(f => {
+    const m = /^eq\s*(\d+)$/i.exec(f.name.trim());
+    if (!m || !f.value) return;
+    const w = pickField(idx, ['Peso' + m[1]]);
+    addItem(f.value, { weight: (w && /\d/.test(w)) ? w.replace(/[^\d.,]/g,'') : '' });
   });
+  const eqText = pickField(idx, ['Equipment','Equipaggiamento']);
+  if (eqText) eqText.split(/\n+/).forEach(l => addItem(l.trim()));
+  for (let i = 1; i <= 6; i++){
+    const v = pickField(idx, ['Consum '+i]);
+    if (!v) continue;
+    const left = firstNumber(pickField(idx, ['ConsumLeft '+i]));
+    addItem(v, { qty: (left && left > 0) ? clamp(left,1,9999) : 1, notes: 'consumabile' });
+  }
+  for (let i = 1; i <= 3; i++){
+    const v = pickField(idx, ['Ammo '+i]);
+    if (!v) continue;
+    const left = firstNumber(pickField(idx, ['AmmoLeft '+i]));
+    addItem(v, { qty: (left && left > 0) ? clamp(left,1,9999) : 1, notes: 'munizioni' });
+  }
+  for (let i = 1; i <= 3; i++){
+    const v = pickField(idx, ['AttunedMagic '+i]);
+    if (v) addItem(v, { attuned: true, notes: 'oggetto magico' });
+  }
 
   // ── magia ──
   const abilityRaw = pickField(idx, ['SpellcastingAbility 2','SpellcastingAbility','Caratteristica']);
@@ -385,7 +426,28 @@ function analyzeSheet(fields){
 
   const spellResult = extractSpells(fields, idx, c);
   if (spellResult.slotsOverride) c.slotsOverride = spellResult.slotsOverride;
+  if (spellResult.slotsUsed) c.slotsUsed = spellResult.slotsUsed;
   if (c.casterType === 'none' && (spellResult.entries.length)) c.casterType = 'full';
+
+  // Se un numero scritto sulla scheda non coincide con quello calcolato,
+  // lo segnalo invece di far finta di niente.
+  const diffs = [];
+  Object.keys(SKILL_CODES).forEach(code => {
+    const sheet = firstNumber(pickField(idx, [code]));
+    if (sheet == null) return;
+    const s = SKILLS.find(x => x.key === SKILL_CODES[code]);
+    const calc = skillMod(c, s);
+    if (sheet !== calc) diffs.push(s.label + ' ' + signStr(sheet) + ' (calcolo ' + signStr(calc) + ')');
+  });
+  ABILITIES.forEach(ab => {
+    const sheet = firstNumber(pickField(idx, ['ST ' + ab.label, 'ST ' + ab.abbr]));
+    if (sheet == null) return;
+    const calc = saveMod(c, ab.key);
+    if (sheet !== calc) diffs.push('TS ' + ab.label + ' ' + signStr(sheet) + ' (calcolo ' + signStr(calc) + ')');
+  });
+  const passive = firstNumber(pickField(idx, ['Passive','Percezione passiva']));
+  if (passive != null && passive !== passivePerception(c)) diffs.push('Percezione passiva ' + passive + ' (calcolo ' + passivePerception(c) + ')');
+  if (diffs.length) warn.push('Valori diversi da quelli calcolati, di solito bonus da talenti o oggetti: ' + diffs.slice(0,6).join(' · ') + (diffs.length>6 ? ' …' : ''));
 
   return { character: c, spells: spellResult.entries, warnings: warn, fieldsFilled: fields.filter(f=>f.value||f.checked).length };
 }
@@ -405,12 +467,19 @@ function extractSpells(fields, idx, c){
   const levelOfHeader = {};
   headers.forEach((h, i) => { levelOfHeader[h.name] = i + 1; });
 
-  const slotsOverride = {};
-  let anySlot = false;
+  const slotsOverride = {}, slotsUsed = {};
+  let anySlot = false, anyUsed = false;
+  const remaining = fields.filter(f => /^slotsremaining\s*\d+$/i.test(f.name.trim()) && f.page === spellPage);
   headers.forEach(h => {
     const n = firstNumber(h.value);
     const lvl = levelOfHeader[h.name];
-    if (n && lvl <= 9){ slotsOverride[lvl] = clamp(n, 0, 9); anySlot = true; }
+    if (n && lvl <= 9){
+      slotsOverride[lvl] = clamp(n, 0, 9); anySlot = true;
+      // gli slot rimasti stanno sulla stessa riga, poco più a destra
+      const rem = remaining.find(r => Math.abs(r.y - h.y) <= 8 && r.x > h.x);
+      const rv = rem ? firstNumber(rem.value) : null;
+      if (rv != null && rv < n){ slotsUsed[lvl] = clamp(n - rv, 0, n); anyUsed = true; }
+    }
   });
 
   const entries = [];
@@ -437,13 +506,23 @@ function extractSpells(fields, idx, c){
     }
     const match = matchSpellText(text);
     entries.push({
+      box,
       text,
       level: level != null ? level : (match ? match.sp.level : 1),
       match: match ? { id: match.sp.id, name: spellName(match.sp), level: match.sp.level, how: match.how } : null,
       note: match ? (match.rest || '') : ''
     });
   });
-  return { entries, slotsOverride: anySlot ? slotsOverride : null };
+  // caselle "preparato" accanto a ogni riga (le righe di continuazione non
+  // creano una voce, quindi si va per riquadro e non per indice)
+  const checks = fields.filter(f => f.checked && f.page === spellPage);
+  entries.forEach(e => {
+    const b = e.box;
+    e.prepared = !!checks.find(k => Math.abs(k.y - b.y) <= 7 && k.x < b.x && (b.x - k.x) < 60);
+    delete e.box;
+  });
+
+  return { entries, slotsOverride: anySlot ? slotsOverride : null, slotsUsed: anyUsed ? slotsUsed : null };
 }
 
 /* ─── Interfaccia: scelta file → anteprima → creazione ─── */
@@ -572,6 +651,7 @@ function confirmSheetImport(){
     if (s.match){
       if (!c.knownSpells.some(k => k.id === s.match.id && k.source === 'srd')) c.knownSpells.push({ id: s.match.id, source: 'srd' });
       if (note) c.spellNotes[s.match.id] = note;
+      if (s.prepared && s.match.level > 0 && !c.preparedSpells.includes(s.match.id)) c.preparedSpells.push(s.match.id);
     } else {
       // "Hex +1d6 necrotico per colpo" → nome "Hex", il resto va nella descrizione
       let firstLine = s.text.split(/[:.\n]/)[0].trim();

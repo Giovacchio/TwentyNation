@@ -236,6 +236,8 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   box-shadow: inset 0 0 0 3px var(--bg-1), inset 0 0 0 4.5px var(--gold-dim), 0 4px 14px rgba(0,0,0,.35);
 }
 [data-theme="light"] .seal { box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4.5px var(--gold-dim), 0 3px 10px rgba(80,55,15,.18); }
+.seal.portrait { overflow: hidden; padding: 0; }
+.seal.portrait img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 .seal.glow { box-shadow: inset 0 0 0 3px var(--bg-1), inset 0 0 0 4.5px var(--gold-dim), var(--glow); }
 
 /* ────────────────── NAVIGAZIONE ────────────────── */
