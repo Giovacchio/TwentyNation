@@ -222,7 +222,10 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .hero .rule { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; color: var(--gold-dim); font-size: .8rem; }
 .hero .rule::before, .hero .rule::after { content: ""; width: 54px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-dim)); }
 .hero .rule::after { background: linear-gradient(270deg, transparent, var(--gold-dim)); }
-.hero-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
+/* z-index: l'animazione di opacità del titolo crea un contesto di
+   impilamento e senza questo il titolo copre i pulsanti (non cliccabili). */
+.hero-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 3; }
+.hero h1, .hero .sub, .hero .rule { position: relative; z-index: 1; }
 
 /* ────────────────── SIGILLI ────────────────── */
 .seal {
@@ -452,6 +455,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   box-shadow: 0 0 10px rgba(145,121,216,.35);
 }
 .spell-item-body { flex: 1; min-width: 0; }
+.spell-item-name, .spell-item-meta { display: block; }
 .spell-item-name { font-weight: 700; font-size: .93rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spell-item-meta { font-size: .71rem; color: var(--ink-soft); font-weight: 600; margin-top: 2px; font-family: var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spell-item-add { width: 34px; height: 34px; border-radius: 50%; background: var(--card-hi); border: 1px solid var(--line); font-size: 1.1rem; color: var(--gold); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
@@ -639,6 +643,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <div id="modal-root"></div>
 
 <script src="./spells-data.js"></script>
+<script src="./spells-it.js"></script>
 <script defer src="./app.js"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.0';
+const APP_VERSION = '2.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -103,6 +103,49 @@ const SCHOOLS_IT = {
 };
 function schoolIt(en){ return SCHOOLS_IT[en] || en || ''; }
 
+/* Nomi in italiano (da spells-it.js). Il testo delle descrizioni resta
+   in inglese: è quello ufficiale su licenza OGL. */
+const HAS_SPELLS_IT = (typeof SPELLS_IT !== 'undefined');
+function spellItName(sp){ return (sp && sp.id && HAS_SPELLS_IT && SPELLS_IT[sp.id]) || ''; }
+function spellName(sp){
+  if (!sp) return '';
+  if (state.spellLang === 'en') return sp.name || '';
+  return spellItName(sp) || sp.name || '';
+}
+// Il nome nell'altra lingua, quando è diverso (mostrato in piccolo).
+function spellAltName(sp){
+  const it = spellItName(sp);
+  if (!it || !sp.name) return '';
+  return state.spellLang === 'en' ? it : sp.name;
+}
+function toggleSpellLang(){
+  state.spellLang = state.spellLang === 'en' ? 'it' : 'en';
+  localStorage.setItem('grimorio-spell-lang', state.spellLang);
+  render();
+}
+// Classi di un incantesimo, tenendo conto delle tue modifiche
+// (es. marcare un incantesimo SRD come "Artificiere").
+function spellClasses(sp){
+  if (!sp) return [];
+  if ((sp.source || 'srd') === 'srd'){
+    const o = state.spellTags.find(t => t.id === sp.id);
+    if (o && Array.isArray(o.classes)) return o.classes;
+  }
+  return sp.classes || [];
+}
+function isSpellTagged(sp){ return (sp.source||'srd')==='srd' && state.spellTags.some(t=>t.id===sp.id); }
+function setSpellClasses(spellId, classes, baseClasses){
+  const same = classes.length === (baseClasses||[]).length && classes.every(c=>(baseClasses||[]).includes(c));
+  const idx = state.spellTags.findIndex(t=>t.id===spellId);
+  if (same){
+    if (idx>=0){ state.spellTags.splice(idx,1); fsDelete('spellTags', spellId); saveLocal(); }
+    return;
+  }
+  const obj = { id: spellId, classes: classes.slice() };
+  if (idx>=0) state.spellTags[idx] = obj; else state.spellTags.push(obj);
+  fsSet('spellTags', obj);
+}
+
 const CASTER_TYPES = [
   { key: "none", label: "Nessuno" },
   { key: "full", label: "Pieno" },
@@ -193,6 +236,12 @@ function formatComponents(comp, mat){
   const out = letters.length ? letters.join(', ') : String(comp);
   return out + (mat ? ' (' + mat + ')' : '');
 }
+// confronto "morbido": minuscole, senza accenti e apostrofi
+function norm(s){
+  return (s==null?'':String(s)).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[’']/g,"'").trim();
+}
 function levelLabel(l){ return l === 0 ? 'Trucchetto' : l + '° livello'; }
 function pluralize(n, one, many){ return n === 1 ? one : many; }
 function scrollTop(){ window.scrollTo({top:0, behavior:'auto'}); }
@@ -201,7 +250,8 @@ function scrollTop(){ window.scrollTo({top:0, behavior:'auto'}); }
 const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
-  characters: [], npcs: [], customSpells: [],
+  characters: [], npcs: [], customSpells: [], spellTags: [],
+  spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   activeCharId: null,
   sheetTab: 'overview',
   dmTab: 'bestiary',
@@ -250,12 +300,14 @@ function loadLocal(){
     state.characters = (data.characters || []).map(migrateCharacter);
     state.npcs = data.npcs || [];
     state.customSpells = data.customSpells || [];
+    state.spellTags = data.spellTags || [];
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 function saveLocal(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      characters: state.characters, npcs: state.npcs, customSpells: state.customSpells
+      characters: state.characters, npcs: state.npcs,
+      customSpells: state.customSpells, spellTags: state.spellTags
     }));
   } catch(e){
     console.warn('Impossibile salvare in locale', e);
@@ -314,6 +366,7 @@ function attachFirestore(uidUser){
   wire('characters', migrateCharacter);
   wire('npcs');
   wire('customSpells');
+  wire('spellTags');
 }
 function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }); unsubscribers = []; }
 
@@ -1246,7 +1299,7 @@ function renderSheetSpells(c){
   const used = c.slotsUsed || {};
   const isCaster = c.casterType && c.casterType !== 'none';
   let known = (c.knownSpells||[]).map(k => ({ ref:k, sp: spellByRef(k) })).filter(x => x.sp);
-  known.sort((a,b) => (a.sp.level - b.sp.level) || a.sp.name.localeCompare(b.sp.name));
+  known.sort((a,b) => (a.sp.level - b.sp.level) || spellName(a.sp).localeCompare(spellName(b.sp), 'it'));
   const prepared = c.preparedSpells || [];
   if (state.knownFilter === 'prepared') known = known.filter(x => prepared.includes(x.sp.id) || x.sp.level === 0);
 
@@ -1311,8 +1364,8 @@ function knownSpellRow(c, ref, sp){
   return `<div class="spell-item">
     <div class="spell-lvl-badge">${sp.level===0?'C':sp.level}</div>
     <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${sp.id}','${ref.source}','${c.id}')">
-      <div class="spell-item-name">${escapeHtml(sp.name)}</div>
-      <div class="spell-item-meta">${escapeHtml(schoolIt(sp.school||''))}${sp.conc?' · concentrazione':''}${ref.source==='custom'?' · personalizzato':''}</div>
+      <div class="spell-item-name">${escapeHtml(spellName(sp))}</div>
+      <div class="spell-item-meta">${spellAltName(sp)?escapeHtml(spellAltName(sp))+' · ':''}${escapeHtml(schoolIt(sp.school||''))}${sp.conc?' · concentrazione':''}${ref.source==='custom'?' · personalizzato':''}</div>
     </button>
     ${sp.level>0?`<button class="prep-star ${isPrep?'on':''}" onclick="togglePrepared('${c.id}','${sp.id}', this)" title="Preparato" aria-label="Preparato">★</button>`:''}
     <button class="spell-item-add" style="color:var(--garnet-bright)" onclick="removeKnownSpell('${c.id}','${sp.id}','${ref.source}')" aria-label="Rimuovi">✕</button>
@@ -1424,9 +1477,12 @@ function renderGrimoire(){
         <button class="btn btn-sm btn-primary" onclick="cancelPickSpell()">Fatto</button>
       </div>
     ` : `<div class="hero" style="padding:16px;">
-        <div class="hero-actions">${themeToggleBtn()}</div>
+        <div class="hero-actions">
+          <button class="btn-icon" onclick="toggleSpellLang()" aria-label="Lingua dei nomi" title="Nomi in italiano o in inglese">${state.spellLang==='it'?'🇮🇹':'🇬🇧'}</button>
+          ${themeToggleBtn()}
+        </div>
         <h1 style="font-size:1.5rem">Grimorio</h1>
-        <div class="sub">Compendio degli incantesimi</div>
+        <div class="sub">${allSpells().length} incantesimi</div>
       </div>`}
     <div class="search-wrap">
       <span class="search-ic">🔍</span>
@@ -1443,19 +1499,23 @@ function renderGrimoire(){
       ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
     </div>
     <div id="grimoire-results">${grimoireResultsHTML()}</div>
-    ${!picking ? `<button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openCustomSpellForm()">✦ Incantesimo personalizzato</button>` : ''}
+    ${!picking ? `<div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="openCustomSpellForm()">✦ Nuovo</button>
+      <button class="btn btn-ghost" onclick="openSpellImport()">⤒ Importa</button>
+    </div>` : ''}
   `;
 }
 function filteredSpells(){
   const f = state.grimoireFilter;
   let all = allSpells();
   if (f.q){
-    const q = f.q.toLowerCase().trim();
-    all = all.filter(s => (s.name||'').toLowerCase().includes(q) || schoolIt(s.school||'').toLowerCase().includes(q));
+    const q = norm(f.q);
+    // cerca sia nel nome italiano sia in quello inglese, sia nella scuola
+    all = all.filter(s => norm(s.name).includes(q) || norm(spellItName(s)).includes(q) || norm(schoolIt(s.school||'')).includes(q));
   }
   if (f.level !== 'all') all = all.filter(s => String(s.level) === f.level);
-  if (f.clas !== 'all') all = all.filter(s => (s.classes||[]).includes(f.clas));
-  all.sort((a,b)=> (a.level-b.level) || a.name.localeCompare(b.name));
+  if (f.clas !== 'all') all = all.filter(s => spellClasses(s).includes(f.clas));
+  all.sort((a,b)=> (a.level-b.level) || spellName(a).localeCompare(spellName(b), 'it'));
   return all;
 }
 function grimoireResultsHTML(){
@@ -1463,17 +1523,33 @@ function grimoireResultsHTML(){
   const pickChar = picking ? charById(state.grimoirePickFor) : null;
   const all = filteredSpells();
   const countLine = `<div class="muted" style="margin:2px 0 10px;">${all.length} ${pluralize(all.length,'incantesimo','incantesimi')}</div>`;
-  if (!all.length) return countLine + emptyState('🔍','Nessun incantesimo trovato con questi filtri.');
+  if (!all.length){
+    const f = state.grimoireFilter;
+    if (f.clas !== 'all' && !f.q){
+      const nome = CLASSES_IT[f.clas] || f.clas;
+      return countLine + `<div class="empty-state">
+        <div class="ic">🏷️</div>
+        <p>Nessun incantesimo dell'SRD è marcato <b>${escapeHtml(nome)}</b>${f.clas==='Artificer'?": la lista dell'Artificiere non fa parte dell'SRD":''}.</p>
+        <div class="list-gap" style="margin-top:16px; text-align:left">
+          <button class="btn btn-ghost btn-block btn-sm" onclick="setGrimoireFilter('clas','all')">Togli il filtro</button>
+          <button class="btn btn-ghost btn-block btn-sm" onclick="openSpellImport()">⤒ Importa una lista da file</button>
+        </div>
+        <p style="margin-top:14px; font-size:.78rem; opacity:.8">Puoi anche aprire un incantesimo qualsiasi e usare <b>🏷️ Liste di classe</b> per aggiungerlo a questa classe.</p>
+      </div>`;
+    }
+    return countLine + emptyState('🔍','Nessun incantesimo trovato con questi filtri.');
+  }
   return countLine + `<div class="spell-grid list-gap">` + all.map(s=>grimoireItemHTML(s, picking, pickChar)).join('') + `</div>`;
 }
 function grimoireItemHTML(s, picking, pickChar){
   const already = picking && pickChar && (pickChar.knownSpells||[]).some(k=>k.id===s.id && k.source===s.source);
-  const classesIt = (s.classes||[]).map(en=>CLASSES_IT[en]||en).join(', ');
+  const classesIt = spellClasses(s).map(en=>CLASSES_IT[en]||en).join(', ');
+  const alt = spellAltName(s);
   return `<div class="spell-item" id="sp-row-${s.source}-${s.id}">
     <div class="spell-lvl-badge">${s.level===0?'C':s.level}</div>
     <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${s.id}','${s.source}'${picking?`,'${pickChar.id}'`:''})">
-      <div class="spell-item-name">${escapeHtml(s.name)}</div>
-      <div class="spell-item-meta">${escapeHtml(schoolIt(s.school||''))}${classesIt?(' · '+escapeHtml(classesIt)):''}${s.source==='custom'?' · personalizzato':''}</div>
+      <div class="spell-item-name">${escapeHtml(spellName(s))}</div>
+      <div class="spell-item-meta">${alt?escapeHtml(alt)+' · ':''}${escapeHtml(schoolIt(s.school||''))}${classesIt?(' · '+escapeHtml(classesIt)):''}${s.source==='custom'?' · personalizzato':''}</div>
     </button>
     ${picking
       ? `<button class="spell-item-add ${already?'added':''}" id="sp-add-${s.source}-${s.id}" onclick="toggleSpellFromGrimoire('${s.id}','${s.source}')" aria-label="Aggiungi">${already?'✓':'✦'}</button>`
@@ -1513,11 +1589,14 @@ function viewSpellDetail(id, source, charId){
 function spellDetailHTML(sp, source, charId){
   const c = charId ? charById(charId) : null;
   const has = c && (c.knownSpells||[]).some(k=>k.id===sp.id && k.source===source);
-  const classesIt = (sp.classes||[]).map(en=>CLASSES_IT[en]||en);
+  const spClasses = spellClasses(sp);
+  const classesIt = spClasses.map(en=>CLASSES_IT[en]||en);
+  const alt = spellAltName(sp);
   const descParas = (sp.desc||'').split(/\n+/).filter(Boolean);
   const inner = `
       <div style="margin-bottom:6px">
-        <div class="spell-detail-name">${escapeHtml(sp.name)}</div>
+        <div class="spell-detail-name">${escapeHtml(spellName(sp))}</div>
+        ${alt?`<div class="muted" style="font-size:.8rem">${escapeHtml(alt)}</div>`:''}
         <div class="muted" style="font-style:italic;">${levelLabel(sp.level)} · ${escapeHtml(schoolIt(sp.school||''))}${sp.ritual?' · rituale':''}</div>
       </div>
       <div class="spell-detail-tags">
@@ -1538,8 +1617,12 @@ function spellDetailHTML(sp, source, charId){
       ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a — lingua originale inglese.</div>` : ''}
       <div class="list-gap" style="margin-top:16px;">
         ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
-        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${attr(sp.name)}')">🌀 Concentrati su questo</button>` : ''}
-        ${source==='custom' ? `<button class="btn btn-danger btn-block" onclick="confirmDeleteCustomSpell('${sp.id}')">Elimina incantesimo</button>` : ''}
+        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${attr(spellName(sp))}')">🌀 Concentrati su questo</button>` : ''}
+        <button class="btn btn-ghost btn-block" onclick="openSpellClassEditor('${sp.id}','${source}')">🏷️ Liste di classe${isSpellTagged(sp)?' (modificate)':''}</button>
+        ${source==='custom' ? `<div class="btn-row">
+          <button class="btn btn-ghost" onclick="editCustomSpell('${sp.id}')">✎ Modifica</button>
+          <button class="btn btn-danger" onclick="confirmDeleteCustomSpell('${sp.id}')">Elimina</button>
+        </div>` : ''}
       </div>`;
   return modalShell(levelLabel(sp.level), inner);
 }
@@ -1549,21 +1632,88 @@ function toggleSpellFromDetail(spellId, source, charId){
   closeModal(); render();
 }
 
-let draftSpell = null;
+let draftSpell = null, draftSpellEdit = false;
+
+function blankCustomSpell(){
+  return { id: uid(), name:'', level:0, school:'', cast:'1 azione', range:'', comp:'V, S', mat:'', dur:'Istantanea',
+           conc:false, ritual:false, classes:[], desc:'', higher:'', createdAt: Date.now() };
+}
 function openCustomSpellForm(){
-  draftSpell = { id: uid(), name:'', level:0, school:'', cast:'1 azione', range:'', comp:'V, S', mat:'', dur:'Istantanea', conc:false, ritual:false, classes:[], desc:'', higher:'', createdAt: Date.now() };
+  draftSpell = blankCustomSpell(); draftSpellEdit = false;
+  openModal({ render: () => customSpellFormHTML(), after: focusSpellName });
+}
+function editCustomSpell(id){
+  const sp = state.customSpells.find(s=>s.id===id);
+  if (!sp) return;
+  draftSpell = JSON.parse(JSON.stringify(sp)); draftSpellEdit = true;
   openModal({ render: () => customSpellFormHTML() });
 }
+// Parte da un incantesimo esistente (SRD o tuo) e ne crea una variante:
+// il modo più rapido per aggiungere quelli che non sono nell'SRD.
+function copySpellAsCustom(id, source){
+  const sp = source === 'custom'
+    ? state.customSpells.find(s=>s.id===id)
+    : (typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).find(s=>s.id===id);
+  if (!sp) return;
+  draftSpell = {
+    id: uid(), name: spellName(sp) + ' (variante)', level: sp.level||0, school: schoolIt(sp.school||''),
+    cast: sp.cast||'', range: sp.range||'', comp: sp.comp||'', mat: sp.mat||'', dur: sp.dur||'',
+    conc: !!sp.conc, ritual: !!sp.ritual, classes: (spellClasses(sp)||[]).slice(),
+    desc: sp.desc||'', higher: sp.higher||'', createdAt: Date.now()
+  };
+  draftSpellEdit = false;
+  openModal({ render: () => customSpellFormHTML(), after: focusSpellName });
+}
+function openCopyPicker(){
+  const inner = `
+    <p class="muted" style="margin-bottom:12px">Scegli un incantesimo simile: campi e formattazione vengono precompilati, poi cambi quello che serve.</p>
+    <div class="search-wrap">
+      <span class="search-ic">🔍</span>
+      <input id="copy-search" placeholder="Cerca un incantesimo da cui partire…" oninput="renderCopyResults(this.value)" autocomplete="off">
+    </div>
+    <div id="copy-results" class="list-gap">${copyResultsHTML('')}</div>`;
+  openModal({ render: () => modalShell('Crea da un esistente', inner), after: () => { const el=document.getElementById('copy-search'); if(el) el.focus(); } });
+}
+function copyResultsHTML(q){
+  q = norm(q);
+  let all = allSpells();
+  if (q) all = all.filter(s => norm(s.name).includes(q) || norm(spellItName(s)).includes(q));
+  else all = all.slice(0, 12);
+  all = all.slice(0, 40);
+  if (!all.length) return emptyState('🔍','Nessun incantesimo trovato.');
+  return all.map(s=>`<button class="spell-item" style="width:100%" onclick="copySpellAsCustom('${s.id}','${s.source}')">
+    <span class="spell-lvl-badge">${s.level===0?'C':s.level}</span>
+    <span class="spell-item-body">
+      <span class="spell-item-name">${escapeHtml(spellName(s))}</span>
+      <span class="spell-item-meta">${escapeHtml(schoolIt(s.school||''))}</span>
+    </span>
+    <span class="char-card-chevron">›</span>
+  </button>`).join('');
+}
+const renderCopyResults = debounce((q)=>{ const el = document.getElementById('copy-results'); if (el) el.innerHTML = copyResultsHTML(q); }, 150);
+function focusSpellName(){ const el = document.getElementById('cs-name'); if (el) el.focus(); }
+
 function toggleDraftSpellClass(en){
   draftSpell.classes = draftSpell.classes || [];
   const i = draftSpell.classes.indexOf(en);
   if (i>=0) draftSpell.classes.splice(i,1); else draftSpell.classes.push(en);
   renderModalRoot();
 }
+function setDraftSpellField(field, val){ draftSpell[field] = val; renderModalRoot(); }
+
+const QUICK_CAST = ['1 azione','1 azione bonus','1 reazione','1 minuto','10 minuti','1 ora'];
+const QUICK_RANGE = ['Personale','Contatto','9 metri','18 metri','36 metri','Vista'];
+const QUICK_DUR = ['Istantanea','1 round','1 minuto','10 minuti','1 ora','8 ore','Finché dissolto'];
+function quickChips(field, values, current){
+  return `<div class="chip-row" style="margin-top:6px">${values.map(v=>
+    `<button type="button" class="chip ${current===v?'active':''}" style="font-size:.68rem;padding:6px 10px" onclick="setDraftSpellField('${field}','${v}')">${v}</button>`
+  ).join('')}</div>`;
+}
 function customSpellFormHTML(){
   const d = draftSpell;
   const inner = `
-      <div class="field"><label>Nome</label><input value="${attr(d.name)}" placeholder="Es. Fiamma di Vhalgor" oninput="draftSpell.name=this.value"></div>
+      ${!draftSpellEdit ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openCopyPicker()">⧉ Parti da un incantesimo esistente</button>` : ''}
+      <div class="field"><label>Nome</label><input id="cs-name" value="${attr(d.name)}" placeholder="Es. Fiamma di Vhalgor" oninput="draftSpell.name=this.value"></div>
       <div class="form-row">
         <div class="field"><label>Livello</label>
           <select onchange="draftSpell.level=parseInt(this.value)">
@@ -1578,19 +1728,26 @@ function customSpellFormHTML(){
           </select>
         </div>
       </div>
-      <div class="form-row">
-        <div class="field"><label>Tempo di lancio</label><input value="${attr(d.cast)}" oninput="draftSpell.cast=this.value"></div>
-        <div class="field"><label>Gittata</label><input value="${attr(d.range)}" placeholder="Es. 18 metri" oninput="draftSpell.range=this.value"></div>
+      <div class="field"><label>Tempo di lancio</label>
+        <input value="${attr(d.cast)}" oninput="draftSpell.cast=this.value">
+        ${quickChips('cast', QUICK_CAST, d.cast)}
+      </div>
+      <div class="field"><label>Gittata</label>
+        <input value="${attr(d.range)}" placeholder="Es. 18 metri" oninput="draftSpell.range=this.value">
+        ${quickChips('range', QUICK_RANGE, d.range)}
+      </div>
+      <div class="field"><label>Durata</label>
+        <input value="${attr(d.dur)}" placeholder="Es. Istantanea" oninput="draftSpell.dur=this.value">
+        ${quickChips('dur', QUICK_DUR, d.dur)}
       </div>
       <div class="form-row">
         <div class="field"><label>Componenti</label><input value="${attr(d.comp)}" placeholder="Es. V, S, M" oninput="draftSpell.comp=this.value"></div>
-        <div class="field"><label>Durata</label><input value="${attr(d.dur)}" placeholder="Es. Istantanea" oninput="draftSpell.dur=this.value"></div>
+        <div class="field"><label>Materiali</label><input value="${attr(d.mat||'')}" placeholder="Facoltativo" oninput="draftSpell.mat=this.value"></div>
       </div>
-      <div class="field"><label>Materiali</label><input value="${attr(d.mat||'')}" placeholder="Facoltativo" oninput="draftSpell.mat=this.value"></div>
-      <div class="field"><label>Descrizione</label><textarea style="min-height:130px;" oninput="draftSpell.desc=this.value">${escapeHtml(d.desc)}</textarea></div>
+      <div class="field"><label>Descrizione</label><textarea style="min-height:140px;" placeholder="Effetto dell'incantesimo…" oninput="draftSpell.desc=this.value">${escapeHtml(d.desc)}</textarea></div>
       <div class="field"><label>Ai livelli superiori</label><textarea style="min-height:70px;" oninput="draftSpell.higher=this.value">${escapeHtml(d.higher||'')}</textarea></div>
       <div class="field">
-        <label>Classi</label>
+        <label>Liste di classe</label>
         <div class="chip-row">
           ${GRIMOIRE_CLASSES.map(en=>`<button class="chip ${(d.classes||[]).includes(en)?'active':''}" onclick="toggleDraftSpellClass('${en}')">${CLASSES_IT[en]}</button>`).join('')}
         </div>
@@ -1599,16 +1756,75 @@ function customSpellFormHTML(){
         <button class="chip ${d.conc?'active':''}" onclick="draftSpell.conc=!draftSpell.conc; renderModalRoot()">Concentrazione</button>
         <button class="chip ${d.ritual?'active':''}" onclick="draftSpell.ritual=!draftSpell.ritual; renderModalRoot()">Rituale</button>
       </div>
-      <button class="btn btn-primary btn-block" onclick="saveCustomSpell()">Salva incantesimo</button>`;
-  return modalShell('Incantesimo personalizzato', inner);
+      <button class="btn btn-primary btn-block" onclick="saveCustomSpell(false)">${draftSpellEdit?'Salva modifiche':'Salva incantesimo'}</button>
+      ${!draftSpellEdit ? `<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="saveCustomSpell(true)">Salva e creane un altro</button>` : ''}`;
+  return modalShell(draftSpellEdit ? 'Modifica incantesimo' : 'Incantesimo personalizzato', inner);
 }
-function saveCustomSpell(){
+function saveCustomSpell(andAnother){
   if (!draftSpell.name.trim()){ toast('Dai un nome all\'incantesimo'); return; }
-  state.customSpells.push(draftSpell);
+  const idx = state.customSpells.findIndex(s=>s.id===draftSpell.id);
+  if (idx>=0) state.customSpells[idx] = draftSpell; else state.customSpells.push(draftSpell);
   fsSet('customSpells', draftSpell);
+  const wasEdit = draftSpellEdit;
+  if (andAnother){
+    const keep = { level: draftSpell.level, school: draftSpell.school, classes: (draftSpell.classes||[]).slice(), cast: draftSpell.cast };
+    draftSpell = Object.assign(blankCustomSpell(), keep);
+    draftSpellEdit = false;
+    renderModalRoot(); focusSpellName();
+    toast('📜 Salvato — scrivi il prossimo');
+    return;
+  }
   closeModal(); render();
-  toast('📜 Incantesimo salvato');
+  toast(wasEdit ? '✓ Incantesimo aggiornato' : '📜 Incantesimo salvato');
 }
+
+/* ─── Liste di classe modificabili ───────────────────────────────
+   Serve soprattutto per l'Artificiere, che non compare in nessun
+   incantesimo dell'SRD: qui puoi marcare gli incantesimi che nella
+   tua campagna appartengono a una certa classe.
+*/
+let draftTagClasses = null, draftTagSpell = null;
+function openSpellClassEditor(spellId, source){
+  const sp = source === 'custom'
+    ? state.customSpells.find(s=>s.id===spellId)
+    : (typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).find(s=>s.id===spellId);
+  if (!sp) return;
+  draftTagSpell = { id: spellId, source, base: (sp.classes||[]).slice(), sp };
+  draftTagClasses = spellClasses(Object.assign({}, sp, {source})).slice();
+  openModal({ render: () => spellClassEditorHTML() });
+}
+function toggleTagClass(en){
+  const i = draftTagClasses.indexOf(en);
+  if (i>=0) draftTagClasses.splice(i,1); else draftTagClasses.push(en);
+  renderModalRoot();
+}
+function spellClassEditorHTML(){
+  const t = draftTagSpell;
+  const inner = `
+    <p class="muted" style="margin-bottom:14px">In quali liste di classe compare <b>${escapeHtml(spellName(t.sp))}</b>? La modifica vale solo per te ed è sincronizzata sul tuo account.</p>
+    <div class="chip-row" style="margin-bottom:16px">
+      ${GRIMOIRE_CLASSES.concat(['Barbarian','Fighter','Monk','Rogue']).map(en=>`<button class="chip ${draftTagClasses.includes(en)?'active':''}" onclick="toggleTagClass('${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
+    </div>
+    <button class="btn btn-primary btn-block" onclick="saveSpellClasses()">Salva</button>
+    ${isSpellTagged({id:t.id, source:t.source}) ? `<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="resetSpellClasses()">Ripristina l'originale</button>` : ''}`;
+  return modalShell('🏷️ Liste di classe', inner);
+}
+function saveSpellClasses(){
+  if (draftTagSpell.source === 'custom'){
+    const sp = state.customSpells.find(s=>s.id===draftTagSpell.id);
+    if (sp){ sp.classes = draftTagClasses.slice(); fsSet('customSpells', sp); }
+  } else {
+    setSpellClasses(draftTagSpell.id, draftTagClasses, draftTagSpell.base);
+  }
+  closeModal(); render();
+  toast('🏷️ Liste aggiornate');
+}
+function resetSpellClasses(){
+  setSpellClasses(draftTagSpell.id, draftTagSpell.base, draftTagSpell.base);
+  closeModal(); render();
+  toast('Ripristinato');
+}
+
 function confirmDeleteCustomSpell(id){
   confirmDialog('Eliminare questo incantesimo?', 'Verrà rimosso anche dalle schede dei personaggi che lo conoscono.', () => {
     state.customSpells = state.customSpells.filter(s=>s.id!==id);
@@ -1902,6 +2118,20 @@ function renderSettings(){
       <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Tema ${state.theme==='dark'?'Mezzanotte 🌙':'Pergamena ☀️'}</div>
     </button>
 
+    <div class="divider"><span class="flourish">❧</span><span>Incantesimi</span></div>
+    <button class="switch-row" onclick="toggleSpellLang()">
+      <div class="track"><div class="knob" style="${state.spellLang==='it'?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Nomi ${state.spellLang==='it'?'in italiano 🇮🇹':'in inglese 🇬🇧'}</div>
+    </button>
+    <div class="card" style="margin-top:10px">
+      <p class="muted" style="margin-bottom:12px">Nel compendio ci sono ${(typeof SRD_SPELLS!=='undefined'?SRD_SPELLS.length:0)} incantesimi SRD e ${state.customSpells.length} tuoi. Puoi aggiungerne quanti vuoi da un file JSON.</p>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="openSpellImport()">⤒ Importa</button>
+        <button class="btn btn-ghost" onclick="exportCustomSpells()">⤓ Esporta i tuoi</button>
+      </div>
+      ${state.customSpells.some(s=>s.imported) ? `<button class="btn btn-danger btn-block btn-sm" style="margin-top:10px" onclick="confirmClearImported()">Rimuovi gli incantesimi importati</button>` : ''}
+    </div>
+
     <div class="divider"><span class="flourish">❧</span><span>Backup</span></div>
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Salva una copia di tutto (personaggi, bestiario, incantesimi personalizzati) in un file sul dispositivo, da reimportare quando vuoi.</p>
@@ -1927,22 +2157,30 @@ function confirmSignOut(){
 }
 
 /* ─── BACKUP ─── */
+function downloadJSON(payload, basename){
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  const stamp = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  a.href = url; a.download = basename + '-' + stamp + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
 function exportData(){
   try {
-    const payload = {
+    downloadJSON({
       app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
-      characters: state.characters, npcs: state.npcs, customSpells: state.customSpells
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const d = new Date();
-    const stamp = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    a.href = url; a.download = 'grimorio-backup-' + stamp + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      characters: state.characters, npcs: state.npcs,
+      customSpells: state.customSpells, spellTags: state.spellTags
+    }, 'grimorio-backup');
     toast('⤓ Backup esportato');
   } catch(e){ console.error(e); toast('⚠️ Esportazione non riuscita'); }
+}
+function exportCustomSpells(){
+  if (!state.customSpells.length){ toast('Non hai ancora incantesimi tuoi'); return; }
+  downloadJSON({ app:'grimorio', type:'spells', version: APP_VERSION, spells: state.customSpells }, 'grimorio-incantesimi');
+  toast('⤓ Incantesimi esportati');
 }
 function triggerImport(){ const el = document.getElementById('import-file'); if (el) el.click(); }
 function handleImportFile(input){
@@ -1954,6 +2192,9 @@ function handleImportFile(input){
     let data;
     try { data = JSON.parse(reader.result); }
     catch(e){ toast('⚠️ File non valido'); return; }
+    if (data && data.type === 'spells' && Array.isArray(data.spells)){
+      openSpellImport(); analyzeSpellImport(JSON.stringify(data)); return;
+    }
     if (!data || (!Array.isArray(data.characters) && !Array.isArray(data.npcs) && !Array.isArray(data.customSpells))){
       toast('⚠️ Questo file non è un backup del Grimorio'); return;
     }
@@ -1981,7 +2222,8 @@ function doImport(data){
   };
   const a = mergeIn('characters', data.characters, migrateCharacter);
   const b = mergeIn('npcs', data.npcs);
-  const c = mergeIn('customSpells', data.customSpells);
+  const c = mergeIn('customSpells', data.customSpells || data.spells);
+  mergeIn('spellTags', data.spellTags);
   saveLocal();
   state.offlineMode = true;
   render();
@@ -2046,6 +2288,285 @@ function doRollCustom(){
   const sides = clamp(parseInt((document.getElementById('dice-sides')||{}).value)||20, 2, 1000);
   const bonus = parseInt((document.getElementById('dice-mod')||{}).value)||0;
   doRoll(count, sides, bonus);
+}
+
+/* ─── 24. IMPORTAZIONE DI MASSA DEGLI INCANTESIMI ────────────────
+   Accetta un file (o un testo incollato) in JSON e riconosce da solo
+   i formati più diffusi: quello del Grimorio, quello di Open5e
+   (v1 e v2) e quello di 5e-bits/5e-database. Gli incantesimi entrano
+   fra i tuoi "personalizzati", quindi sono sincronizzati sull'account
+   e modificabili come tutti gli altri.
+*/
+const CLASS_ALIASES = (() => {
+  const m = {};
+  Object.keys(CLASSES_IT).forEach(en => {
+    m[norm(en)] = en;
+    m[norm(CLASSES_IT[en])] = en;
+  });
+  m['artificiere'] = 'Artificer'; m['artefice'] = 'Artificer';
+  m['mago'] = 'Wizard'; m['stregone'] = 'Sorcerer'; m['guerriero'] = 'Fighter';
+  return m;
+})();
+function classFromAny(v){
+  if (!v) return null;
+  const s = typeof v === 'object' ? (v.name || v.key || v.index || '') : String(v);
+  return CLASS_ALIASES[norm(s)] || null;
+}
+function schoolFromAny(v){
+  if (!v) return '';
+  const s = typeof v === 'object' ? (v.name || v.key || v.index || '') : String(v);
+  const en = Object.keys(SCHOOLS_IT).find(k => norm(k) === norm(s));
+  if (en) return SCHOOLS_IT[en];
+  const it = Object.values(SCHOOLS_IT).find(k => norm(k) === norm(s));
+  return it || s;
+}
+function truthy(v){
+  if (typeof v === 'boolean') return v;
+  if (v == null) return false;
+  return /^(true|yes|si|sì|1|y)$/i.test(String(v).trim());
+}
+function joinText(v){
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.filter(x=>typeof x === 'string').join('\n');
+  if (typeof v === 'object') return '';
+  return String(v);
+}
+function slugify(s){
+  return norm(s).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60) || 'spell';
+}
+function mapImportedSpell(s){
+  if (!s || typeof s !== 'object') return null;
+  const name = String(s.name || s.nome || s.title || '').trim();
+  if (!name) return null;
+
+  let level = s.level != null ? s.level : (s.level_int != null ? s.level_int : s.livello);
+  if (typeof level === 'object') level = 0;
+  if (typeof level === 'string') level = /cantrip|trucchetto|0/i.test(level) && !/1|2|3|4|5|6|7|8|9/.test(level.replace(/0/g,'')) ? 0 : (parseInt(level) || 0);
+  level = clamp(level, 0, 9);
+
+  let cast = s.cast || s.casting_time || s.castingTime || s.tempo || '';
+  if (typeof cast === 'object') cast = '';
+  let range = s.range_text || s.range || s.gittata || '';
+  if (typeof range === 'number') range = range + ' ft';
+  if (typeof range === 'object') range = '';
+  let dur = s.dur || s.duration || s.durata || '';
+  if (typeof dur === 'object') dur = '';
+
+  let comp = s.comp != null ? s.comp : s.components;
+  if (Array.isArray(comp)) comp = comp.join(', ');
+  if (comp == null && (s.verbal != null || s.somatic != null || s.material != null)){
+    comp = [truthy(s.verbal) && 'V', truthy(s.somatic) && 'S', truthy(s.material) && 'M'].filter(Boolean).join(', ');
+  }
+  if (typeof comp !== 'string') comp = '';
+
+  let mat = s.mat || s.material_specified || s.materials || '';
+  if (typeof s.material === 'string' && !mat) mat = s.material;
+  if (typeof mat !== 'string') mat = '';
+
+  let classes = s.classes || s.dnd_class || s.class || s.classi || s.spell_lists || [];
+  if (typeof classes === 'string') classes = classes.split(/[,;/]+/);
+  if (!Array.isArray(classes)) classes = [];
+  classes = classes.map(classFromAny).filter(Boolean);
+  classes = classes.filter((c,i) => classes.indexOf(c) === i);
+
+  return {
+    id: 'imp-' + slugify(name),
+    name,
+    level,
+    school: schoolFromAny(s.school || s.scuola),
+    cast: String(cast).trim(),
+    range: String(range).trim(),
+    comp: comp.trim(),
+    mat: String(mat).trim(),
+    dur: String(dur).trim(),
+    conc: truthy(s.conc != null ? s.conc : s.concentration) || /concentraz|concentration/i.test(String(dur)),
+    ritual: truthy(s.ritual != null ? s.ritual : s.can_be_cast_as_ritual),
+    classes,
+    desc: joinText(s.desc || s.description || s.descrizione).trim(),
+    higher: joinText(s.higher || s.higher_level || s.at_higher_levels).trim(),
+    imported: true,
+    createdAt: Date.now()
+  };
+}
+function normalizeImportedSpells(raw){
+  let arr = null;
+  if (Array.isArray(raw)) arr = raw;
+  else if (raw && typeof raw === 'object'){
+    arr = raw.spells || raw.results || raw.customSpells || raw.data || raw.incantesimi || null;
+    if (!Array.isArray(arr)){
+      const vals = Object.values(raw).filter(v => v && typeof v === 'object' && (v.name || v.nome));
+      arr = vals.length ? vals : null;
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  const seen = {};
+  arr.forEach(item => {
+    const sp = mapImportedSpell(item);
+    if (!sp) return;
+    if (seen[sp.id]) return;
+    seen[sp.id] = 1;
+    out.push(sp);
+  });
+  return out;
+}
+
+let pendingImport = null;
+function openSpellImport(){
+  pendingImport = null;
+  openModal({ render: () => spellImportHTML() });
+}
+function spellImportHTML(){
+  if (pendingImport) return spellImportPreviewHTML();
+  const inner = `
+    <p class="muted" style="margin-bottom:14px">
+      Carica un file <b>.json</b> con una lista di incantesimi, oppure incolla il testo qui sotto.
+      Vengono riconosciuti da soli i formati del Grimorio, di Open5e e di 5e-database.
+      Gli incantesimi finiscono fra i tuoi personalizzati: restano modificabili e si sincronizzano sull'account.
+    </p>
+    <button class="btn btn-gold btn-block" onclick="document.getElementById('spell-import-file').click()">📂 Scegli un file</button>
+    <input type="file" id="spell-import-file" accept="application/json,.json,.txt" style="display:none" onchange="handleSpellImportFile(this)">
+    <div class="divider"><span class="flourish">❧</span><span>oppure incolla</span></div>
+    <div class="field">
+      <textarea id="spell-import-text" style="min-height:130px; font-family:var(--font-ui); font-size:.8rem" placeholder='[{"name":"Hex","level":1,"school":"Enchantment","cast":"1 azione bonus","range":"27 metri","comp":"V, S, M","dur":"Concentrazione, 1 ora","classes":["Warlock"],"desc":"..."}]'></textarea>
+      <div class="field-hint">Basta un elenco di oggetti con almeno <b>name</b>; tutto il resto è facoltativo.</div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="analyzeSpellImport()">Analizza</button>
+    <div class="spell-source-note">Carica solo materiale di cui hai i diritti: i tuoi appunti, il tuo homebrew o archivi con licenza aperta (SRD, OGL, Creative Commons).</div>`;
+  return modalShell('⤒ Importa incantesimi', inner);
+}
+function spellImportPreviewHTML(){
+  const p = pendingImport;
+  const inner = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="row-between" style="margin-bottom:6px"><span class="muted">Trovati nel file</span><b>${p.all.length}</b></div>
+      <div class="row-between" style="margin-bottom:6px"><span class="muted">Nuovi</span><b style="color:var(--good)">${p.fresh.length}</b></div>
+      <div class="row-between" style="margin-bottom:6px"><span class="muted">Già tuoi (verranno aggiornati)</span><b>${p.dupCustom.length}</b></div>
+      <div class="row-between"><span class="muted">Già presenti nell'SRD</span><b>${p.dupSrd.length}</b></div>
+    </div>
+    <button class="switch-row" style="margin-bottom:14px" onclick="toggleImportSkipSrd()">
+      <div class="track"><div class="knob" style="${pendingImport.skipSrd?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui); font-size:.84rem">Salta quelli già presenti nell'SRD</div>
+    </button>
+    <div class="muted" style="margin-bottom:8px">Anteprima:</div>
+    <div class="list-gap" style="margin-bottom:16px">
+      ${p.toImport.slice(0,6).map(s=>`<div class="spell-item">
+        <span class="spell-lvl-badge">${s.level===0?'C':s.level}</span>
+        <span class="spell-item-body">
+          <span class="spell-item-name">${escapeHtml(s.name)}</span>
+          <span class="spell-item-meta">${escapeHtml(s.school||'—')}${s.classes.length?' · '+escapeHtml(s.classes.map(c=>CLASSES_IT[c]||c).join(', ')):''}</span>
+        </span>
+      </div>`).join('') || emptyState('🤔','Non c\'è niente da importare con queste impostazioni.')}
+      ${p.toImport.length>6?`<div class="muted" style="text-align:center">…e altri ${p.toImport.length-6}</div>`:''}
+    </div>
+    <button class="btn btn-primary btn-block" ${p.toImport.length?'':'disabled'} onclick="confirmSpellImport()">Importa ${p.toImport.length} incantesim${p.toImport.length===1?'o':'i'}</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="pendingImport=null; renderModalRoot()">← Indietro</button>`;
+  return modalShell('⤒ Anteprima importazione', inner);
+}
+function handleSpellImportFile(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => analyzeSpellImport(reader.result);
+  reader.onerror = () => toast('⚠️ Impossibile leggere il file');
+  reader.readAsText(file);
+}
+function analyzeSpellImport(text){
+  if (text == null){
+    const el = document.getElementById('spell-import-text');
+    text = el ? el.value : '';
+  }
+  if (!String(text).trim()){ toast('Incolla il testo o scegli un file'); return; }
+  let data;
+  try { data = JSON.parse(text); }
+  catch(e){ toast('⚠️ Il testo non è JSON valido'); return; }
+  const all = normalizeImportedSpells(data);
+  if (!all.length){ toast('⚠️ Nessun incantesimo riconosciuto nel file'); return; }
+  const srdNames = new Set((typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).map(s=>norm(s.name)));
+  const customNames = new Set(state.customSpells.map(s=>norm(s.name)));
+  pendingImport = {
+    all,
+    skipSrd: true,
+    dupSrd: all.filter(s=>srdNames.has(norm(s.name))),
+    dupCustom: all.filter(s=>customNames.has(norm(s.name))),
+    fresh: all.filter(s=>!srdNames.has(norm(s.name)) && !customNames.has(norm(s.name))),
+    toImport: []
+  };
+  recomputeImport();
+  renderModalRoot();
+}
+function recomputeImport(){
+  const p = pendingImport;
+  const srdNames = new Set((typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).map(s=>norm(s.name)));
+  p.toImport = p.skipSrd ? p.all.filter(s=>!srdNames.has(norm(s.name))) : p.all.slice();
+}
+function toggleImportSkipSrd(){ pendingImport.skipSrd = !pendingImport.skipSrd; recomputeImport(); renderModalRoot(); }
+async function confirmSpellImport(){
+  const list = pendingImport.toImport;
+  if (!list.length) return;
+  // Riusa l'id di un incantesimo già presente con lo stesso nome: reimportare
+  // lo stesso file aggiorna invece di creare doppioni.
+  const byName = {};
+  state.customSpells.forEach(s => { byName[norm(s.name)] = s; });
+  const saved = [];
+  list.forEach(sp => {
+    const existing = byName[norm(sp.name)];
+    if (existing){
+      sp.id = existing.id;
+      const i = state.customSpells.findIndex(s=>s.id===existing.id);
+      state.customSpells[i] = sp;
+    } else {
+      let id = sp.id, n = 2;
+      while (state.customSpells.some(s=>s.id===id)) id = sp.id + '-' + (n++);
+      sp.id = id;
+      state.customSpells.push(sp);
+    }
+    saved.push(sp);
+  });
+  saveLocal();
+  closeModal();
+  state.offlineMode = state.offlineMode || !currentUser;
+  render();
+  toast(`⤒ ${saved.length} incantesim${saved.length===1?'o':'i'} nel Grimorio`);
+  await bulkSaveSpells(saved);
+  pendingImport = null;
+}
+async function bulkSaveSpells(list){
+  if (!currentUser || !firebaseReady){ setSaveStatus('offline'); return; }
+  setSaveStatus('saving');
+  try {
+    for (let i=0; i<list.length; i+=400){
+      const batch = db.batch();
+      list.slice(i, i+400).forEach(sp => {
+        const payload = JSON.parse(JSON.stringify(sp));
+        payload.updatedAt = Date.now();
+        batch.set(userCol('customSpells').doc(sp.id), payload, {merge:true});
+      });
+      await batch.commit();
+    }
+    setSaveStatus('saved');
+  } catch(e){
+    console.error('Errore importazione', e);
+    setSaveStatus('offline');
+    toast('⚠️ Salvati in locale: sincronizzazione non riuscita');
+  }
+}
+function confirmClearImported(){
+  const n = state.customSpells.filter(s=>s.imported).length;
+  if (!n){ toast('Nessun incantesimo importato da rimuovere'); return; }
+  confirmDialog('Rimuovere gli incantesimi importati?', `Verranno eliminati ${n} incantesimi arrivati da un file (quelli scritti a mano restano). Verranno tolti anche dalle schede.`, () => {
+    const ids = state.customSpells.filter(s=>s.imported).map(s=>s.id);
+    state.customSpells = state.customSpells.filter(s=>!s.imported);
+    ids.forEach(id => fsDelete('customSpells', id));
+    state.characters.forEach(c => {
+      const before = (c.knownSpells||[]).length;
+      c.knownSpells = (c.knownSpells||[]).filter(k => !(k.source==='custom' && ids.includes(k.id)));
+      if (c.knownSpells.length !== before) fsSet('characters', c);
+    });
+    saveLocal(); render();
+    toast('Incantesimi importati rimossi');
+  }, 'Rimuovi');
 }
 
 /* ─── 24. EFFETTI AMBIENTE ─── */
