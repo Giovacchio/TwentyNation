@@ -1,5 +1,27 @@
 # Grimorio — lista dei cambiamenti
 
+## v2.5 — 26 agosto 2026
+Revisione a tappeto: dieci difetti trovati e corretti.
+
+### 🐛 Bug veri, con errore riproducibile
+- **Apostrofi nei nomi degli incantesimi spezzavano i pulsanti.** Il nome finiva dentro il codice di un pulsante e un apostrofo lo interrompeva a metà: su "Piaga d'Insetti", "Protezione dall'Energia", "Controllare l'Acqua", "Marchio del Cacciatore" e su qualsiasi incantesimo tuo con un apostrofo, il tasto **Concentrati** non faceva assolutamente niente (errore JavaScript silenzioso). Ora il testo viene messo in sicurezza ovunque venga usato così.
+- **Una scheda senza la voce "inventario" faceva sparire tutto il party.** La normalizzazione leggeva l'elenco oggetti prima di averlo creato: l'errore veniva inghiottito e l'app si ritrovava con zero personaggi. Corretto l'ordine, e ora una scheda difettosa viene isolata invece di travolgere le altre.
+- **Valori non numerici diventavano NaN.** Con un backup scritto a mano (o venuto da altrove) con `"max": "x"`, i punti ferita mostravano NaN e non si recuperavano più. Ora caratteristiche, PF, CA, velocità e iniziativa vengono riportati a numeri sensati.
+- **Svuotare il campo dei PF per riscriverli li azzerava**, facendo comparire i tiri contro morte. Ora il campo vuoto viene semplicemente ignorato finché non scrivi un numero.
+- **Un PDF non compilabile dava un messaggio incomprensibile** ("Expected instance of e…"). Ora dice che il file non è valido o è una scansione senza campi.
+
+### ⚙️ Comportamenti sbagliati
+- A 0 punti ferita la **concentrazione** ora si interrompe, come da regolamento.
+- Gli **slot letti da una scheda PDF** restavano fissi per sempre: c'è un pulsante **↺ Auto** per tornare al calcolo da classe e livello.
+- Il filtro **"Preparati"** restava attivo passando da un personaggio all'altro.
+- Il **secondo dado vita** del multiclasse si poteva spendere all'infinito: ora è limitato al livello.
+- Il **ritratto** viene messo in sicurezza anche quando arriva da un backup esterno.
+
+### ✅ Verifiche fatte
+- 304 funzioni, nessuna mancante e nessuna duplicata fra quelle richiamate dai pulsanti.
+- Prova con dati ostili: nomi con `<script>`, virgolette e simboli, voci nulle e numeri al posto delle schede. Nessuna esecuzione di codice, nomi mostrati come testo, voci non valide scartate.
+- Giro completo dell'app su telefono e su computer: creazione, importazione PDF, tutte e cinque le schede, tiri, riposi, slot, zaino, bestiario, iniziativa, incantesimi personalizzati, liste di classe, backup, tasto indietro e ricarica. **Zero errori.**
+
 ## v2.4 — 26 agosto 2026
 Accesso Google riparato sui telefoni.
 

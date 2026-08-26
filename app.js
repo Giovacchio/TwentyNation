@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v2.4
+   GRIMORIO — app.js  ·  v2.5
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.4';
+const APP_VERSION = '2.5';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -199,6 +199,15 @@ const signStr = (n) => { n = Number(n)||0; return (n >= 0 ? '+' : '') + n; };
 const profBonus = (level) => Math.ceil(clamp(level,1,20) / 4) + 1;
 const escapeHtml = (s) => (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr = (s) => escapeHtml(s).replace(/\n/g,' ');
+/* Testo dentro un gestore inline (onclick="fn('…')"): prima gli escape
+   JavaScript, poi quelli HTML. Il browser decodifica l'HTML prima di
+   eseguire il JS, quindi senza questo un apostrofo nel nome — "Piaga
+   d'Insetti", "Soffio dell'Alba" — spezza il codice e il tasto non fa
+   niente. */
+const jsStr = (s) => escapeHtml(String(s == null ? '' : s)
+  .replace(/\\/g, '\\\\')
+  .replace(/'/g, "\\'")
+  .replace(/\r?\n/g, '\\n'));
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 function rollDie(sides){
   sides = Math.max(2, Math.floor(sides)||2);
@@ -255,7 +264,7 @@ function avatarHTML(e, size, extra){
   const s = size || 54;
   const cls = 'seal' + (extra ? ' ' + extra : '');
   if (e && e.portrait){
-    return `<span class="${cls} portrait" style="width:${s}px;height:${s}px"><img src="${e.portrait}" alt=""></span>`;
+    return `<span class="${cls} portrait" style="width:${s}px;height:${s}px"><img src="${attr(e.portrait)}" alt=""></span>`;
   }
   return `<span class="${cls}" style="width:${s}px;height:${s}px;font-size:${Math.round(s*0.44)}px">${(e && e.avatar) || '⚔️'}</span>`;
 }
@@ -364,7 +373,7 @@ function loadLocal(){
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
-    state.characters = (data.characters || []).map(migrateCharacter);
+    state.characters = (data.characters || []).map(safeMigrate).filter(Boolean);
     state.npcs = data.npcs || [];
     state.customSpells = data.customSpells || [];
     state.spellTags = data.spellTags || [];
@@ -430,7 +439,7 @@ function attachFirestore(uidUser){
       saveLocal(); setSaveStatus('saved'); renderIfSafe();
     }, err => { console.error('Errore sync ' + name, err); }));
   };
-  wire('characters', migrateCharacter);
+  wire('characters', safeMigrate);
   wire('npcs');
   wire('customSpells');
   wire('spellTags');
@@ -679,12 +688,32 @@ function newCharacter(){
     createdAt: Date.now(),
   };
 }
+// Se una scheda è malformata non deve far fallire il caricamento di tutte
+// le altre: si isola il danno e si tiene comunque il personaggio.
+function safeMigrate(c){
+  try { return migrateCharacter(c); }
+  catch(e){ console.error('Scheda non normalizzabile', c && c.id, e); return c || null; }
+}
 // Porta le schede vecchie al nuovo modello senza perdere nulla.
+// Riporta un valore a un numero sensato: i backup scritti a mano o
+// arrivati da altre fonti possono contenere testo dove serve un numero,
+// e senza questo la scheda finisce per mostrare "NaN".
+function toNum(v, def, min, max){
+  const n = typeof v === 'string' ? parseFloat(v.replace(',','.')) : Number(v);
+  if (!Number.isFinite(n)) return def;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
 function migrateCharacter(c){
   if (!c || typeof c !== 'object') return c;
   c.abilities = c.abilities || { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
-  c.hp = c.hp || { current: 10, max: 10, temp: 0 };
-  c.hp.temp = Number(c.hp.temp) || 0;
+  ['str','dex','con','int','wis','cha'].forEach(k => { c.abilities[k] = toNum(c.abilities[k], 10, 1, 30); });
+  c.hp = (c.hp && typeof c.hp === 'object') ? c.hp : { current: 10, max: 10, temp: 0 };
+  c.hp.max = toNum(c.hp.max, 10, 1, 9999);
+  c.hp.current = toNum(c.hp.current, c.hp.max, 0, c.hp.max);
+  c.hp.temp = toNum(c.hp.temp, 0, 0, 999);
+  c.ac = toNum(c.ac, 10, 0, 40);
+  c.speed = toNum(c.speed, 9, 0, 999);
+  c.initiative = toNum(c.initiative, Math.floor((c.abilities.dex - 10)/2), -20, 20);
   c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || []; c.skillExpert = c.skillExpert || [];
   c.attacks = c.attacks || []; c.resources = c.resources || [];
   c.appearance = Object.assign({ age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' }, c.appearance || {});
@@ -692,13 +721,14 @@ function migrateCharacter(c){
     .forEach(k => { if (c[k] == null) c[k] = ''; });
   if (c.portrait === undefined) c.portrait = null;
   c.hitDie2 = Number(c.hitDie2) || 0; c.hitDiceUsed2 = Number(c.hitDiceUsed2) || 0;
-  c.inventory.forEach(it => { if (it.weight == null) it.weight = ''; if (it.attuned == null) it.attuned = false; });
   if (c.inspiration == null) c.inspiration = false;
   c.exhaustion = clamp(c.exhaustion || 0, 0, 6);
   if (c.slotsOverride === undefined) c.slotsOverride = null;
   c.knownSpells = c.knownSpells || []; c.preparedSpells = c.preparedSpells || [];
   c.spellNotes = c.spellNotes || {};
-  c.inventory = c.inventory || []; c.slotsUsed = c.slotsUsed || {};
+  c.inventory = Array.isArray(c.inventory) ? c.inventory : [];
+  c.inventory.forEach(it => { if (it.weight == null) it.weight = ''; if (it.attuned == null) it.attuned = false; });
+  c.slotsUsed = c.slotsUsed || {};
   c.coins = Object.assign({ pp:0, gp:0, ep:0, sp:0, cp:0 }, c.coins || {});
   c.deathSaves = Object.assign({ win:0, fail:0 }, c.deathSaves || {});
   if (c.concentration === undefined) c.concentration = null;
@@ -761,6 +791,7 @@ function goView(v){
 }
 function openSheet(id){
   state.view = 'sheet'; state.activeCharId = id; state.sheetTab = 'overview';
+  state.knownFilter = 'all';
   pushNav(); render(); scrollTop();
 }
 function setSheetTab(tab){ state.sheetTab = tab; replaceNav(); render(); scrollTop(); }
@@ -971,7 +1002,7 @@ function characterFormHTML(isEdit){
       <div class="field">
         <label>Background</label>
         <div class="chip-row" style="margin-bottom:8px;">
-          ${BACKGROUND_PRESETS.slice(0,6).map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${b}'; renderModalRoot()">${b}</button>`).join('')}
+          ${BACKGROUND_PRESETS.slice(0,6).map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${jsStr(b)}'; renderModalRoot()">${b}</button>`).join('')}
         </div>
         <input value="${attr(d.background||'')}" placeholder="…oppure scrivi il tuo" oninput="draftChar.background=this.value">
       </div>
@@ -1007,7 +1038,7 @@ function characterFormHTML(isEdit){
         </div>
         <div class="field-hint" style="margin-bottom:8px">Senza foto viene usato il simbolo scelto qui sotto.</div>
         <div class="chip-row">
-          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g&&!d.portrait?'active':''}" style="font-size:1.1rem;padding:8px 12px;" onclick="draftChar.avatar='${g}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
+          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g&&!d.portrait?'active':''}" style="font-size:1.1rem;padding:8px 12px;" onclick="draftChar.avatar='${jsStr(g)}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
         </div>
       </div>
       <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="saveCharacterDraft(${isEdit})">${isEdit?'Salva modifiche':'Crea personaggio'}</button>
@@ -1131,11 +1162,14 @@ function bumpHP(id, delta){
     setPath(c,'hp.current', clamp(getPath(c,'hp.current',0) + delta, 0, max));
   }
   if (getPath(c,'hp.current',0) > 0) c.deathSaves = { win:0, fail:0 };
+  else if (c.concentration) c.concentration = null;  // svenire interrompe la concentrazione
   scheduleSave('characters', c);
   render();
 }
 function setHP(id, val){
   const c = charById(id); if (!c) return;
+  // campo svuotato per riscrivere: si aspetta, non si azzerano i PF
+  if (String(val).trim() === '') return;
   setPath(c,'hp.current', clamp(parseInt(val)||0, 0, getPath(c,'hp.max',9999)));
   refreshHPDisplay(c, false);
   scheduleSave('characters', c);
@@ -1649,7 +1683,7 @@ function restModalHTML(charId){
 function spendHitDice(charId, n, which){
   const c = charById(charId); if (!c) return;
   const die = which === 2 ? (c.hitDie2||8) : (c.hitDie||8);
-  const avail = which === 2 ? 99 : hitDiceLeft(c);
+  const avail = which === 2 ? clamp((c.level||1) - (c.hitDiceUsed2||0), 0, 20) : hitDiceLeft(c);
   n = clamp(n, 0, avail);
   if (!n) return;
   const conMod = mod(getPath(c,'abilities.con',10));
@@ -1865,8 +1899,11 @@ function renderSheetSpells(c){
       </div>
       <div class="slot-tracker">
         <div class="slot-tracker-head">
-          <div class="section-title" style="margin:0;">Slot incantesimo</div>
-          <button class="btn btn-sm btn-ghost" onclick="openRestModal('${c.id}')">🏕️ Riposo</button>
+          <div class="section-title" style="margin:0;">Slot incantesimo${c.slotsOverride?' ·<span class="badge" style="margin-left:6px">personalizzati</span>':''}</div>
+          <div style="display:flex; gap:6px;">
+            ${c.slotsOverride?`<button class="btn btn-sm btn-ghost" onclick="clearSlotsOverride('${c.id}')" title="Torna alla tabella automatica">↺ Auto</button>`:''}
+            <button class="btn btn-sm btn-ghost" onclick="openRestModal('${c.id}')">🏕️ Riposo</button>
+          </div>
         </div>
         ${slots.some(n=>n) ? slots.map((count,i)=>{
           if (!count) return '';
@@ -1891,6 +1928,12 @@ function renderSheetSpells(c){
   `;
 }
 function setKnownFilter(f){ state.knownFilter = f; render(); }
+function clearSlotsOverride(charId){
+  const c = charById(charId); if (!c) return;
+  c.slotsOverride = null;
+  scheduleSave('characters', c); render();
+  toast('↺ Slot ricalcolati da classe e livello');
+}
 function knownSpellRow(c, ref, sp){
   const isPrep = (c.preparedSpells||[]).includes(sp.id);
   return `<div class="spell-item">
@@ -1971,7 +2014,7 @@ function renderSheetBackground(c){
     <div class="field">
       <label>Background</label>
       <div class="chip-row" style="margin-bottom:8px;">
-        ${BACKGROUND_PRESETS.map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${b}')">${b}</button>`).join('')}
+        ${BACKGROUND_PRESETS.map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${jsStr(b)}')">${b}</button>`).join('')}
       </div>
       <input value="${attr(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
     </div>
@@ -2175,7 +2218,7 @@ function spellDetailHTML(sp, source, charId){
       ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a — lingua originale inglese.</div>` : ''}
       <div class="list-gap" style="margin-top:16px;">
         ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
-        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${attr(spellName(sp))}')">🌀 Concentrati su questo</button>` : ''}
+        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${jsStr(spellName(sp))}')">🌀 Concentrati su questo</button>` : ''}
         <button class="btn btn-ghost btn-block" onclick="openSpellClassEditor('${sp.id}','${source}')">🏷️ Liste di classe${isSpellTagged(sp)?' (modificate)':''}</button>
         ${source==='custom' ? `<div class="btn-row">
           <button class="btn btn-ghost" onclick="editCustomSpell('${sp.id}')">✎ Modifica</button>
@@ -2264,7 +2307,7 @@ const QUICK_RANGE = ['Personale','Contatto','9 metri','18 metri','36 metri','Vis
 const QUICK_DUR = ['Istantanea','1 round','1 minuto','10 minuti','1 ora','8 ore','Finché dissolto'];
 function quickChips(field, values, current){
   return `<div class="chip-row" style="margin-top:6px">${values.map(v=>
-    `<button type="button" class="chip ${current===v?'active':''}" style="font-size:.68rem;padding:6px 10px" onclick="setDraftSpellField('${field}','${v}')">${v}</button>`
+    `<button type="button" class="chip ${current===v?'active':''}" style="font-size:.68rem;padding:6px 10px" onclick="setDraftSpellField('${field}','${jsStr(v)}')">${v}</button>`
   ).join('')}</div>`;
 }
 function customSpellFormHTML(){

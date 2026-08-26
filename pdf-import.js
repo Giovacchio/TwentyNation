@@ -576,7 +576,11 @@ function handleSheetPdf(input){
     } catch(e){
       console.error(e);
       pendingSheet = null; renderModalRoot();
-      toast('⚠️ Non sono riuscito a leggere il PDF: ' + e.message);
+      // I messaggi della libreria sono incomprensibili: si traducono.
+      const tech = /instance of|Failed to parse|Invalid PDF|No PDF header|Cannot read/i.test(e.message || '');
+      toast(tech
+        ? '⚠️ Questo file non è un PDF valido, oppure è una scansione senza campi compilabili'
+        : '⚠️ Non sono riuscito a leggere il PDF: ' + e.message);
     }
   };
   reader.onerror = () => { pendingSheet = null; renderModalRoot(); toast('⚠️ Impossibile leggere il file'); };
