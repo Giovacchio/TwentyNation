@@ -242,7 +242,15 @@ async function fsDelete(collection, id){
   try { await userCol(collection).doc(id).delete(); }
   catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non riuscita'); }
 }
-const scheduleSave = debounce((collection, obj) => { fsSet(collection, obj); saveLocal(); }, 600);
+// Un timer di debounce per ogni oggetto (non uno globale condiviso): così modificare
+// due personaggi/PNG diversi entro 600ms non fa "perdere" il salvataggio del primo.
+const __saveTimers = {};
+function scheduleSave(collection, obj){
+  saveLocal();
+  const key = collection + ':' + obj.id;
+  clearTimeout(__saveTimers[key]);
+  __saveTimers[key] = setTimeout(() => { fsSet(collection, obj); }, 600);
+}
 
 /* ─── 6. AUTENTICAZIONE (Google Sign-In) ─── */
 function signIn(){
@@ -533,7 +541,7 @@ function toggleSaveProf(id, key){
 function bumpHP(id, delta){
   const c = state.characters.find(x=>x.id===id); if (!c) return;
   const max = getPath(c,'hp.max',0);
-  let cur = clamp(getPath(c,'hp.current',0) + delta, 0, Math.max(max,0) || 9999);
+  let cur = clamp(getPath(c,'hp.current',0) + delta, 0, max);
   setPath(c,'hp.current',cur);
   refreshHPDisplay(c);
   scheduleSave('characters', c); saveLocal();
@@ -872,14 +880,15 @@ function grimoireResultsHTML(){
   const f = state.grimoireFilter;
   const picking = state.grimoireMode === 'pick';
   const pickChar = picking ? state.characters.find(c=>c.id===state.grimoirePickFor) : null;
-  let all = SRD_SPELLS.map(s=>({...s, source:'srd'})).concat(state.customSpells.map(s=>({...s, source:'custom'})));
+  let all = state.customSpells.map(s=>({...s, source:'custom'})).concat(SRD_SPELLS.map(s=>({...s, source:'srd'})));
   if (f.q) { const q=f.q.toLowerCase(); all = all.filter(s=>s.name.toLowerCase().includes(q)); }
   if (f.level !== 'all') all = all.filter(s => String(s.level) === f.level);
   if (f.clas !== 'all') all = all.filter(s => (s.classes||[]).includes(f.clas));
   const countLine = `<div class="muted" style="margin:2px 0 10px;">${all.length} incantesim${all.length===1?'o':'i'}</div>`;
   if (!all.length) return countLine + emptyState('🔍','Nessun incantesimo trovato con questi filtri.');
-  const capped = all.slice(0,150);
-  const capNote = all.length>150 ? `<div class="muted" style="text-align:center;padding:14px;">Primi 150 risultati — affina la ricerca per trovarne altri.</div>` : '';
+  const CAP = 350; // sopra il massimo teorico (319 SRD + personalizzati): il tetto è solo una rete di sicurezza, non un limite attivo
+  const capped = all.slice(0,CAP);
+  const capNote = all.length>CAP ? `<div class="muted" style="text-align:center;padding:14px;">Primi ${CAP} risultati — affina la ricerca per trovarne altri.</div>` : '';
   return countLine + capped.map(s=>grimoireItemHTML(s, picking, pickChar)).join('') + capNote;
 }
 function grimoireItemHTML(s, picking, pickChar){
@@ -895,11 +904,11 @@ function grimoireItemHTML(s, picking, pickChar){
     ${picking ? `<div class="spell-item-add ${already?'added':''}">${already?'✓':'+'}</div>` : `<div class="char-card-chevron">›</div>`}
   </div>`;
 }
-function setGrimoireSearch(val){
+const setGrimoireSearch = debounce((val) => {
   state.grimoireFilter.q = val;
   const el = document.getElementById('grimoire-results');
   if (el) el.innerHTML = grimoireResultsHTML();
-}
+}, 150);
 function setGrimoireFilter(key, val){ state.grimoireFilter[key] = val; render(); }
 function cancelPickSpell(){
   const charId = state.grimoirePickFor;
@@ -952,6 +961,12 @@ function openCustomSpellForm(){
   draftSpell = { id: uid(), name:'', level:0, school:'', cast:'1 azione', range:'', comp:'V, S', mat:'', dur:'', conc:false, ritual:false, classes:[], desc:'', higher:'' };
   openModal({ render: () => customSpellFormHTML() });
 }
+function toggleDraftSpellClass(en){
+  draftSpell.classes = draftSpell.classes || [];
+  const i = draftSpell.classes.indexOf(en);
+  if (i>=0) draftSpell.classes.splice(i,1); else draftSpell.classes.push(en);
+  renderModalRoot();
+}
 function customSpellFormHTML(){
   const d = draftSpell;
   return `
@@ -983,6 +998,12 @@ function customSpellFormHTML(){
         <div class="field"><label>Durata</label><input value="${escapeHtml(d.dur)}" placeholder="Es. Istantanea" oninput="draftSpell.dur=this.value"></div>
       </div>
       <div class="field"><label>Descrizione</label><textarea style="min-height:120px;" oninput="draftSpell.desc=this.value">${escapeHtml(d.desc)}</textarea></div>
+      <div class="field">
+        <label>Classi</label>
+        <div class="chip-row">
+          ${['Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard'].map(en=>`<button class="chip ${(d.classes||[]).includes(en)?'active':''}" onclick="toggleDraftSpellClass('${en}')">${CLASSES_IT[en]}</button>`).join('')}
+        </div>
+      </div>
       <div class="chip-row" style="margin-bottom:14px;">
         <button class="chip ${d.conc?'active':''}" onclick="draftSpell.conc=!draftSpell.conc; renderModalRoot()">Concentrazione</button>
         <button class="chip ${d.ritual?'active':''}" onclick="draftSpell.ritual=!draftSpell.ritual; renderModalRoot()">Rituale</button>
@@ -1074,6 +1095,7 @@ function npcFormHTML(isEdit){
         <div class="field"><label>PF Max</label><input type="number" value="${d.hpMax??10}" oninput="draftNpc.hpMax=parseInt(this.value)||0"></div>
         <div class="field"><label>Velocità</label><input type="number" value="${d.speed??9}" oninput="draftNpc.speed=parseInt(this.value)||0"></div>
       </div>
+      ${isEdit ? `<div class="field"><label>PF Attuali</label><input type="number" value="${d.hpCurrent??d.hpMax??10}" oninput="draftNpc.hpCurrent=parseInt(this.value)||0"></div>` : ''}
       <div class="field"><label>Azioni / Note</label><textarea style="min-height:100px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
       <button class="btn btn-primary btn-block" onclick="saveNpcDraft()">${isEdit?'Salva modifiche':'Aggiungi al bestiario'}</button>
       ${isEdit?`<button class="btn btn-danger btn-block" style="margin-top:8px;" onclick="closeModal(); confirmDeleteNpc('${d.id}')">Elimina</button>`:''}
@@ -1141,13 +1163,22 @@ function initRowHTML(cb, i, isCurrent){
     </div>
   </div>`;
 }
+function uniqueCombatName(base){
+  const count = state.combat.list.filter(c => c.name === base || (c.name||'').startsWith(base + ' #')).length;
+  if (count === 0) return base;
+  if (count === 1) {
+    const first = state.combat.list.find(c => c.name === base);
+    if (first) first.name = base + ' #1';
+  }
+  return base + ' #' + (count + 1);
+}
 function addToCombat(refId, kind){
   const src = kind==='pc' ? state.characters.find(c=>c.id===refId) : state.npcs.find(n=>n.id===refId);
   if (!src) return;
   const dexMod = kind==='pc' ? mod(getPath(src,'abilities.dex',10)) : 0;
   const init = rollDie(20) + (kind==='pc' ? (src.initiative ?? dexMod) : dexMod);
   state.combat.list.push({
-    refId, kind, name: src.name, avatar: src.avatar, init,
+    refId, kind, name: uniqueCombatName(src.name), avatar: src.avatar, init,
     hp: kind==='pc' ? getPath(src,'hp.current',0) : (src.hpCurrent ?? src.hpMax ?? 0),
     hpMax: kind==='pc' ? getPath(src,'hp.max',0) : (src.hpMax ?? 0),
   });
@@ -1157,7 +1188,7 @@ function addQuickCombatant(){
   const el = document.getElementById('quick-combatant-name');
   const name = el.value.trim();
   if (!name) { toast('Dai un nome al combattente'); return; }
-  state.combat.list.push({ refId:null, kind:'quick', name, avatar:'❔', init: rollDie(20), hp:null, hpMax:null });
+  state.combat.list.push({ refId:null, kind:'quick', name: uniqueCombatName(name), avatar:'❔', init: rollDie(20), hp:null, hpMax:null });
   sortCombat(); render();
 }
 function sortCombat(){ state.combat.list.sort((a,b)=>b.init-a.init); }

@@ -120,7 +120,7 @@ h1, h2, h3, .display {
 
 /* ────────────────────────── LAYOUT ────────────────────────── */
 #app { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; min-height: 100vh; padding-bottom: calc(84px + var(--safe-bottom)); }
-.screen { padding: calc(16px + var(--safe-top)) 14px 20px; animation: fadeUp .35s ease; }
+.screen { padding: calc(16px + var(--safe-top)) 14px 20px; animation: fadeUp .22s ease; }
 .screen-tight { padding-left: 0; padding-right: 0; }
 
 #loader { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 92vh; gap: 16px; }
@@ -257,7 +257,7 @@ h1, h2, h3, .display {
 .skills-list { display: flex; flex-direction: column; }
 .skill-row, .save-row { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--card-border); }
 .skill-row:last-child, .save-row:last-child { border-bottom: none; }
-.skill-dot { width: 17px; height: 17px; border-radius: 50%; border: 2px solid var(--gold); flex-shrink: 0; background: transparent; }
+.skill-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--gold); flex-shrink: 0; background: transparent; }
 .skill-dot.on { background: var(--gold); box-shadow: inset 0 0 0 2px var(--card); }
 .skill-name { flex: 1; font-size: .86rem; font-weight: 600; }
 .skill-ability { font-size: .64rem; color: var(--ink-faint); font-weight: 800; text-transform: uppercase; width: 28px; }
@@ -289,9 +289,9 @@ h1, h2, h3, .display {
 .slot-tracker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .slot-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .slot-level-label { width: 26px; font-family: 'Cinzel', serif; font-weight: 700; font-size: .85rem; color: var(--arcane); flex-shrink: 0; }
-.slot-runes { display: flex; gap: 7px; flex-wrap: wrap; }
+.slot-runes { display: flex; gap: 8px; flex-wrap: wrap; }
 .rune {
-  width: 25px; height: 25px; border-radius: 50%; border: 2px solid var(--arcane);
+  width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--arcane);
   background: radial-gradient(circle at 35% 30%, var(--arcane-bright), var(--arcane) 75%);
   box-shadow: 0 0 8px rgba(139,120,209,.5);
   position: relative; flex-shrink: 0;
