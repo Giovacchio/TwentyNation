@@ -1,5 +1,38 @@
 # Grimorio — lista dei cambiamenti
 
+## v2.2 — 26 agosto 2026
+Importazione delle schede PDF e scheda personaggio molto più completa.
+
+### ⇪ Importa scheda PDF
+- Nuovo pulsante **⇪ Importa PDF** nella schermata Party (e in Opzioni): scegli una scheda del personaggio in PDF compilabile e il Grimorio ne ricava il personaggio completo.
+- Legge: nome, razza, classe, livello, background, allineamento, giocatore, PE; tutte e sei le caratteristiche; tiri salvezza e abilità competenti (riconosce anche la **competenza doppia**); CA, iniziativa, velocità, sensi; PF (anche scritti come `40+16`), PF temporanei, dado vita; monete; linguaggi, strumenti, armatura, talenti; attacchi con bonus e danni; risorse con usi limitati e tipo di recupero; equipaggiamento riga per riga; personalità, ideali, legami, difetti, fazione, divinità, nemici; età, altezza, peso, occhi, pelle, capelli e aspetto; note e privilegi.
+- **Incantesimi**: capisce la posizione dei riquadri nella pagina magie per dedurre il livello, riconosce i nomi scritti in italiano o in inglese (anche con varianti tipo "Ristorazione minore" → *Ristorare Inferiore*), tiene le tue annotazioni accanto all'incantesimo (📌 "2d8+5 ts sag") e trasforma in incantesimi personalizzati quelli che non sono nell'SRD.
+- Legge anche gli **slot dichiarati sulla scheda**, utili per Warlock e multiclasse.
+- Anteprima completa prima di creare il personaggio: vedi cosa è stato riconosciuto e cosa no.
+- Tutto avviene sul dispositivo: il PDF non viene caricato da nessuna parte.
+- Funziona con le schede compilabili italiane (formato "CS") e con quella ufficiale in inglese.
+
+### ⚔️ Attacchi
+- Nuovo blocco nella panoramica: nome, bonus per colpire e danni.
+- Tocchi il bonus e tiri il d20; tocchi i danni e tira l'espressione (`1d8+3`, `2d6+1d4`), con pulsante **Critico** che raddoppia i dadi.
+
+### 🔦 Risorse con usi limitati
+- Elenco di risorse (poteri, cariche, punti stregoneria) con contatore usi, tipo di recupero e ripristino automatico al riposo breve o lungo.
+
+### 📜 Nuova scheda "Note"
+- Linguaggi, strumenti, armatura indossata, sensi, talenti, privilegi di classe, note di razza e background, altre note.
+- Talenti e privilegi sono stati spostati qui dalla panoramica, che era diventata troppo lunga.
+
+### ✨ Altro
+- **Competenza doppia**: il pallino delle abilità ora cicla niente → competente → esperto, con il modificatore calcolato di conseguenza.
+- **Ispirazione** e **livello di sfinimento** direttamente in panoramica.
+- Storia: sezione aspetto (età, altezza, peso, occhi, pelle, capelli) e legami nel mondo (fazione, divinità, alleati, nemici).
+- Le note personali sugli incantesimi si vedono nell'elenco della scheda.
+- Gli slot possono seguire una tabella personalizzata invece di quella automatica.
+
+### 📄 File
+`index.html` · `app.js` · **`pdf-import.js` (nuovo)** · **`vendor/pdf-lib.min.js` (nuovo)** · `sw.js` — `spells-data.js` e `spells-it.js` invariati.
+
 ## v2.1 — 26 agosto 2026
 Ampliamento dell'archivio incantesimi.
 

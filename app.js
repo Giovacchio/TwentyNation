@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.1';
+const APP_VERSION = '2.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -440,17 +440,25 @@ function newCharacter(){
   return {
     id: uid(),
     name: '', race: '', classField: '', level: 1, background: '', alignment: '',
+    playerName: '', xp: '',
     avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)],
     abilities: { str:10, dex:10, con:10, int:10, wis:10, cha:10 },
-    skillProf: [], saveProf: [],
+    skillProf: [], skillExpert: [], saveProf: [],
     hp: { current: 10, max: 10, temp: 0 },
     ac: 10, initiative: 0, speed: 9,
     hitDie: 8, hitDiceUsed: 0,
     deathSaves: { win: 0, fail: 0 },
     casterType: 'none', spellAbility: 'int',
-    slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null,
+    slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null, spellNotes: {},
     inventory: [], coins: { pp:0, gp:0, ep:0, sp:0, cp:0 },
+    attacks: [], resources: [],
+    armor: '', senses: '', languages: '', tools: '', feats: '',
+    inspiration: false, exhaustion: 0,
+    appearance: { age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' },
+    faction: '', symbol: '', allies: '', enemies: '',
     traits: '', ideals: '', bonds: '', flaws: '', backstory: '', features: '',
+    notesRace: '', notesExtra: '',
+    slotsOverride: null,
     createdAt: Date.now(),
   };
 }
@@ -460,8 +468,16 @@ function migrateCharacter(c){
   c.abilities = c.abilities || { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
   c.hp = c.hp || { current: 10, max: 10, temp: 0 };
   c.hp.temp = Number(c.hp.temp) || 0;
-  c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || [];
+  c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || []; c.skillExpert = c.skillExpert || [];
+  c.attacks = c.attacks || []; c.resources = c.resources || [];
+  c.appearance = Object.assign({ age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' }, c.appearance || {});
+  ['playerName','xp','armor','senses','languages','tools','feats','faction','symbol','allies','enemies','notesRace','notesExtra']
+    .forEach(k => { if (c[k] == null) c[k] = ''; });
+  if (c.inspiration == null) c.inspiration = false;
+  c.exhaustion = clamp(c.exhaustion || 0, 0, 6);
+  if (c.slotsOverride === undefined) c.slotsOverride = null;
   c.knownSpells = c.knownSpells || []; c.preparedSpells = c.preparedSpells || [];
+  c.spellNotes = c.spellNotes || {};
   c.inventory = c.inventory || []; c.slotsUsed = c.slotsUsed || {};
   c.coins = Object.assign({ pp:0, gp:0, ep:0, sp:0, cp:0 }, c.coins || {});
   c.deathSaves = Object.assign({ win:0, fail:0 }, c.deathSaves || {});
@@ -476,7 +492,16 @@ function migrateCharacter(c){
 }
 
 /* ─── 8. CALCOLI DERIVATI ─── */
-function skillMod(c, s){ return mod(getPath(c,'abilities.'+s.ability,10)) + ((c.skillProf||[]).includes(s.key) ? profBonus(c.level) : 0); }
+function skillMod(c, s){
+  const base = mod(getPath(c,'abilities.'+s.ability,10));
+  const p = profBonus(c.level);
+  if ((c.skillExpert||[]).includes(s.key)) return base + p*2;
+  return base + ((c.skillProf||[]).includes(s.key) ? p : 0);
+}
+function skillLevel(c, key){
+  if ((c.skillExpert||[]).includes(key)) return 2;
+  return (c.skillProf||[]).includes(key) ? 1 : 0;
+}
 function saveMod(c, abilityKey){ return mod(getPath(c,'abilities.'+abilityKey,10)) + ((c.saveProf||[]).includes(abilityKey) ? profBonus(c.level) : 0); }
 function hpPctFor(c){ const max = getPath(c,'hp.max',1)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }
 function spellcastingMod(c){ return mod(getPath(c,'abilities.'+(c.spellAbility||'int'),10)) + profBonus(c.level); }
@@ -669,7 +694,10 @@ function renderParty(){
     ${chars.length
       ? `<div class="stagger list-gap party-grid">${chars.map(charCardHTML).join('')}</div>`
       : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
-    <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="openCharacterForm()">✦ Nuovo personaggio</button>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="openCharacterForm()">✦ Nuovo</button>
+      <button class="btn btn-ghost" onclick="openPdfImport()">⇪ Importa PDF</button>
+    </div>
   `;
 }
 function charCardHTML(c){
@@ -830,12 +858,21 @@ function refreshDerived(c, key){
     set('passive-perc', passivePerception(c));
   }
 }
+// niente → competente → esperto (doppia competenza) → niente
 function toggleSkillProf(id, key, btn){
   const c = charById(id); if (!c) return;
-  c.skillProf = c.skillProf||[];
-  const i = c.skillProf.indexOf(key);
-  if (i>=0) c.skillProf.splice(i,1); else c.skillProf.push(key);
-  if (btn) btn.classList.toggle('on', c.skillProf.includes(key));
+  c.skillProf = c.skillProf||[]; c.skillExpert = c.skillExpert||[];
+  const lvl = skillLevel(c, key);
+  const drop = (arr) => { const i = arr.indexOf(key); if (i>=0) arr.splice(i,1); };
+  drop(c.skillProf); drop(c.skillExpert);
+  if (lvl === 0) c.skillProf.push(key);
+  else if (lvl === 1) c.skillExpert.push(key);
+  if (btn){
+    const nl = skillLevel(c, key);
+    btn.classList.toggle('on', nl > 0);
+    btn.classList.toggle('expert', nl === 2);
+    btn.title = nl === 2 ? 'Esperto (competenza doppia)' : (nl === 1 ? 'Competente' : 'Non competente');
+  }
   const s = SKILLS.find(x=>x.key===key);
   const el = document.getElementById('skmod-'+key); if (el) el.textContent = signStr(skillMod(c,s));
   const pp = document.getElementById('passive-perc'); if (pp) pp.textContent = passivePerception(c);
@@ -909,6 +946,7 @@ function renderCharacterSheet(){
   if (state.sheetTab === 'inventory') tab = renderSheetInventory(c);
   else if (state.sheetTab === 'spells') tab = renderSheetSpells(c);
   else if (state.sheetTab === 'background') tab = renderSheetBackground(c);
+  else if (state.sheetTab === 'notes') tab = renderSheetNotes(c);
   else tab = renderSheetOverview(c);
 
   return `
@@ -928,6 +966,7 @@ function renderCharacterSheet(){
       <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
       <button class="${state.sheetTab==='spells'?'active':''}" onclick="setSheetTab('spells')">Magie</button>
       <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Storia</button>
+      <button class="${state.sheetTab==='notes'?'active':''}" onclick="setSheetTab('notes')">Note</button>
     </div>
     ${tab}
   `;
@@ -998,6 +1037,23 @@ function renderSheetOverview(c){
           <button class="btn btn-ghost btn-sm" onclick="openRestModal('${c.id}','long')">🌙 Riposo lungo</button>
         </div>
       </div>
+
+      <div class="status-row">
+        <button class="status-chip ${c.inspiration?'on':''}" onclick="toggleInspiration('${c.id}')" title="Ispirazione">✨ Ispirazione</button>
+        <button class="status-chip ${c.exhaustion?'warn':''}" onclick="bumpExhaustion('${c.id}')" title="Tocca per aumentare, tieni a 0 per azzerare">💀 Sfinimento ${c.exhaustion||0}</button>
+      </div>
+      ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
+
+      <div class="divider"><span class="flourish">❧</span><span>Attacchi</span></div>
+      <div class="list-gap">
+        ${(c.attacks||[]).length ? c.attacks.map((atk,i)=>attackRowHTML(c,atk,i)).join('') : `<div class="muted" style="text-align:center;padding:10px">Nessun attacco. Aggiungi armi o trucchetti offensivi per tirarli con un tocco.</div>`}
+        <button class="btn btn-ghost btn-block btn-sm" onclick="editAttack('${c.id}',-1)">✦ Aggiungi attacco</button>
+      </div>
+
+      ${(c.resources||[]).length ? `
+      <div class="divider"><span class="flourish">❧</span><span>Risorse</span></div>
+      <div class="list-gap">${c.resources.map((r,i)=>resourceRowHTML(c,r,i)).join('')}</div>` : ''}
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="editResource('${c.id}',-1)">✦ Aggiungi risorsa</button>
     </div>
 
     <div>
@@ -1015,7 +1071,7 @@ function renderSheetOverview(c){
       <div class="divider"><span class="flourish">❧</span><span>Abilità</span></div>
       <div class="card"><div class="skills-list">
         ${SKILLS.map(s=>`<div class="skill-row">
-          <button class="skill-dot ${(c.skillProf||[]).includes(s.key)?'on':''}" onclick="toggleSkillProf('${c.id}','${s.key}', this)" aria-label="Competenza ${s.label}"></button>
+          <button class="skill-dot ${skillLevel(c,s.key)?'on':''} ${skillLevel(c,s.key)===2?'expert':''}" onclick="toggleSkillProf('${c.id}','${s.key}', this)" title="${skillLevel(c,s.key)===2?'Esperto (competenza doppia)':(skillLevel(c,s.key)===1?'Competente':'Non competente')}" aria-label="Competenza ${s.label}"></button>
           <button class="skill-tap" onclick="rollSkill('${c.id}','${s.key}')">
             <span class="skill-name">${s.label}</span>
             <span class="skill-ability">${ABILITY_BY_KEY[s.ability].abbr}</span>
@@ -1025,10 +1081,206 @@ function renderSheetOverview(c){
       </div></div>
       <div class="roll-hint">Tocca il nome di un'abilità o il sigillo di una caratteristica per tirare il d20.</div>
 
-      <div class="divider"><span class="flourish">❧</span><span>Talenti & Privilegi</span></div>
-      <div class="field"><textarea style="min-height:120px" placeholder="Talenti, privilegi di classe, tratti razziali, linguaggi…" oninput="updateCharField('${c.id}','features',this.value)">${escapeHtml(c.features||'')}</textarea></div>
+      <div class="roll-hint" style="margin-top:14px">Talenti, linguaggi e privilegi sono nella scheda <b>Note</b>.</div>
     </div>
   </div>`;
+}
+
+/* ─── Attacchi ─── */
+function attackRowHTML(c, atk, i){
+  return `<div class="attack-row">
+    <button class="attack-main" onclick="editAttack('${c.id}',${i})">
+      <div class="attack-name">${escapeHtml(atk.name||'Attacco')}</div>
+      ${atk.notes?`<div class="muted" style="font-size:.7rem">${escapeHtml(atk.notes)}</div>`:''}
+    </button>
+    ${atk.atk!=='' && atk.atk!=null ? `<button class="attack-btn" onclick="rollAttack('${c.id}',${i})" title="Tira per colpire">${escapeHtml(signStr(parseInt(atk.atk)||0))}</button>` : ''}
+    ${atk.dmg ? `<button class="attack-btn dmg" onclick="rollDamage('${c.id}',${i})" title="Tira i danni">${escapeHtml(atk.dmg)}</button>` : ''}
+  </div>`;
+}
+function editAttack(charId, i){
+  const c = charById(charId); if (!c) return;
+  const atk = i>=0 ? c.attacks[i] : { name:'', atk:'', dmg:'', notes:'' };
+  if (!atk) return;
+  const inner = `
+    <div class="field"><label>Nome</label><input id="atk-name" value="${attr(atk.name)}" placeholder="Es. Pugnale rituale"></div>
+    <div class="form-row">
+      <div class="field"><label>Bonus per colpire</label><input id="atk-bonus" inputmode="numeric" value="${attr(atk.atk)}" placeholder="+5"></div>
+      <div class="field"><label>Danni</label><input id="atk-dmg" value="${attr(atk.dmg)}" placeholder="1d4+2"></div>
+    </div>
+    <div class="field"><label>Note</label><input id="atk-notes" value="${attr(atk.notes||'')}" placeholder="Tipo di danno, gittata, proprietà…"></div>
+    <button class="btn btn-primary btn-block" onclick="saveAttack('${charId}',${i})">${i>=0?'Salva':'Aggiungi'}</button>
+    ${i>=0?`<button class="btn btn-danger btn-block" style="margin-top:10px" onclick="removeAttack('${charId}',${i})">Elimina</button>`:''}`;
+  openModal({ render: () => modalShell(i>=0?'Modifica attacco':'Nuovo attacco', inner), after: () => { const el=document.getElementById('atk-name'); if(el&&i<0) el.focus(); } });
+}
+function saveAttack(charId, i){
+  const c = charById(charId); if (!c) return;
+  const name = (document.getElementById('atk-name').value||'').trim();
+  if (!name){ toast('Dai un nome all\'attacco'); return; }
+  const obj = {
+    name,
+    atk: (document.getElementById('atk-bonus').value||'').trim(),
+    dmg: (document.getElementById('atk-dmg').value||'').trim(),
+    notes: (document.getElementById('atk-notes').value||'').trim()
+  };
+  c.attacks = c.attacks || [];
+  if (i>=0) c.attacks[i] = obj; else c.attacks.push(obj);
+  scheduleSave('characters', c);
+  closeModal(); render();
+}
+function removeAttack(charId, i){
+  const c = charById(charId); if (!c) return;
+  c.attacks.splice(i,1);
+  scheduleSave('characters', c);
+  closeModal(); render();
+}
+function rollAttack(charId, i){
+  const c = charById(charId); if (!c) return;
+  const atk = c.attacks[i]; if (!atk) return;
+  performD20('Attacco: ' + atk.name, parseInt(atk.atk)||0, 'normal', {t:'attack', c:charId, k:i});
+}
+function rollDamage(charId, i, crit){
+  const c = charById(charId); if (!c) return;
+  const atk = c.attacks[i]; if (!atk) return;
+  const res = rollDiceExpression(atk.dmg, crit);
+  if (!res.parts.length){ toast('Danni non riconosciuti: usa un formato come 1d8+3'); return; }
+  state.diceHistory.unshift({ label: (crit?'Critico: ':'Danni: ') + atk.name, total: res.total, detail: res.parts.join(' ') });
+  state.diceHistory = state.diceHistory.slice(0,30);
+  saveSession();
+  openModal({ render: () => `
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="text-align:center;">
+        <div class="roll-card">
+          <div class="roll-label">${crit?'Critico · ':''}Danni · ${escapeHtml(atk.name)}</div>
+          <div class="roll-total" style="margin:14px 0 6px">${res.total}</div>
+          <div class="roll-detail">${escapeHtml(res.parts.join('  '))}</div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-ghost btn-sm" onclick="rollDamage('${charId}',${i},true)">✦ Critico</button>
+          <button class="btn btn-ghost btn-sm" onclick="rollDamage('${charId}',${i})">↻ Ritira</button>
+        </div>
+        <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal()">Chiudi</button>
+      </div>
+    </div>` });
+}
+// Legge espressioni tipo "1d8+3", "2d6 + 1d4 - 1"; con crit raddoppia i dadi.
+function rollDiceExpression(expr, crit){
+  const src = String(expr||'').toLowerCase();
+  const m = src.match(/[+-]?\s*(?:\d*d\d+|\d+)(?:\s*[+-]\s*(?:\d*d\d+|\d+))*/);
+  const parts = []; let total = 0;
+  if (!m) return { total, parts };
+  const re = /([+-]?)\s*(\d*)d(\d+)|([+-]?)\s*(\d+)/g;
+  let t;
+  while ((t = re.exec(m[0].replace(/\s+/g,'')))){
+    if (t[3]){
+      const sign = t[1]==='-' ? -1 : 1;
+      let n = clamp(parseInt(t[2]||'1'),1,100);
+      if (crit) n *= 2;
+      const sides = clamp(parseInt(t[3]),2,1000);
+      const rolls = Array.from({length:n}, ()=>rollDie(sides));
+      total += sign * rolls.reduce((x,y)=>x+y,0);
+      parts.push(`${n}d${sides} [${rolls.join(', ')}]`);
+    } else if (t[5] != null){
+      const sign = t[4]==='-' ? -1 : 1;
+      total += sign * parseInt(t[5]);
+      parts.push((sign<0?'−':'+') + t[5]);
+    }
+  }
+  return { total, parts };
+}
+
+/* ─── Risorse (usi limitati) ─── */
+const RECOVERY_LABEL = { sr: 'riposo breve', lr: 'riposo lungo', dn: 'alba' };
+function resourceRowHTML(c, r, i){
+  const total = Number(r.total)||0, left = clamp(r.left==null?total:r.left, 0, Math.max(total,99));
+  return `<div class="attack-row">
+    <button class="attack-main" onclick="editResource('${c.id}',${i})">
+      <div class="attack-name">${escapeHtml(r.name||'Risorsa')}</div>
+      <div class="muted" style="font-size:.7rem">Recupero: ${RECOVERY_LABEL[r.recovery]||'—'}</div>
+    </button>
+    <button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem" onclick="bumpResource('${c.id}',${i},-1)">−</button>
+    <span class="inv-qty">${left}/${total||'—'}</span>
+    <button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem" onclick="bumpResource('${c.id}',${i},1)">+</button>
+  </div>`;
+}
+function bumpResource(charId, i, d){
+  const c = charById(charId); if (!c) return;
+  const r = c.resources[i]; if (!r) return;
+  const total = Number(r.total)||0;
+  r.left = clamp((r.left==null?total:r.left) + d, 0, total||99);
+  scheduleSave('characters', c); render();
+}
+function editResource(charId, i){
+  const c = charById(charId); if (!c) return;
+  const r = i>=0 ? c.resources[i] : { name:'', total:1, left:1, recovery:'lr' };
+  if (!r) return;
+  const inner = `
+    <div class="field"><label>Nome</label><input id="res-name" value="${attr(r.name)}" placeholder="Es. Luce di cura"></div>
+    <div class="form-row">
+      <div class="field"><label>Usi totali</label><input id="res-total" type="number" inputmode="numeric" min="0" max="99" value="${Number(r.total)||0}"></div>
+      <div class="field"><label>Recupero</label>
+        <select id="res-rec">
+          <option value="lr" ${r.recovery==='lr'?'selected':''}>Riposo lungo</option>
+          <option value="sr" ${r.recovery==='sr'?'selected':''}>Riposo breve</option>
+          <option value="dn" ${r.recovery==='dn'?'selected':''}>All'alba</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="saveResource('${charId}',${i})">${i>=0?'Salva':'Aggiungi'}</button>
+    ${i>=0?`<button class="btn btn-danger btn-block" style="margin-top:10px" onclick="removeResource('${charId}',${i})">Elimina</button>`:''}`;
+  openModal({ render: () => modalShell(i>=0?'Modifica risorsa':'Nuova risorsa', inner) });
+}
+function saveResource(charId, i){
+  const c = charById(charId); if (!c) return;
+  const name = (document.getElementById('res-name').value||'').trim();
+  if (!name){ toast('Dai un nome alla risorsa'); return; }
+  const total = clamp(parseInt(document.getElementById('res-total').value)||0, 0, 99);
+  const recovery = document.getElementById('res-rec').value;
+  const obj = { name, total, left: i>=0 ? clamp(c.resources[i].left==null?total:c.resources[i].left,0,total) : total, recovery };
+  c.resources = c.resources || [];
+  if (i>=0) c.resources[i] = obj; else c.resources.push(obj);
+  scheduleSave('characters', c);
+  closeModal(); render();
+}
+function removeResource(charId, i){
+  const c = charById(charId); if (!c) return;
+  c.resources.splice(i,1);
+  scheduleSave('characters', c);
+  closeModal(); render();
+}
+function toggleInspiration(charId){
+  const c = charById(charId); if (!c) return;
+  c.inspiration = !c.inspiration;
+  scheduleSave('characters', c); render();
+}
+function bumpExhaustion(charId){
+  const c = charById(charId); if (!c) return;
+  c.exhaustion = ((c.exhaustion||0) + 1) % 7;
+  scheduleSave('characters', c); render();
+}
+
+/* ─── Scheda Note ─── */
+function renderSheetNotes(c){
+  const f = (label, key, ph, big) => `<div class="field"><label>${label}</label>${big
+    ? `<textarea style="min-height:${big}px" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">${escapeHtml(c[key]||'')}</textarea>`
+    : `<input value="${attr(c[key]||'')}" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">`}</div>`;
+  return `
+    <div class="desk-2">
+      <div>
+        <div class="card-title">Competenze</div>
+        ${f('Linguaggi','languages','Es. Comune, Elfico')}
+        ${f('Strumenti e competenze','tools','Es. Kit da erborista, armi semplici')}
+        ${f('Armatura indossata','armor','Es. Vesti rinforzate')}
+        ${f('Sensi','senses','Es. Scurovisione 18 m')}
+        <div class="divider"><span class="flourish">❧</span><span>Talenti</span></div>
+        ${f('Talenti','feats','Es. Resiliente (Costituzione)','90')}
+      </div>
+      <div>
+        <div class="divider"><span class="flourish">❧</span><span>Privilegi</span></div>
+        ${f('Privilegi di classe e capacità','features','Privilegi, invocazioni, canalizzare divinità…','220')}
+        ${f('Razza e background','notesRace','Bonus di razza e background','110')}
+        ${f('Altre note','notesExtra','Famigli, compagni, promemoria…','160')}
+      </div>
+    </div>`;
 }
 
 /* ─── 15. TIRI RAPIDI ─── */
@@ -1088,6 +1340,7 @@ function repeatRoll(mode){
   else if (rp.t === 'save') m = saveMod(c, rp.k);
   else if (rp.t === 'init') m = c.initiative ?? mod(getPath(c,'abilities.dex',10));
   else if (rp.t === 'spellatk') m = spellcastingMod(c);
+  else if (rp.t === 'attack'){ const at = (c.attacks||[])[rp.k]; m = at ? (parseInt(at.atk)||0) : 0; }
   else if (rp.t === 'death'){ rollDeathSave(rp.c); return; }
   else m = r.modifier || 0;
   performD20(label, m, mode, rp);
@@ -1161,6 +1414,7 @@ function spendHitDice(charId, n){
   let healed = 0;
   for (let i=0;i<n;i++){ const r = rollDie(c.hitDie||8); rolls.push(r); healed += Math.max(0, r + conMod); }
   c.hitDiceUsed = (c.hitDiceUsed||0) + n;
+  (c.resources||[]).forEach(r => { if (r.recovery === 'sr') r.left = Number(r.total)||0; });
   const max = getPath(c,'hp.max',0);
   const before = getPath(c,'hp.current',0);
   setPath(c,'hp.current', clamp(before + healed, 0, max));
@@ -1186,6 +1440,7 @@ function longRest(charId){
   c.deathSaves = { win:0, fail:0 };
   c.concentration = null;
   c.hitDiceUsed = clamp((c.hitDiceUsed||0) - Math.max(1, Math.floor((c.level||1)/2)), 0, 20);
+  (c.resources||[]).forEach(r => { r.left = Number(r.total)||0; });
   scheduleSave('characters', c);
   closeModal(); render();
   toast('🌙 Riposo lungo: PF e slot ripristinati');
@@ -1294,8 +1549,16 @@ function spellByRef(ref){
   if (ref.source === 'custom') return state.customSpells.find(s=>s.id===ref.id);
   return (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).find(s=>s.id===ref.id);
 }
+function slotsFor(c){
+  if (c.slotsOverride){
+    const arr = [];
+    for (let i=1;i<=9;i++) arr[i-1] = clamp(c.slotsOverride[i]||0, 0, 9);
+    if (arr.some(n=>n)) return arr;
+  }
+  return slotsForCharacter(c.casterType, c.level);
+}
 function renderSheetSpells(c){
-  const slots = slotsForCharacter(c.casterType, c.level);
+  const slots = slotsFor(c);
   const used = c.slotsUsed || {};
   const isCaster = c.casterType && c.casterType !== 'none';
   let known = (c.knownSpells||[]).map(k => ({ ref:k, sp: spellByRef(k) })).filter(x => x.sp);
@@ -1365,7 +1628,10 @@ function knownSpellRow(c, ref, sp){
     <div class="spell-lvl-badge">${sp.level===0?'C':sp.level}</div>
     <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${sp.id}','${ref.source}','${c.id}')">
       <div class="spell-item-name">${escapeHtml(spellName(sp))}</div>
-      <div class="spell-item-meta">${spellAltName(sp)?escapeHtml(spellAltName(sp))+' · ':''}${escapeHtml(schoolIt(sp.school||''))}${sp.conc?' · concentrazione':''}${ref.source==='custom'?' · personalizzato':''}</div>
+      <div class="spell-item-meta">${(c.spellNotes||{})[sp.id]
+        ? '📌 ' + escapeHtml(c.spellNotes[sp.id])
+        : [spellAltName(sp), schoolIt(sp.school||''), sp.conc?'concentrazione':'', ref.source==='custom'?'personalizzato':'']
+            .filter(Boolean).map(escapeHtml).join(' · ')}</div>
     </button>
     ${sp.level>0?`<button class="prep-star ${isPrep?'on':''}" onclick="togglePrepared('${c.id}','${sp.id}', this)" title="Preparato" aria-label="Preparato">★</button>`:''}
     <button class="spell-item-add" style="color:var(--garnet-bright)" onclick="removeKnownSpell('${c.id}','${sp.id}','${ref.source}')" aria-label="Rimuovi">✕</button>
@@ -1447,6 +1713,29 @@ function renderSheetBackground(c){
       <div class="field"><label>Ideali</label><textarea placeholder="In cosa crede?" oninput="updateCharField('${c.id}','ideals',this.value)">${escapeHtml(c.ideals||'')}</textarea></div>
       <div class="field"><label>Legami</label><textarea placeholder="A chi o cosa tiene?" oninput="updateCharField('${c.id}','bonds',this.value)">${escapeHtml(c.bonds||'')}</textarea></div>
       <div class="field"><label>Difetti</label><textarea placeholder="Qual è la sua debolezza?" oninput="updateCharField('${c.id}','flaws',this.value)">${escapeHtml(c.flaws||'')}</textarea></div>
+    </div>
+
+    <div class="divider"><span class="flourish">❧</span><span>Aspetto</span></div>
+    <div class="form-row-3">
+      <div class="field"><label>Età</label><input value="${attr(getPath(c,'appearance.age',''))}" oninput="updateCharField('${c.id}','appearance.age',this.value)"></div>
+      <div class="field"><label>Altezza</label><input value="${attr(getPath(c,'appearance.height',''))}" oninput="updateCharField('${c.id}','appearance.height',this.value)"></div>
+      <div class="field"><label>Peso</label><input value="${attr(getPath(c,'appearance.weight',''))}" oninput="updateCharField('${c.id}','appearance.weight',this.value)"></div>
+    </div>
+    <div class="form-row-3">
+      <div class="field"><label>Occhi</label><input value="${attr(getPath(c,'appearance.eyes',''))}" oninput="updateCharField('${c.id}','appearance.eyes',this.value)"></div>
+      <div class="field"><label>Pelle</label><input value="${attr(getPath(c,'appearance.skin',''))}" oninput="updateCharField('${c.id}','appearance.skin',this.value)"></div>
+      <div class="field"><label>Capelli</label><input value="${attr(getPath(c,'appearance.hair',''))}" oninput="updateCharField('${c.id}','appearance.hair',this.value)"></div>
+    </div>
+    <div class="field"><label>Descrizione</label><textarea placeholder="Com'è fatto? Come si veste?" oninput="updateCharField('${c.id}','appearance.text',this.value)">${escapeHtml(getPath(c,'appearance.text',''))}</textarea></div>
+
+    <div class="divider"><span class="flourish">❧</span><span>Legami nel mondo</span></div>
+    <div class="form-row">
+      <div class="field"><label>Fazione</label><input value="${attr(c.faction||'')}" placeholder="Es. Custodi dell'Alba" oninput="updateCharField('${c.id}','faction',this.value)"></div>
+      <div class="field"><label>Divinità / Simbolo</label><input value="${attr(c.symbol||'')}" placeholder="Es. Lathander" oninput="updateCharField('${c.id}','symbol',this.value)"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Alleati</label><input value="${attr(c.allies||'')}" oninput="updateCharField('${c.id}','allies',this.value)"></div>
+      <div class="field"><label>Nemici</label><input value="${attr(c.enemies||'')}" oninput="updateCharField('${c.id}','enemies',this.value)"></div>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Storia</span></div>
@@ -2139,6 +2428,7 @@ function renderSettings(){
         <button class="btn btn-gold" onclick="exportData()">⤓ Esporta</button>
         <button class="btn btn-ghost" onclick="triggerImport()">⤒ Importa</button>
       </div>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="openPdfImport()">⇪ Importa una scheda PDF compilabile</button>
       <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="handleImportFile(this)">
     </div>
 
