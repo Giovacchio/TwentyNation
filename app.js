@@ -67,11 +67,28 @@ const SKILLS = [
 ];
 
 const CLASSES_IT = {
-  "Barbarian": "Barbaro", "Bard": "Bardo", "Cleric": "Chierico", "Druid": "Druido",
+  "Artificer": "Artificiere", "Barbarian": "Barbaro", "Bard": "Bardo", "Cleric": "Chierico", "Druid": "Druido",
   "Fighter": "Guerriero", "Monk": "Monaco", "Paladin": "Paladino", "Ranger": "Ranger",
   "Rogue": "Ladro", "Sorcerer": "Stregone", "Warlock": "Warlock", "Wizard": "Mago"
 };
 const CLASS_LIST_IT = Object.values(CLASSES_IT).sort((a,b)=>a.localeCompare(b,'it'));
+const GRIMOIRE_CLASSES = ['Artificer','Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard'];
+const CLASS_TO_CASTER = {
+  "Barbaro": "none", "Bardo": "full", "Chierico": "full", "Druido": "full",
+  "Guerriero": "none", "Monaco": "third", "Paladino": "half", "Ranger": "half",
+  "Ladro": "none", "Stregone": "full", "Warlock": "pact", "Mago": "full", "Artificiere": "full"
+};
+const CLASS_TO_SPELL_ABILITY = {
+  "Bardo": "cha", "Chierico": "wis", "Druido": "wis", "Monaco": "wis",
+  "Paladino": "cha", "Ranger": "wis", "Stregone": "cha", "Warlock": "cha",
+  "Mago": "int", "Artificiere": "int"
+};
+function applyClassDefaults(d){
+  if (!d || !d.classField) return;
+  if (CLASS_TO_CASTER[d.classField] !== undefined) d.casterType = CLASS_TO_CASTER[d.classField];
+  if (CLASS_TO_SPELL_ABILITY[d.classField]) d.spellAbility = CLASS_TO_SPELL_ABILITY[d.classField];
+}
+function schoolIt(en){ return SCHOOLS_IT[en] || en; }
 
 const SCHOOLS_IT = {
   "Abjuration": "Abiurazione", "Conjuration": "Convocazione", "Divination": "Divinazione",
@@ -160,6 +177,7 @@ const state = {
   modal: null,                // descrittore della sheet-modal attiva
   booted: false,
   authReady: false,
+  offlineMode: false,
 };
 
 document.documentElement.setAttribute('data-theme', state.theme);
@@ -170,6 +188,61 @@ document.documentElement.setAttribute('data-theme', state.theme);
    tra i dispositivi collegati allo stesso account.
 */
 const LS_KEY = 'grimorio-data-v1';
+const SS_COMBAT = 'grimorio-combat-v1';
+const SS_DICE = 'grimorio-dice-v1';
+const __saveTimers = {};
+
+let __saveStatus = 'idle';
+let __saveStatusTimer = null;
+function setSaveStatus(status){
+  __saveStatus = status;
+  const el = document.getElementById('save-status-bar');
+  if (el) el.outerHTML = saveStatusHTML();
+  if (status === 'saved') {
+    clearTimeout(__saveStatusTimer);
+    __saveStatusTimer = setTimeout(()=>{ __saveStatus = 'idle'; const e = document.getElementById('save-status-bar'); if (e) e.outerHTML = saveStatusHTML(); }, 2200);
+  }
+}
+function saveStatusHTML(){
+  if (__saveStatus === 'idle') return '';
+  const labels = { saving: '⏳ Salvataggio…', saved: '✓ Sincronizzato', offline: '📴 Solo locale' };
+  return `<div id="save-status-bar" class="save-status ${__saveStatus}">${labels[__saveStatus]||''}</div>`;
+}
+function offlineBannerHTML(){
+  if (currentUser) return '';
+  return `<div class="offline-banner">📴 Modalità locale — <button onclick="signIn()">Accedi con Google</button> per sincronizzare su tutti i dispositivi.</div>`;
+}
+function themeToggleBtn(){ return `<button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema">${state.theme==='dark'?'🌙':'☀️'}</button>`; }
+
+function loadSession(){
+  try {
+    const c = sessionStorage.getItem(SS_COMBAT);
+    if (c) state.combat = JSON.parse(c);
+    const d = sessionStorage.getItem(SS_DICE);
+    if (d) state.diceHistory = JSON.parse(d);
+  } catch(e){ console.warn('Sessione non leggibile', e); }
+}
+function saveSession(){
+  try {
+    sessionStorage.setItem(SS_COMBAT, JSON.stringify(state.combat));
+    sessionStorage.setItem(SS_DICE, JSON.stringify(state.diceHistory || []));
+  } catch(e){ console.warn('Impossibile salvare sessione', e); }
+}
+
+function mergeCollection(localArr, remoteArr, collection){
+  const byId = {};
+  remoteArr.forEach(r => { byId[r.id] = r; });
+  (localArr||[]).forEach(l => {
+    const r = byId[l.id];
+    const pendingKey = collection + ':' + l.id;
+    if (__saveTimers[pendingKey]) { byId[l.id] = l; return; }
+    if (!r) { byId[l.id] = l; return; }
+    const lt = l.updatedAt || l.createdAt || 0;
+    const rt = r.updatedAt || r.createdAt || 0;
+    byId[l.id] = lt >= rt ? l : r;
+  });
+  return Object.values(byId);
+}
 
 function loadLocal(){
   try {
@@ -207,55 +280,74 @@ function attachFirestore(uidUser){
   const base = db.collection('users').doc(uidUser);
 
   unsubscribers.push(base.collection('characters').onSnapshot(snap=>{
-    state.characters = snap.docs.map(d=>({...d.data(), id:d.id}));
-    saveLocal(); renderIfSafe();
+    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
+    state.characters = mergeCollection(state.characters, remote, 'characters');
+    saveLocal(); setSaveStatus('saved'); renderIfSafe();
   }, err=>{ console.error('Errore sync personaggi', err); toast('⚠️ Sync personaggi non riuscita'); }));
 
   unsubscribers.push(base.collection('npcs').onSnapshot(snap=>{
-    state.npcs = snap.docs.map(d=>({...d.data(), id:d.id}));
-    saveLocal(); renderIfSafe();
+    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
+    state.npcs = mergeCollection(state.npcs, remote, 'npcs');
+    saveLocal(); setSaveStatus('saved'); renderIfSafe();
   }, err=>console.error('Errore sync PNG', err)));
 
   unsubscribers.push(base.collection('customSpells').onSnapshot(snap=>{
-    state.customSpells = snap.docs.map(d=>({...d.data(), id:d.id}));
-    saveLocal(); renderIfSafe();
+    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
+    state.customSpells = mergeCollection(state.customSpells, remote, 'customSpells');
+    saveLocal(); setSaveStatus('saved'); renderIfSafe();
   }, err=>console.error('Errore sync incantesimi personalizzati', err)));
 
   unsubscribers.push(base.collection('encounters').onSnapshot(snap=>{
-    state.encounters = snap.docs.map(d=>({...d.data(), id:d.id}));
-    saveLocal(); renderIfSafe();
+    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
+    state.encounters = mergeCollection(state.encounters, remote, 'encounters');
+    saveLocal(); setSaveStatus('saved'); renderIfSafe();
   }, err=>console.error('Errore sync incontri', err)));
 }
 
 function userCol(collection){ return db.collection('users').doc(currentUser.uid).collection(collection); }
 
 async function fsSet(collection, obj){
-  if (!currentUser) return obj.id;
   const id = obj.id || uid();
-  const payload = {...obj, id, updatedAt: Date.now()};
-  try { await userCol(collection).doc(id).set(payload, {merge:true}); }
-  catch(e){ console.error('Errore salvataggio', e); toast('⚠️ Salvataggio non riuscito, controlla la connessione'); }
+  obj.id = id;
+  obj.updatedAt = Date.now();
+  saveLocal();
+  if (!currentUser) { setSaveStatus('offline'); return id; }
+  const payload = {...obj};
+  try {
+    await userCol(collection).doc(id).set(payload, {merge:true});
+    setSaveStatus('saved');
+  } catch(e){
+    console.error('Errore salvataggio', e);
+    setSaveStatus('offline');
+    toast('⚠️ Salvataggio non riuscito, controlla la connessione');
+  }
   return id;
 }
 async function fsDelete(collection, id){
+  saveLocal();
   if (!currentUser) return;
   try { await userCol(collection).doc(id).delete(); }
   catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non riuscita'); }
 }
 // Un timer di debounce per ogni oggetto (non uno globale condiviso): così modificare
 // due personaggi/PNG diversi entro 600ms non fa "perdere" il salvataggio del primo.
-const __saveTimers = {};
 function scheduleSave(collection, obj){
   saveLocal();
+  setSaveStatus(currentUser ? 'saving' : 'offline');
   const key = collection + ':' + obj.id;
   clearTimeout(__saveTimers[key]);
-  __saveTimers[key] = setTimeout(() => { fsSet(collection, obj); }, 600);
+  __saveTimers[key] = setTimeout(() => {
+    delete __saveTimers[key];
+    fsSet(collection, obj);
+  }, 600);
 }
 
 /* ─── 6. AUTENTICAZIONE (Google Sign-In) ─── */
+function isMobileAuth(){ return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent); }
 function signIn(){
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(err=>{
+  const signInMethod = isMobileAuth() ? auth.signInWithRedirect.bind(auth) : auth.signInWithPopup.bind(auth);
+  signInMethod(provider).catch(err=>{
     console.error(err);
     const msgs = {
       "auth/unauthorized-domain": "Dominio non autorizzato. In Firebase Console → Authentication → Settings → Authorized domains aggiungi: " + location.hostname,
@@ -270,10 +362,15 @@ function signIn(){
 }
 function signOutUser(){ auth.signOut(); }
 
+auth.getRedirectResult().catch(err=>{
+  if (err && err.code !== 'auth/no-auth-event') console.error('Redirect auth error:', err);
+});
+
 auth.onAuthStateChanged(u=>{
   currentUser = u;
   state.authReady = true;
   if (u) {
+    state.offlineMode = false;
     attachFirestore(u.uid);
   } else {
     unsubscribers.forEach(x=>x()); unsubscribers = [];
@@ -314,6 +411,7 @@ function toggleTheme(){
 function loaderHTML(){ return `<div id="loader"><div class="spinner"></div><p>Il Grimorio si sta aprendo…</p></div>`; }
 
 function authScreenHTML(){
+  const hasLocal = state.characters.length || state.npcs.length || state.customSpells.length;
   return `<div class="auth-screen">
     <div class="seal">📖</div>
     <h1 class="display">Grimorio</h1>
@@ -322,9 +420,11 @@ function authScreenHTML(){
       <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.96H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.04l3.07-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.96l3.07 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
       Accedi con Google
     </button>
-    <p style="font-size:.72rem; opacity:.7;">I dati restano legati al tuo account Google e sincronizzati tra i dispositivi collegati.</p>
+    ${hasLocal ? `<button class="btn btn-ghost btn-block" onclick="continueOffline()">Continua in locale (${state.characters.length} personagg${state.characters.length===1?'io':'i'})</button>` : ''}
+    <p style="font-size:.72rem; opacity:.7;">${hasLocal ? 'In locale i dati restano su questo dispositivo. Accedi per sincronizzare.' : 'I dati restano legati al tuo account Google e sincronizzati tra i dispositivi collegati.'}</p>
   </div>`;
 }
+function continueOffline(){ state.offlineMode = true; render(); }
 
 function bottomNavHTML(){
   const items = [
@@ -345,7 +445,10 @@ function emptyState(icon, text){ return `<div class="empty-state"><div class="ic
 function render(){
   const app = $('#app');
   if (!state.authReady) { app.innerHTML = loaderHTML(); return; }
-  if (!currentUser) { app.innerHTML = authScreenHTML(); return; }
+  if (!currentUser && !state.offlineMode && !state.characters.length && !state.npcs.length) {
+    app.innerHTML = authScreenHTML();
+    return;
+  }
 
   let body;
   if (state.view === 'sheet' && state.characters.find(c=>c.id===state.activeCharId)) body = renderCharacterSheet();
@@ -354,7 +457,7 @@ function render(){
   else if (state.view === 'settings') body = renderSettings();
   else { state.view = 'party'; body = renderParty(); }
 
-  app.innerHTML = body + (state.view === 'sheet' ? '' : bottomNavHTML()) + fabHTML();
+  app.innerHTML = offlineBannerHTML() + saveStatusHTML() + body + (state.view === 'sheet' ? '' : bottomNavHTML()) + fabHTML();
 }
 
 /* ─── 9. VISTA PARTY ─── */
@@ -367,7 +470,7 @@ function renderParty(){
           <div class="seal seal-mini" style="font-size:1.05rem;">📖</div>
           <div class="topbar-title brand">Grimorio</div>
         </div>
-        <button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema">${state.theme==='dark'?'🌙':'☀️'}</button>
+        ${themeToggleBtn()}
       </div>
       ${chars.length ? `<div class="stagger list-gap">${chars.map(charCardHTML).join('')}</div>` : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe per iniziare l\'avventura.')}
       <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="openCharacterForm()">+ Nuovo personaggio</button>
@@ -445,7 +548,7 @@ function characterFormHTML(isEdit){
       <div class="form-row">
         <div class="field"><label>Razza</label><input value="${escapeHtml(d.race)}" placeholder="Es. Elfo" oninput="draftChar.race=this.value"></div>
         <div class="field"><label>Classe</label>
-          <select oninput="draftChar.classField=this.value">
+          <select onchange="draftChar.classField=this.value; applyClassDefaults(draftChar); renderModalRoot()">
             <option value="">—</option>
             ${CLASS_LIST_IT.map(cl=>`<option value="${cl}" ${d.classField===cl?'selected':''}>${cl}</option>`).join('')}
           </select>
@@ -454,6 +557,21 @@ function characterFormHTML(isEdit){
       <div class="form-row">
         <div class="field"><label>Livello</label><input type="number" min="1" max="20" value="${d.level||1}" oninput="draftChar.level=clamp(parseInt(this.value)||1,1,20)"></div>
         <div class="field"><label>Allineamento</label><input value="${escapeHtml(d.alignment||'')}" placeholder="Es. Neutrale Buono" oninput="draftChar.alignment=this.value"></div>
+      </div>
+      <div class="field">
+        <label>Background</label>
+        <div class="chip-row" style="margin-bottom:8px;">
+          ${BACKGROUND_PRESETS.slice(0,6).map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${b}'; renderModalRoot()">${b}</button>`).join('')}
+        </div>
+        <input value="${escapeHtml(d.background||'')}" placeholder="Es. Eremita" oninput="draftChar.background=this.value">
+      </div>
+      <div class="form-row">
+        <div class="field"><label>PF massimi</label><input type="number" min="1" value="${getPath(d,'hp.max',10)}" oninput="draftChar.hp=draftChar.hp||{}; draftChar.hp.max=clamp(parseInt(this.value)||1,1,9999); if(!draftChar.hp.current) draftChar.hp.current=draftChar.hp.max"></div>
+        <div class="field"><label>Tipo incantatore</label>
+          <select onchange="draftChar.casterType=this.value">
+            ${CASTER_TYPES.map(ct=>`<option value="${ct.key}" ${(d.casterType||'none')===ct.key?'selected':''}>${ct.label}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div class="field">
         <label>Simbolo</label>
@@ -468,8 +586,12 @@ function characterFormHTML(isEdit){
 }
 function saveCharacterDraft(isEdit){
   if (!draftChar.name || !draftChar.name.trim()){ toast('Dai un nome al personaggio prima di continuare'); return; }
+  draftChar.hp = draftChar.hp || { current: 10, max: 10, temp: 0 };
+  if (!draftChar.hp.current) draftChar.hp.current = draftChar.hp.max || 10;
+  if (!isEdit && !draftChar.classField) applyClassDefaults(draftChar);
   const idx = state.characters.findIndex(c=>c.id===draftChar.id);
   if (idx>=0) state.characters[idx] = draftChar; else state.characters.push(draftChar);
+  if (!currentUser) state.offlineMode = true;
   fsSet('characters', draftChar);
   saveLocal();
   const newId = draftChar.id;
@@ -482,7 +604,7 @@ function confirmDeleteCharacter(id){
 }
 function doDeleteCharacter(id){
   state.characters = state.characters.filter(c=>c.id!==id);
-  fsDelete('characters', id);
+  if (currentUser) fsDelete('characters', id);
   saveLocal();
   if (state.activeCharId === id) { state.view='party'; state.activeCharId=null; }
   render();
@@ -669,11 +791,11 @@ function renderSheetInventory(c){
   `;
 }
 function invItemHTML(c, it, i){
-  return `<div class="inv-item">
-    <button class="equip-toggle ${it.equipped?'on':''}" title="Indossato/impugnato" onclick="toggleEquip('${c.id}',${i})">${it.equipped?'✓':''}</button>
+  return `<div class="inv-item" onclick="editInventoryItem('${c.id}',${i})" style="cursor:pointer;">
+    <button class="equip-toggle ${it.equipped?'on':''}" title="Indossato/impugnato" onclick="event.stopPropagation(); toggleEquip('${c.id}',${i})">${it.equipped?'✓':''}</button>
     <div class="inv-item-name ${it.equipped?'equipped':''}">${escapeHtml(it.name)}${it.notes?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(it.notes)}</div>`:''}</div>
     <div class="inv-qty">×${it.qty||1}</div>
-    <button class="btn-icon" style="width:30px;height:30px;font-size:.8rem;" onclick="removeInventoryItem('${c.id}',${i})">✕</button>
+    <button class="btn-icon" style="width:30px;height:30px;font-size:.8rem;" onclick="event.stopPropagation(); removeInventoryItem('${c.id}',${i})">✕</button>
   </div>`;
 }
 function addInventoryItem(charId){
@@ -712,6 +834,34 @@ function removeInventoryItem(charId, i){
   const c = state.characters.find(x=>x.id===charId);
   c.inventory.splice(i,1);
   scheduleSave('characters', c); saveLocal(); render();
+}
+function editInventoryItem(charId, i){
+  const c = state.characters.find(x=>x.id===charId);
+  const it = (c.inventory||[])[i];
+  if (!it) return;
+  openModal({ render: () => `
+    <div class="overlay" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal">
+        <div class="sheet-modal-handle"></div>
+        <div class="sheet-modal-head"><div class="sheet-modal-title">Modifica oggetto</div><button class="btn-icon" onclick="closeModal()">✕</button></div>
+        <div class="field"><label>Nome</label><input id="inv-edit-name" value="${escapeHtml(it.name)}"></div>
+        <div class="form-row">
+          <div class="field"><label>Quantità</label><input id="inv-edit-qty" type="number" min="1" value="${it.qty||1}"></div>
+          <div class="field"><label>Note</label><input id="inv-edit-notes" value="${escapeHtml(it.notes||'')}"></div>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="confirmEditInventory('${charId}',${i})">Salva modifiche</button>
+      </div>
+    </div>` });
+}
+function confirmEditInventory(charId, i){
+  const c = state.characters.find(x=>x.id===charId);
+  const name = document.getElementById('inv-edit-name').value.trim();
+  if (!name){ toast('Dai un nome all\'oggetto'); return; }
+  c.inventory[i].name = name;
+  c.inventory[i].qty = parseInt(document.getElementById('inv-edit-qty').value)||1;
+  c.inventory[i].notes = document.getElementById('inv-edit-notes').value.trim();
+  scheduleSave('characters', c); saveLocal();
+  closeModal(); render();
 }
 
 /* ─── 15. SCHEDA — Incantesimi ─── */
@@ -774,7 +924,7 @@ function knownSpellRow(c, ref){
     <div class="spell-lvl-badge">${sp.level===0?'C':sp.level}</div>
     <div class="spell-item-body">
       <div class="spell-item-name">${escapeHtml(sp.name)}</div>
-      <div class="spell-item-meta">${escapeHtml(sp.school||'')}${ref.source==='custom'?' · personalizzato':''}</div>
+      <div class="spell-item-meta">${escapeHtml(schoolIt(sp.school||''))}${ref.source==='custom'?' · personalizzato':''}</div>
     </div>
     <button class="spell-item-add" style="color:var(--garnet);" onclick="event.stopPropagation(); removeKnownSpell('${c.id}','${sp.id}','${ref.source}')">✕</button>
   </div>`;
@@ -856,8 +1006,9 @@ function renderGrimoire(){
         <div class="topbar">
           <button class="topbar-back" onclick="cancelPickSpell()">←</button>
           <div style="flex:1;min-width:0;"><div class="topbar-title">Aggiungi a ${escapeHtml(pickChar?pickChar.name:'')}</div><div class="topbar-sub">Tocca un incantesimo per aggiungerlo</div></div>
+          <button class="btn btn-sm btn-primary" onclick="cancelPickSpell()">Fatto</button>
         </div>
-      ` : `<div class="brand-row"><div class="topbar-title brand">Grimorio</div></div>`}
+      ` : `<div class="brand-row"><div class="topbar-title brand">Grimorio</div>${themeToggleBtn()}</div>`}
       <div class="search-wrap">
         <span class="search-ic">🔍</span>
         <input id="grimoire-search-input" placeholder="Cerca un incantesimo…" value="${escapeHtml(f.q)}" oninput="setGrimoireSearch(this.value)">
@@ -869,7 +1020,7 @@ function renderGrimoire(){
       </div>
       <div class="filter-bar">
         <button class="filter-chip ${f.clas==='all'?'active':''}" onclick="setGrimoireFilter('clas','all')">Tutte le classi</button>
-        ${['Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard'].map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]}</button>`).join('')}
+        ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
       </div>
       <div id="grimoire-results">${grimoireResultsHTML()}</div>
       ${!picking ? `<button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openCustomSpellForm()">+ Incantesimo personalizzato</button>` : ''}
@@ -881,7 +1032,13 @@ function grimoireResultsHTML(){
   const picking = state.grimoireMode === 'pick';
   const pickChar = picking ? state.characters.find(c=>c.id===state.grimoirePickFor) : null;
   let all = state.customSpells.map(s=>({...s, source:'custom'})).concat(SRD_SPELLS.map(s=>({...s, source:'srd'})));
-  if (f.q) { const q=f.q.toLowerCase(); all = all.filter(s=>s.name.toLowerCase().includes(q)); }
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    all = all.filter(s => {
+      const school = (schoolIt(s.school||'')).toLowerCase();
+      return s.name.toLowerCase().includes(q) || school.includes(q);
+    });
+  }
   if (f.level !== 'all') all = all.filter(s => String(s.level) === f.level);
   if (f.clas !== 'all') all = all.filter(s => (s.classes||[]).includes(f.clas));
   const countLine = `<div class="muted" style="margin:2px 0 10px;">${all.length} incantesim${all.length===1?'o':'i'}</div>`;
@@ -899,7 +1056,7 @@ function grimoireItemHTML(s, picking, pickChar){
     <div class="spell-lvl-badge">${s.level===0?'C':s.level}</div>
     <div class="spell-item-body">
       <div class="spell-item-name">${escapeHtml(s.name)}</div>
-      <div class="spell-item-meta">${escapeHtml(s.school||'')}${classesIt?(' · '+escapeHtml(classesIt)):''}${s.source==='custom'?' · personalizzato':''}</div>
+      <div class="spell-item-meta">${escapeHtml(schoolIt(s.school||''))}${classesIt?(' · '+escapeHtml(classesIt)):''}${s.source==='custom'?' · personalizzato':''}</div>
     </div>
     ${picking ? `<div class="spell-item-add ${already?'added':''}">${already?'✓':'+'}</div>` : `<div class="char-card-chevron">›</div>`}
   </div>`;
@@ -932,7 +1089,7 @@ function spellDetailHTML(sp, source){
       <div class="sheet-modal-handle"></div>
       <div class="spell-detail-head">
         <div class="spell-detail-name">${escapeHtml(sp.name)}</div>
-        <div class="muted" style="font-style:italic;">${sp.level===0?'Trucchetto':(sp.level+'° livello')} · ${escapeHtml(sp.school||'')}${sp.ritual?' (rituale)':''}</div>
+        <div class="muted" style="font-style:italic;">${sp.level===0?'Trucchetto':(sp.level+'° livello')} · ${escapeHtml(schoolIt(sp.school||''))}${sp.ritual?' (rituale)':''}</div>
       </div>
       <div class="spell-detail-tags">
         ${sp.conc?'<span class="badge garnet">Concentrazione</span>':''}
@@ -1040,7 +1197,7 @@ function newNPC(){ return { id: uid(), name:'', type:'', avatar:'🐉', ac:10, h
 function renderDM(){
   return `
     <div class="screen">
-      <div class="brand-row"><div class="topbar-title brand">Tavolo del Master</div></div>
+      <div class="brand-row"><div class="topbar-title brand">Tavolo del Master</div>${themeToggleBtn()}</div>
       <div class="segmented" style="margin-bottom:14px;">
         <button class="${state.dmTab!=='initiative'?'active':''}" onclick="setDmTab('bestiario')">Bestiario</button>
         <button class="${state.dmTab==='initiative'?'active':''}" onclick="setDmTab('initiative')">Iniziativa</button>
@@ -1098,6 +1255,7 @@ function npcFormHTML(isEdit){
       ${isEdit ? `<div class="field"><label>PF Attuali</label><input type="number" value="${d.hpCurrent??d.hpMax??10}" oninput="draftNpc.hpCurrent=parseInt(this.value)||0"></div>` : ''}
       <div class="field"><label>Azioni / Note</label><textarea style="min-height:100px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
       <button class="btn btn-primary btn-block" onclick="saveNpcDraft()">${isEdit?'Salva modifiche':'Aggiungi al bestiario'}</button>
+      ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:8px;" onclick="addNpcToInitiative('${d.id}')">⚔️ Aggiungi all'iniziativa</button>`:''}
       ${isEdit?`<button class="btn btn-danger btn-block" style="margin-top:8px;" onclick="closeModal(); confirmDeleteNpc('${d.id}')">Elimina</button>`:''}
     </div>
   </div>`;
@@ -1107,15 +1265,21 @@ function saveNpcDraft(){
   draftNpc.hpCurrent = draftNpc.hpCurrent ?? draftNpc.hpMax;
   const idx = state.npcs.findIndex(n=>n.id===draftNpc.id);
   if (idx>=0) state.npcs[idx]=draftNpc; else state.npcs.push(draftNpc);
+  if (!currentUser) state.offlineMode = true;
   fsSet('npcs', draftNpc);
   saveLocal();
   closeModal(); render();
+}
+function addNpcToInitiative(npcId){
+  closeModal();
+  state.dmTab = 'initiative';
+  addToCombat(npcId, 'npc');
 }
 function confirmDeleteNpc(id){
   const n = state.npcs.find(x=>x.id===id);
   confirmDialog('Eliminare ' + (n?n.name:'questo PNG') + '?', 'Questa azione non può essere annullata.', () => {
     state.npcs = state.npcs.filter(x=>x.id!==id);
-    fsDelete('npcs', id);
+    if (currentUser) fsDelete('npcs', id);
     saveLocal(); render();
   });
 }
