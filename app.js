@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v2.5
+   GRIMORIO — app.js  ·  v2.6
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.5';
+const APP_VERSION = '2.6';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -533,32 +533,45 @@ function noteAuthError(err){
   toast(f ? f() : ('Accesso non riuscito (' + __lastAuthError.code + ')'));
 }
 
-async function signIn(forceMethod){
+function signIn(forceMethod){
   if (!firebaseReady){ toast('Connessione a Firebase non disponibile'); return; }
   if (isInAppBrowser()){ openInAppBrowserHelp(); return; }
   if (!storageOk()){ toast('Il browser sta bloccando l\'archiviazione: esci dalla navigazione privata e riprova'); return; }
 
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){ console.warn('Persistenza non impostabile', e); }
 
   const preferred = forceMethod || localStorage.getItem('grimorio-auth-method') || 'popup';
   if (preferred === 'redirect') return startRedirect(provider);
 
-  try {
-    await auth.signInWithPopup(provider);
+  // Da qui in poi niente attese: la chiamata deve restare dentro il gesto.
+  __authAttempt = { method: 'popup', at: Date.now() };
+  auth.signInWithPopup(provider).then(() => {
+    __authAttempt = null;
     localStorage.setItem('grimorio-auth-method', 'popup');
     toast('✓ Accesso effettuato');
-  } catch(err){
+  }).catch(err => {
+    const elapsed = __authAttempt ? (Date.now() - __authAttempt.at) : 99999;
+    __authAttempt = null;
     const code = err && err.code;
-    if (SILENT_AUTH.includes(code)) return;
+    if (SILENT_AUTH.includes(code)){
+      // Chiusa in meno di due secondi e mezzo non l'hai chiusa tu: è il
+      // browser che ha interrotto il passaggio. In quel caso si riprova
+      // col reindirizzamento; se invece hai annullato, silenzio.
+      if (code === 'auth/popup-closed-by-user' && elapsed < 2500){
+        toast('La finestra si è chiusa da sola: provo con il reindirizzamento…');
+        return startRedirect(provider);
+      }
+      return;
+    }
     if (POPUP_FALLBACK.includes(code)){
       toast('Provo con il reindirizzamento…');
       return startRedirect(provider);
     }
     noteAuthError(err);
-  }
+  });
 }
+let __authAttempt = null;
 function startRedirect(provider){
   try { sessionStorage.setItem('grimorio-auth-pending', String(Date.now())); } catch(e){}
   localStorage.setItem('grimorio-auth-method', 'redirect');
@@ -607,6 +620,7 @@ function openAuthDiagnostics(){
 }
 function authDiagnosticsHTML(){
   const rows = [
+    ['Versione app', APP_VERSION],
     ['Stato', currentUser ? '✓ collegato come ' + (currentUser.email || currentUser.displayName || 'account Google') : '📴 non collegato'],
     ['Dominio', location.hostname || '(file locale)'],
     ['Dominio Firebase', FIREBASE_CONFIG.authDomain],
@@ -632,6 +646,7 @@ function authDiagnosticsHTML(){
       <button class="btn btn-primary btn-block" onclick="closeModal(); signIn('popup')">Accedi con la finestra popup</button>
       <button class="btn btn-ghost btn-block" onclick="closeModal(); signIn('redirect')">Accedi con il reindirizzamento</button>
       <button class="btn btn-ghost btn-block" onclick="copyDiagnostics()">Copia questi dati</button>
+      <button class="btn btn-ghost btn-block" onclick="forceAppUpdate()">🔄 Forza aggiornamento dell'app</button>
     </div>
     <div class="spell-source-note">
       Se l'accesso non riesce da telefono: prova prima la finestra popup; se il browser la blocca, usa il reindirizzamento.
@@ -659,6 +674,37 @@ function copyDiagnostics(){
   } else { console.log(txt); toast('Diagnostica scritta nella console'); }
 }
 function signOutUser(){ if (auth) auth.signOut(); }
+
+/* Svuota la cache e ricarica: serve quando il telefono continua a usare
+   una versione vecchia dell'app anche dopo un aggiornamento. */
+async function forceAppUpdate(){
+  toast('Scarico la versione aggiornata…');
+  try {
+    if ('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if (window.caches){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch(e){ console.warn('Pulizia cache non riuscita', e); }
+  setTimeout(() => location.reload(true), 600);
+}
+
+/* La rotella del mouse sopra un elemento fisso (barra laterale, sfondo
+   della finestra) non muove nulla: la si gira sul contenitore giusto. */
+function installWheelForwarding(){
+  window.addEventListener('wheel', (e) => {
+    const nav = e.target.closest && e.target.closest('.bottomnav');
+    if (nav){ window.scrollBy({ top: e.deltaY, behavior: 'auto' }); e.preventDefault(); return; }
+    const overlay = e.target.closest && e.target.closest('.overlay');
+    if (overlay && !(e.target.closest('.sheet-modal'))){
+      const box = overlay.querySelector('.sheet-modal');
+      if (box){ box.scrollTop += e.deltaY; e.preventDefault(); }
+    }
+  }, { passive: false });
+}
 
 /* ─── 7. MODELLO PERSONAGGIO ─── */
 function newCharacter(){
@@ -3229,11 +3275,16 @@ function boot(){
   loadLocal();
   loadSession();
   spawnEmbers();
+  installWheelForwarding();
   if (localStorage.getItem('grimorio-offline') === '1') state.offlineMode = true;
   replaceNav();
 
   firebaseReady = initFirebase();
   if (firebaseReady){
+    try {
+      auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+        .catch(e => console.warn('Persistenza non impostabile', e));
+    } catch(e){ console.warn('Persistenza non impostabile', e); }
     handleRedirectResult();
     auth.onAuthStateChanged(u => {
       currentUser = u;

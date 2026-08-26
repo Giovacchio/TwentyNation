@@ -1,5 +1,21 @@
 # Grimorio — lista dei cambiamenti
 
+## v2.6 — 26 agosto 2026
+Rotella del mouse e accesso Google da telefono.
+
+### 🖱️ La rotella non faceva scorrere la pagina
+- `overflow-x: hidden` su `html` **e** su `body` trasformava entrambi in contenitori di scorrimento separati: su diversi browser la rotella finiva in quello sbagliato e la pagina restava ferma. Ora si usa `overflow-x: clip`, che taglia l'eccedenza orizzontale **senza** creare quel contenitore (con ripiego automatico su `hidden` sui browser più vecchi).
+- La rotella sopra la **barra laterale fissa** (su computer) o sopra lo **sfondo scuro di una finestra** non muoveva niente: ora viene girata sul contenitore giusto, così scorri da qualunque punto.
+
+### 📱 Accesso Google da telefono: la vera causa
+Nella versione precedente, prima di aprire la finestra di Google il codice faceva un'attesa (`await`) per impostare la persistenza della sessione. **Safari e i browser mobili consentono di aprire una finestra solo se la richiesta parte dentro il gesto del dito**: quell'attesa spezzava la catena, la finestra veniva interrotta e si tornava alla pagina di prima senza account — esattamente il sintomo descritto.
+- Ora la persistenza viene impostata **una volta all'avvio** e la richiesta di accesso parte immediatamente al tocco, senza nessuna attesa in mezzo. Verificato: al momento della chiamata il gesto utente risulta ancora attivo.
+- Se la finestra si chiude **da sola entro due secondi e mezzo** (è il browser che l'ha interrotta, non tu) si passa automaticamente al reindirizzamento; se invece l'hai chiusa tu, nessun avviso inutile.
+
+### 🔄 Quando il telefono resta indietro
+- La diagnostica ora mostra in cima la **versione dell'app**: se sul telefono non è la stessa del computer, stai ancora usando la copia in cache.
+- Nuovo pulsante **🔄 Forza aggiornamento dell'app**: cancella il service worker e tutte le cache e ricarica pulito.
+
 ## v2.5 — 26 agosto 2026
 Revisione a tappeto: dieci difetti trovati e corretti.
 
