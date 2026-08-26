@@ -6,14 +6,22 @@
   "id": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#f7ecd3",
-  "theme_color": "#7a2331",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#140f1e",
+  "theme_color": "#140f1e",
   "lang": "it",
+  "dir": "ltr",
+  "categories": ["games", "entertainment", "utilities"],
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tira i dadi", "short_name": "Dadi", "url": "./index.html?a=dice", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] },
+    { "name": "Grimorio", "short_name": "Magie", "url": "./index.html?a=grimoire", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] },
+    { "name": "Tavolo del Master", "short_name": "Tavolo", "url": "./index.html?a=dm", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] }
   ]
 }

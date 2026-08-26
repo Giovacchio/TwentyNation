@@ -1,14 +1,13 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js
-   Compagno per D&D: party, incantesimi, inventario, background
-   e strumenti da master. Dati sincronizzati su Firebase.
+   GRIMORIO — app.js  ·  v2.0
+   Compagno per D&D: party, incantesimi, inventario, background,
+   tiri di dado e strumenti da master. Dati sincronizzati su Firebase
+   con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-/* ─── 1. CONFIGURAZIONE FIREBASE ───────────────────────────────
-   Sostituisci questi valori con quelli del TUO progetto Firebase:
-   Firebase Console → ⚙️ Impostazioni progetto → Generali →
-   Le tue app → SDK setup and configuration
-*/
+const APP_VERSION = '2.0';
+
+/* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAAcGjbm9NgQNo6wWLX8CErCmCUh7WTQsQ",
   authDomain: "twentynation-1abd4.firebaseapp.com",
@@ -18,23 +17,24 @@ const FIREBASE_CONFIG = {
   appId: "1:305259728353:web:ad9cc0d2737f4be889d6a0"
 };
 
-let db, auth, currentUser = null;
+let db = null, auth = null, currentUser = null, firebaseReady = false;
 
-(function initFirebase() {
-  try {
-    firebase.initializeApp(FIREBASE_CONFIG);
-  } catch (e) {
-    if (e.code !== 'app/duplicate-app') console.error('Firebase init error:', e);
-  }
-  db = firebase.firestore();
-  auth = firebase.auth();
-})();
+// L'inizializzazione non deve MAI bloccare l'avvio: se gli script Firebase
+// non si caricano (offline, rete bloccata, blocco tracker) l'app parte lo stesso
+// in modalità locale invece di restare sul caricamento all'infinito.
+function initFirebase(){
+  if (typeof firebase === 'undefined' || !firebase.initializeApp) return false;
+  try { firebase.initializeApp(FIREBASE_CONFIG); }
+  catch(e){ if (e.code !== 'app/duplicate-app'){ console.error('Firebase init error:', e); return false; } }
+  try { db = firebase.firestore(); auth = firebase.auth(); }
+  catch(e){ console.error('Firebase services error:', e); return false; }
+  return true;
+}
 
 /* ─── 2. DATI DI REGOLE ───────────────────────────────────────
-   Nomi di abilità/skill e tabelle numeriche: regole generiche di
-   sistema, non testo protetto. Gli incantesimi (nomi+testo) sono
-   nel file spells-data.js, contenuto SRD 5.1 su licenza OGL 1.0a,
-   perciò restano in inglese (lingua ufficiale della licenza).
+   Nomi di caratteristiche/abilità e tabelle numeriche: regole generiche
+   di sistema. Gli incantesimi (nomi + testo) sono in spells-data.js,
+   contenuto SRD 5.1 su licenza OGL 1.0a (lingua originale inglese).
 */
 const ABILITIES = [
   { key: "str", label: "Forza", abbr: "FOR" },
@@ -44,6 +44,7 @@ const ABILITIES = [
   { key: "wis", label: "Saggezza", abbr: "SAG" },
   { key: "cha", label: "Carisma", abbr: "CAR" },
 ];
+const ABILITY_BY_KEY = Object.fromEntries(ABILITIES.map(a=>[a.key,a]));
 
 const SKILLS = [
   { key: "acrobatics", label: "Acrobazia", ability: "dex" },
@@ -83,18 +84,24 @@ const CLASS_TO_SPELL_ABILITY = {
   "Paladino": "cha", "Ranger": "wis", "Stregone": "cha", "Warlock": "cha",
   "Mago": "int", "Artificiere": "int"
 };
-function applyClassDefaults(d){
-  if (!d || !d.classField) return;
-  if (CLASS_TO_CASTER[d.classField] !== undefined) d.casterType = CLASS_TO_CASTER[d.classField];
-  if (CLASS_TO_SPELL_ABILITY[d.classField]) d.spellAbility = CLASS_TO_SPELL_ABILITY[d.classField];
-}
-function schoolIt(en){ return SCHOOLS_IT[en] || en; }
+const CLASS_TO_HIT_DIE = {
+  "Barbaro": 12, "Guerriero": 10, "Paladino": 10, "Ranger": 10,
+  "Bardo": 8, "Chierico": 8, "Druido": 8, "Monaco": 8, "Ladro": 8, "Warlock": 8, "Artificiere": 8,
+  "Mago": 6, "Stregone": 6
+};
+const CLASS_TO_SAVES = {
+  "Barbaro": ["str","con"], "Bardo": ["dex","cha"], "Chierico": ["wis","cha"], "Druido": ["int","wis"],
+  "Guerriero": ["str","con"], "Monaco": ["str","dex"], "Paladino": ["wis","cha"], "Ranger": ["str","dex"],
+  "Ladro": ["dex","int"], "Stregone": ["con","cha"], "Warlock": ["wis","cha"], "Mago": ["int","wis"],
+  "Artificiere": ["con","int"]
+};
 
 const SCHOOLS_IT = {
   "Abjuration": "Abiurazione", "Conjuration": "Convocazione", "Divination": "Divinazione",
   "Enchantment": "Ammaliamento", "Evocation": "Evocazione", "Illusion": "Illusione",
   "Necromancy": "Necromanzia", "Transmutation": "Trasmutazione"
 };
+function schoolIt(en){ return SCHOOLS_IT[en] || en || ''; }
 
 const CASTER_TYPES = [
   { key: "none", label: "Nessuno" },
@@ -103,9 +110,8 @@ const CASTER_TYPES = [
   { key: "third", label: "Un terzo" },
   { key: "pact", label: "Warlock (Patto)" },
 ];
-const CASTER_TYPE_LABEL = Object.fromEntries(CASTER_TYPES.map(c=>[c.key,c.label]));
 
-// Tabelle progressione slot incantesimo (regole standard SRD, per livello personaggio)
+// Tabelle progressione slot incantesimo (SRD, per livello personaggio)
 const SLOTS_FULL = {1:[2],2:[3],3:[4,2],4:[4,3],5:[4,3,2],6:[4,3,3],7:[4,3,3,1],8:[4,3,3,2],9:[4,3,3,3,1],10:[4,3,3,3,2],11:[4,3,3,3,2,1],12:[4,3,3,3,2,1],13:[4,3,3,3,2,1,1],14:[4,3,3,3,2,1,1],15:[4,3,3,3,2,1,1,1],16:[4,3,3,3,2,1,1,1],17:[4,3,3,3,2,1,1,1,1],18:[4,3,3,3,3,1,1,1,1],19:[4,3,3,3,3,2,1,1,1],20:[4,3,3,3,3,2,2,1,1]};
 const SLOTS_HALF = {1:[],2:[2],3:[3],4:[3],5:[4,2],6:[4,2],7:[4,3],8:[4,3],9:[4,3,2],10:[4,3,2],11:[4,3,3],12:[4,3,3],13:[4,3,3,1],14:[4,3,3,1],15:[4,3,3,2],16:[4,3,3,2],17:[4,3,3,3,1],18:[4,3,3,3,1],19:[4,3,3,3,2],20:[4,3,3,3,2]};
 const SLOTS_THIRD = {1:[],2:[],3:[2],4:[3],5:[3],6:[3],7:[4,2],8:[4,2],9:[4,2],10:[4,3],11:[4,3],12:[4,3],13:[4,3,2],14:[4,3,2],15:[4,3,2],16:[4,3,3],17:[4,3,3],18:[4,3,3],19:[4,3,3,1],20:[4,3,3,1]};
@@ -113,38 +119,62 @@ const SLOTS_PACT_COUNT = {1:1,2:2,3:2,4:2,5:2,6:2,7:2,8:2,9:2,10:2,11:3,12:3,13:
 const SLOTS_PACT_LEVEL = {1:1,2:1,3:2,4:2,5:3,6:3,7:4,8:4,9:5,10:5,11:5,12:5,13:5,14:5,15:5,16:5,17:5,18:5,19:5,20:5};
 
 function slotsForCharacter(casterType, level){
-  level = clamp(level||1, 1, 20);
-  if (casterType === 'full') return SLOTS_FULL[level].slice();
-  if (casterType === 'half') return SLOTS_HALF[level].slice();
-  if (casterType === 'third') return SLOTS_THIRD[level].slice();
-  if (casterType === 'pact') { const arr=[]; arr[SLOTS_PACT_LEVEL[level]-1]=SLOTS_PACT_COUNT[level]; return arr.map(x=>x||0); }
+  level = clamp(Number(level)||1, 1, 20);
+  if (casterType === 'full') return (SLOTS_FULL[level]||[]).slice();
+  if (casterType === 'half') return (SLOTS_HALF[level]||[]).slice();
+  if (casterType === 'third') return (SLOTS_THIRD[level]||[]).slice();
+  if (casterType === 'pact'){ const arr = []; arr[SLOTS_PACT_LEVEL[level]-1] = SLOTS_PACT_COUNT[level]; return Array.from(arr, x=>x||0); }
   return [];
 }
+function applyClassDefaults(d, force){
+  if (!d || !d.classField) return;
+  if (CLASS_TO_CASTER[d.classField] !== undefined) d.casterType = CLASS_TO_CASTER[d.classField];
+  if (CLASS_TO_SPELL_ABILITY[d.classField]) d.spellAbility = CLASS_TO_SPELL_ABILITY[d.classField];
+  if (CLASS_TO_HIT_DIE[d.classField]) d.hitDie = CLASS_TO_HIT_DIE[d.classField];
+  if (force && CLASS_TO_SAVES[d.classField] && !(d.saveProf||[]).length) d.saveProf = CLASS_TO_SAVES[d.classField].slice();
+}
 
-const BACKGROUND_PRESETS = ["Accolito","Criminale","Eroe del Popolo","Artigiano di Gilda","Eremita","Nobile","Forestiero","Sapiente","Marinaio","Soldato","Ciarlatano","Intrattenitore"];
-const AVATAR_GLYPHS = ["⚔️","🛡️","🏹","🔮","🐉","🦉","🌙","⚜️","🕯️","🪄","🦇","🌿","👑","💀","🔥","❄️"];
+const BACKGROUND_PRESETS = ["Accolito","Ciarlatano","Criminale","Eremita","Eroe del Popolo","Artigiano di Gilda","Intrattenitore","Marinaio","Nobile","Forestiero","Sapiente","Soldato"];
+const AVATAR_GLYPHS = ["⚔️","🛡️","🏹","🔮","🐉","🦉","🌙","⚜️","🕯️","🪄","🦇","🌿","👑","💀","🔥","❄️","🗡️","🎻","🐺","⚗️"];
 const DICE_TYPES = [4,6,8,10,12,20,100];
+const COINS = [
+  {key:'pp', label:'MP', title:'Platino'},
+  {key:'gp', label:'MO', title:'Oro'},
+  {key:'ep', label:'ME', title:'Elettro'},
+  {key:'sp', label:'MA', title:'Argento'},
+  {key:'cp', label:'MR', title:'Rame'},
+];
 
 /* ─── 3. UTILITÀ ─── */
 const $ = (sel, ctx) => (ctx||document).querySelector(sel);
 const $$ = (sel, ctx) => Array.from((ctx||document).querySelectorAll(sel));
 const uid = () => 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
-const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n)||0));
 const mod = (score) => Math.floor(((Number(score)||10) - 10) / 2);
-const modStr = (score) => { const m = mod(score); return (m >= 0 ? '+' : '') + m; };
+const modStr = (score) => signStr(mod(score));
 const signStr = (n) => { n = Number(n)||0; return (n >= 0 ? '+' : '') + n; };
-const profBonus = (level) => Math.ceil((Number(level)||1) / 4) + 1;
+const profBonus = (level) => Math.ceil(clamp(level,1,20) / 4) + 1;
 const escapeHtml = (s) => (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const attr = (s) => escapeHtml(s).replace(/\n/g,' ');
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+function rollDie(sides){
+  sides = Math.max(2, Math.floor(sides)||2);
+  if (window.crypto && window.crypto.getRandomValues){
+    const buf = new Uint32Array(1);
+    const limit = Math.floor(4294967296 / sides) * sides;
+    let v; do { window.crypto.getRandomValues(buf); v = buf[0]; } while (v >= limit);
+    return 1 + (v % sides);
+  }
+  return 1 + Math.floor(Math.random()*sides);
+}
 function toast(msg){
   $$('.toast').forEach(t=>t.remove());
   const t = document.createElement('div');
-  t.className = 'toast';
+  t.className = 'toast'; t.setAttribute('role','status');
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(()=>t.remove(), 2600);
 }
-function rollDie(sides){ return 1 + Math.floor(Math.random()*sides); }
 function setPath(obj, path, value){
   const parts = path.split('.');
   let o = obj;
@@ -157,91 +187,59 @@ function getPath(obj, path, def){
   for (const p of parts){ if (o == null) return def; o = o[p]; }
   return o == null ? def : o;
 }
-function initials(name){
-  return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase() || '?';
+function formatComponents(comp, mat){
+  if (!comp) return '—';
+  const letters = String(comp).replace(/[^VSM]/gi,'').toUpperCase().split('');
+  const out = letters.length ? letters.join(', ') : String(comp);
+  return out + (mat ? ' (' + mat + ')' : '');
 }
+function levelLabel(l){ return l === 0 ? 'Trucchetto' : l + '° livello'; }
+function pluralize(n, one, many){ return n === 1 ? one : many; }
+function scrollTop(){ window.scrollTo({top:0, behavior:'auto'}); }
 
 /* ─── 4. STATO GLOBALE ─── */
 const state = {
-  view: 'party',              // party | grimoire | dm | settings | sheet
-  theme: localStorage.getItem('grimorio-theme') || 'light',
-  characters: [],
-  npcs: [],
-  customSpells: [],
-  encounters: [],
+  view: 'party',
+  theme: localStorage.getItem('grimorio-theme') || 'dark',
+  characters: [], npcs: [], customSpells: [],
   activeCharId: null,
-  sheetTab: 'overview',       // overview | inventory | spells | background
-  grimoireMode: 'browse',     // browse | pick (scelta rapida da aggiungere a un personaggio)
+  sheetTab: 'overview',
+  dmTab: 'bestiary',
+  grimoireMode: 'browse',
+  grimoirePickFor: null,
   grimoireFilter: { q: '', level: 'all', clas: 'all' },
+  knownFilter: 'all',
   combat: { list: [], round: 1, turn: 0 },
-  modal: null,                // descrittore della sheet-modal attiva
-  booted: false,
+  diceHistory: [],
+  rollMode: 'normal',
+  modal: null,
   authReady: false,
   offlineMode: false,
 };
-
 document.documentElement.setAttribute('data-theme', state.theme);
 
-/* ─── 5. PERSISTENZA — cache locale + sync Firebase ─────────────
-   Avvio istantaneo da localStorage (funziona anche offline), poi
-   collegamento in tempo reale a Firestore che tiene tutto sincronizzato
-   tra i dispositivi collegati allo stesso account.
-*/
+/* ─── 5. PERSISTENZA ─── */
 const LS_KEY = 'grimorio-data-v1';
 const SS_COMBAT = 'grimorio-combat-v1';
 const SS_DICE = 'grimorio-dice-v1';
 const __saveTimers = {};
+let __saveStatus = 'idle', __saveStatusTimer = null;
 
-let __saveStatus = 'idle';
-let __saveStatusTimer = null;
 function setSaveStatus(status){
   __saveStatus = status;
-  const el = document.getElementById('save-status-bar');
-  if (el) el.outerHTML = saveStatusHTML();
-  if (status === 'saved') {
-    clearTimeout(__saveStatusTimer);
-    __saveStatusTimer = setTimeout(()=>{ __saveStatus = 'idle'; const e = document.getElementById('save-status-bar'); if (e) e.outerHTML = saveStatusHTML(); }, 2200);
+  updateSaveStatusEl();
+  clearTimeout(__saveStatusTimer);
+  if (status === 'saved' || status === 'offline'){
+    __saveStatusTimer = setTimeout(()=>{ __saveStatus = 'idle'; updateSaveStatusEl(); }, 2200);
   }
 }
-function saveStatusHTML(){
-  if (__saveStatus === 'idle') return '';
-  const labels = { saving: '⏳ Salvataggio…', saved: '✓ Sincronizzato', offline: '📴 Solo locale' };
-  return `<div id="save-status-bar" class="save-status ${__saveStatus}">${labels[__saveStatus]||''}</div>`;
-}
-function offlineBannerHTML(){
-  if (currentUser) return '';
-  return `<div class="offline-banner">📴 Modalità locale — <button onclick="signIn()">Accedi con Google</button> per sincronizzare su tutti i dispositivi.</div>`;
-}
-function themeToggleBtn(){ return `<button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema">${state.theme==='dark'?'🌙':'☀️'}</button>`; }
-
-function loadSession(){
-  try {
-    const c = sessionStorage.getItem(SS_COMBAT);
-    if (c) state.combat = JSON.parse(c);
-    const d = sessionStorage.getItem(SS_DICE);
-    if (d) state.diceHistory = JSON.parse(d);
-  } catch(e){ console.warn('Sessione non leggibile', e); }
-}
-function saveSession(){
-  try {
-    sessionStorage.setItem(SS_COMBAT, JSON.stringify(state.combat));
-    sessionStorage.setItem(SS_DICE, JSON.stringify(state.diceHistory || []));
-  } catch(e){ console.warn('Impossibile salvare sessione', e); }
-}
-
-function mergeCollection(localArr, remoteArr, collection){
-  const byId = {};
-  remoteArr.forEach(r => { byId[r.id] = r; });
-  (localArr||[]).forEach(l => {
-    const r = byId[l.id];
-    const pendingKey = collection + ':' + l.id;
-    if (__saveTimers[pendingKey]) { byId[l.id] = l; return; }
-    if (!r) { byId[l.id] = l; return; }
-    const lt = l.updatedAt || l.createdAt || 0;
-    const rt = r.updatedAt || r.createdAt || 0;
-    byId[l.id] = lt >= rt ? l : r;
-  });
-  return Object.values(byId);
+function updateSaveStatusEl(){
+  let el = document.getElementById('save-status');
+  // Senza account lo dice già il banner in cima: niente pillola doppia.
+  if (__saveStatus === 'idle' || !currentUser){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'save-status'; document.body.appendChild(el); }
+  el.className = 'save-status ' + __saveStatus;
+  el.textContent = ({ saving: '⏳ Salvataggio…', saved: '✓ Sincronizzato', offline: '📴 Solo locale' })[__saveStatus] || '';
 }
 
 function loadLocal(){
@@ -249,134 +247,140 @@ function loadLocal(){
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
-    state.characters = data.characters || [];
+    state.characters = (data.characters || []).map(migrateCharacter);
     state.npcs = data.npcs || [];
     state.customSpells = data.customSpells || [];
-    state.encounters = data.encounters || [];
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 function saveLocal(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, encounters: state.encounters
+      characters: state.characters, npcs: state.npcs, customSpells: state.customSpells
     }));
-  } catch(e){ console.warn('Impossibile salvare in locale', e); }
+  } catch(e){
+    console.warn('Impossibile salvare in locale', e);
+    toast('⚠️ Memoria del dispositivo piena: libera spazio');
+  }
+}
+function loadSession(){
+  try {
+    const c = sessionStorage.getItem(SS_COMBAT);
+    if (c){ const parsed = JSON.parse(c); if (parsed && Array.isArray(parsed.list)) state.combat = parsed; }
+    const d = sessionStorage.getItem(SS_DICE);
+    if (d){ const parsed = JSON.parse(d); if (Array.isArray(parsed)) state.diceHistory = parsed; }
+  } catch(e){ console.warn('Sessione non leggibile', e); }
+}
+function saveSession(){
+  try {
+    sessionStorage.setItem(SS_COMBAT, JSON.stringify(state.combat));
+    sessionStorage.setItem(SS_DICE, JSON.stringify(state.diceHistory.slice(0,30)));
+  } catch(e){ /* sessione piena: non è un problema bloccante */ }
 }
 
-// Evita che una sincronizzazione in arrivo interrompa una digitazione in corso:
-// se l'utente ha il focus su un campo di testo, salta il redraw completo.
+function mergeCollection(localArr, remoteArr, collection){
+  const byId = {};
+  remoteArr.forEach(r => { byId[r.id] = r; });
+  (localArr||[]).forEach(l => {
+    const pendingKey = collection + ':' + l.id;
+    if (__saveTimers[pendingKey]) { byId[l.id] = l; return; }
+    const r = byId[l.id];
+    if (!r) { byId[l.id] = l; return; }
+    const lt = l.updatedAt || l.createdAt || 0;
+    const rt = r.updatedAt || r.createdAt || 0;
+    byId[l.id] = lt > rt ? l : r;
+  });
+  return Object.values(byId);
+}
+
+// Evita che una sincronizzazione in arrivo interrompa una digitazione in corso.
 function renderIfSafe(){
   const ae = document.activeElement;
-  const typing = ae && ['INPUT','TEXTAREA','SELECT'].includes(ae.tagName) && document.body.contains(ae);
-  if (typing) return;
+  if (ae && ['INPUT','TEXTAREA','SELECT'].includes(ae.tagName) && document.body.contains(ae)) return;
+  if (state.modal) return;
   render();
 }
 
 let unsubscribers = [];
 function attachFirestore(uidUser){
-  unsubscribers.forEach(u=>u());
-  unsubscribers = [];
+  detachFirestore();
   const base = db.collection('users').doc(uidUser);
-
-  unsubscribers.push(base.collection('characters').onSnapshot(snap=>{
-    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
-    state.characters = mergeCollection(state.characters, remote, 'characters');
-    saveLocal(); setSaveStatus('saved'); renderIfSafe();
-  }, err=>{ console.error('Errore sync personaggi', err); toast('⚠️ Sync personaggi non riuscita'); }));
-
-  unsubscribers.push(base.collection('npcs').onSnapshot(snap=>{
-    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
-    state.npcs = mergeCollection(state.npcs, remote, 'npcs');
-    saveLocal(); setSaveStatus('saved'); renderIfSafe();
-  }, err=>console.error('Errore sync PNG', err)));
-
-  unsubscribers.push(base.collection('customSpells').onSnapshot(snap=>{
-    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
-    state.customSpells = mergeCollection(state.customSpells, remote, 'customSpells');
-    saveLocal(); setSaveStatus('saved'); renderIfSafe();
-  }, err=>console.error('Errore sync incantesimi personalizzati', err)));
-
-  unsubscribers.push(base.collection('encounters').onSnapshot(snap=>{
-    const remote = snap.docs.map(d=>({...d.data(), id:d.id}));
-    state.encounters = mergeCollection(state.encounters, remote, 'encounters');
-    saveLocal(); setSaveStatus('saved'); renderIfSafe();
-  }, err=>console.error('Errore sync incontri', err)));
+  const wire = (name, mapper) => {
+    unsubscribers.push(base.collection(name).onSnapshot(snap => {
+      const remote = snap.docs.map(d => ({...d.data(), id: d.id}));
+      state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name);
+      saveLocal(); setSaveStatus('saved'); renderIfSafe();
+    }, err => { console.error('Errore sync ' + name, err); }));
+  };
+  wire('characters', migrateCharacter);
+  wire('npcs');
+  wire('customSpells');
 }
+function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }); unsubscribers = []; }
 
 function userCol(collection){ return db.collection('users').doc(currentUser.uid).collection(collection); }
 
 async function fsSet(collection, obj){
-  const id = obj.id || uid();
-  obj.id = id;
+  obj.id = obj.id || uid();
   obj.updatedAt = Date.now();
   saveLocal();
-  if (!currentUser) { setSaveStatus('offline'); return id; }
-  const payload = {...obj};
+  if (!currentUser || !firebaseReady){ setSaveStatus('offline'); return obj.id; }
   try {
-    await userCol(collection).doc(id).set(payload, {merge:true});
+    await userCol(collection).doc(obj.id).set(JSON.parse(JSON.stringify(obj)), {merge:true});
     setSaveStatus('saved');
   } catch(e){
     console.error('Errore salvataggio', e);
     setSaveStatus('offline');
-    toast('⚠️ Salvataggio non riuscito, controlla la connessione');
   }
-  return id;
+  return obj.id;
 }
 async function fsDelete(collection, id){
   saveLocal();
-  if (!currentUser) return;
+  if (!currentUser || !firebaseReady) return;
   try { await userCol(collection).doc(id).delete(); }
-  catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non riuscita'); }
+  catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non sincronizzata'); }
 }
-// Un timer di debounce per ogni oggetto (non uno globale condiviso): così modificare
-// due personaggi/PNG diversi entro 600ms non fa "perdere" il salvataggio del primo.
+// Un timer di debounce per ogni oggetto: modificare due schede diverse
+// entro 600ms non fa "perdere" il salvataggio della prima.
 function scheduleSave(collection, obj){
   saveLocal();
   setSaveStatus(currentUser ? 'saving' : 'offline');
   const key = collection + ':' + obj.id;
   clearTimeout(__saveTimers[key]);
-  __saveTimers[key] = setTimeout(() => {
-    delete __saveTimers[key];
-    fsSet(collection, obj);
-  }, 600);
+  __saveTimers[key] = setTimeout(() => { delete __saveTimers[key]; fsSet(collection, obj); }, 600);
+}
+// Salva subito tutto ciò che è in attesa (es. quando l'app va in background)
+function flushPendingSaves(){
+  Object.keys(__saveTimers).forEach(key => {
+    clearTimeout(__saveTimers[key]); delete __saveTimers[key];
+    const [collection, id] = key.split(':');
+    const list = state[collection] || [];
+    const obj = list.find(o => o.id === id);
+    if (obj) fsSet(collection, obj);
+  });
+  saveLocal(); saveSession();
 }
 
-/* ─── 6. AUTENTICAZIONE (Google Sign-In) ─── */
+/* ─── 6. AUTENTICAZIONE ─── */
 function isMobileAuth(){ return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent); }
 function signIn(){
+  if (!firebaseReady){ toast('Connessione a Firebase non disponibile'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  const signInMethod = isMobileAuth() ? auth.signInWithRedirect.bind(auth) : auth.signInWithPopup.bind(auth);
-  signInMethod(provider).catch(err=>{
+  const method = isMobileAuth() ? auth.signInWithRedirect.bind(auth) : auth.signInWithPopup.bind(auth);
+  method(provider).catch(err => {
     console.error(err);
     const msgs = {
       "auth/unauthorized-domain": "Dominio non autorizzato. In Firebase Console → Authentication → Settings → Authorized domains aggiungi: " + location.hostname,
       "auth/operation-not-allowed": "Accesso Google non attivo. In Firebase Console → Authentication → Sign-in method abilita Google.",
       "auth/popup-blocked": "Il browser ha bloccato il popup: consenti i popup per questo sito e riprova.",
       "auth/configuration-not-found": "Configurazione Firebase mancante o errata: controlla FIREBASE_CONFIG in app.js.",
+      "auth/network-request-failed": "Nessuna connessione: puoi continuare in locale, i dati si sincronizzeranno più tardi.",
       "auth/cancelled-popup-request": null, "auth/popup-closed-by-user": null,
     };
     const m = msgs[err.code];
     if (m !== null) toast(m || ("Errore accesso: " + err.message));
   });
 }
-function signOutUser(){ auth.signOut(); }
-
-auth.getRedirectResult().catch(err=>{
-  if (err && err.code !== 'auth/no-auth-event') console.error('Redirect auth error:', err);
-});
-
-auth.onAuthStateChanged(u=>{
-  currentUser = u;
-  state.authReady = true;
-  if (u) {
-    state.offlineMode = false;
-    attachFirestore(u.uid);
-  } else {
-    unsubscribers.forEach(x=>x()); unsubscribers = [];
-  }
-  render();
-});
+function signOutUser(){ if (auth) auth.signOut(); }
 
 /* ─── 7. MODELLO PERSONAGGIO ─── */
 function newCharacter(){
@@ -387,44 +391,116 @@ function newCharacter(){
     abilities: { str:10, dex:10, con:10, int:10, wis:10, cha:10 },
     skillProf: [], saveProf: [],
     hp: { current: 10, max: 10, temp: 0 },
-    ac: 10, initiative: 0, speed: 9, hitDice: '1d8',
+    ac: 10, initiative: 0, speed: 9,
+    hitDie: 8, hitDiceUsed: 0,
+    deathSaves: { win: 0, fail: 0 },
     casterType: 'none', spellAbility: 'int',
-    slotsUsed: {},
-    knownSpells: [],
-    inventory: [],
+    slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null,
+    inventory: [], coins: { pp:0, gp:0, ep:0, sp:0, cp:0 },
     traits: '', ideals: '', bonds: '', flaws: '', backstory: '', features: '',
     createdAt: Date.now(),
   };
 }
+// Porta le schede vecchie al nuovo modello senza perdere nulla.
+function migrateCharacter(c){
+  if (!c || typeof c !== 'object') return c;
+  c.abilities = c.abilities || { str:10, dex:10, con:10, int:10, wis:10, cha:10 };
+  c.hp = c.hp || { current: 10, max: 10, temp: 0 };
+  c.hp.temp = Number(c.hp.temp) || 0;
+  c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || [];
+  c.knownSpells = c.knownSpells || []; c.preparedSpells = c.preparedSpells || [];
+  c.inventory = c.inventory || []; c.slotsUsed = c.slotsUsed || {};
+  c.coins = Object.assign({ pp:0, gp:0, ep:0, sp:0, cp:0 }, c.coins || {});
+  c.deathSaves = Object.assign({ win:0, fail:0 }, c.deathSaves || {});
+  if (c.concentration === undefined) c.concentration = null;
+  if (!c.hitDie){
+    const parsed = /d(\d+)/i.exec(c.hitDice || '');
+    c.hitDie = parsed ? Number(parsed[1]) : (CLASS_TO_HIT_DIE[c.classField] || 8);
+  }
+  c.hitDiceUsed = clamp(c.hitDiceUsed || 0, 0, 20);
+  c.level = clamp(c.level || 1, 1, 20);
+  return c;
+}
 
-/* ─── 8. FRAMEWORK DI RENDER + NAVIGAZIONE ─── */
-function goView(v){ state.view = v; state.activeCharId = null; render(); window.scrollTo({top:0}); }
-function openSheet(id){ state.view = 'sheet'; state.activeCharId = id; state.sheetTab = 'overview'; render(); window.scrollTo({top:0}); }
+/* ─── 8. CALCOLI DERIVATI ─── */
+function skillMod(c, s){ return mod(getPath(c,'abilities.'+s.ability,10)) + ((c.skillProf||[]).includes(s.key) ? profBonus(c.level) : 0); }
+function saveMod(c, abilityKey){ return mod(getPath(c,'abilities.'+abilityKey,10)) + ((c.saveProf||[]).includes(abilityKey) ? profBonus(c.level) : 0); }
+function hpPctFor(c){ const max = getPath(c,'hp.max',1)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }
+function spellcastingMod(c){ return mod(getPath(c,'abilities.'+(c.spellAbility||'int'),10)) + profBonus(c.level); }
+function charById(id){ return state.characters.find(x=>x.id===id); }
+function hitDiceLeft(c){ return clamp((c.level||1) - (c.hitDiceUsed||0), 0, 20); }
+function passivePerception(c){ return 10 + skillMod(c, SKILLS.find(s=>s.key==='perception')); }
+
+/* ─── 9. NAVIGAZIONE + RENDER ─── */
+let __modalDepth = 0, __ignorePop = false, __lastRenderKey = '';
+
+function navSnapshot(){
+  return { view: state.view, activeCharId: state.activeCharId, sheetTab: state.sheetTab,
+           dmTab: state.dmTab, grimoireMode: state.grimoireMode, grimoirePickFor: state.grimoirePickFor };
+}
+function pushNav(){ try { history.pushState(navSnapshot(), ''); } catch(e){} }
+function replaceNav(){ try { history.replaceState(navSnapshot(), ''); } catch(e){} }
+function applyNav(s){
+  state.view = s.view || 'party';
+  state.activeCharId = s.activeCharId || null;
+  state.sheetTab = s.sheetTab || 'overview';
+  state.dmTab = s.dmTab || 'bestiary';
+  state.grimoireMode = s.grimoireMode || 'browse';
+  state.grimoirePickFor = s.grimoirePickFor || null;
+  render();
+}
+window.addEventListener('popstate', (e) => {
+  if (__ignorePop){ __ignorePop = false; return; }
+  if (state.modal){ closeModal(true); return; }
+  if (e.state && e.state.view) applyNav(e.state);
+  else { state.view = 'party'; state.activeCharId = null; render(); }
+});
+
+function goView(v){
+  if (state.grimoireMode === 'pick' && v !== 'grimoire'){ state.grimoireMode = 'browse'; state.grimoirePickFor = null; }
+  state.view = v; state.activeCharId = null;
+  pushNav(); render(); scrollTop();
+}
+function openSheet(id){
+  state.view = 'sheet'; state.activeCharId = id; state.sheetTab = 'overview';
+  pushNav(); render(); scrollTop();
+}
+function setSheetTab(tab){ state.sheetTab = tab; replaceNav(); render(); scrollTop(); }
+function setDmTab(tab){ state.dmTab = tab; replaceNav(); render(); }
 
 function toggleTheme(){
   state.theme = state.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('grimorio-theme', state.theme);
   document.documentElement.setAttribute('data-theme', state.theme);
+  const meta = document.querySelector('meta[name="theme-color"]:not([media])');
+  if (meta) meta.setAttribute('content', state.theme === 'dark' ? '#140f1e' : '#f6ead0');
   render();
 }
 
-function loaderHTML(){ return `<div id="loader"><div class="spinner"></div><p>Il Grimorio si sta aprendo…</p></div>`; }
+function loaderHTML(){ return `<div id="loader"><div class="rune-load"></div><p>Il Grimorio si sta aprendo…</p></div>`; }
+function emptyState(icon, text){ return `<div class="empty-state"><div class="ic">${icon}</div><p>${escapeHtml(text)}</p></div>`; }
+function themeToggleBtn(){ return `<button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema" title="Cambia tema">${state.theme==='dark'?'🌙':'☀️'}</button>`; }
+
+function offlineBannerHTML(){
+  if (currentUser) return '';
+  if (!firebaseReady) return `<div class="offline-banner">📴 Modalità locale — i dati restano qui.</div>`;
+  return `<div class="offline-banner">📴 Modalità locale — <button onclick="signIn()">accedi</button> per sincronizzare.</div>`;
+}
 
 function authScreenHTML(){
-  const hasLocal = state.characters.length || state.npcs.length || state.customSpells.length;
   return `<div class="auth-screen">
-    <div class="seal">📖</div>
-    <h1 class="display">Grimorio</h1>
+    <div class="seal glow" style="font-family:var(--font-head)">📖</div>
+    <h1>Grimorio</h1>
     <p>Personaggi, incantesimi, inventario, background e strumenti da master: la tua compagnia sempre a portata di mano, sincronizzata su tutti i dispositivi.</p>
     <button class="google-btn" onclick="signIn()">
-      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.96H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.04l3.07-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.96l3.07 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.96H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.04l3.07-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.96l3.07 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
       Accedi con Google
     </button>
-    ${hasLocal ? `<button class="btn btn-ghost btn-block" onclick="continueOffline()">Continua in locale (${state.characters.length} personagg${state.characters.length===1?'io':'i'})</button>` : ''}
-    <p style="font-size:.72rem; opacity:.7;">${hasLocal ? 'In locale i dati restano su questo dispositivo. Accedi per sincronizzare.' : 'I dati restano legati al tuo account Google e sincronizzati tra i dispositivi collegati.'}</p>
+    <button class="btn btn-ghost" onclick="continueOffline()">Continua senza account</button>
+    <p style="font-size:.72rem; opacity:.75;">Senza account i dati restano solo su questo dispositivo: potrai accedere in seguito e verranno sincronizzati.</p>
   </div>`;
 }
-function continueOffline(){ state.offlineMode = true; render(); }
+function continueOffline(){ state.offlineMode = true; localStorage.setItem('grimorio-offline','1'); render(); }
 
 function bottomNavHTML(){
   const items = [
@@ -433,541 +509,875 @@ function bottomNavHTML(){
     {v:'dm', ic:'⚔️', label:'Tavolo'},
     {v:'settings', ic:'⚙️', label:'Opzioni'},
   ];
-  return `<div class="bottomnav"><div class="bottomnav-inner">
-    ${items.map(i=>`<button class="nav-btn ${state.view===i.v?'active':''}" onclick="goView('${i.v}')"><span class="ic">${i.ic}</span>${i.label}</button>`).join('')}
-  </div></div>`;
+  const active = state.view === 'sheet' ? 'party' : state.view;
+  return `<nav class="bottomnav"><div class="bottomnav-inner">
+    ${items.map(i=>`<button class="nav-btn ${active===i.v?'active':''}" onclick="goView('${i.v}')" aria-label="${i.label}"><span class="ic">${i.ic}</span>${i.label}</button>`).join('')}
+  </div></nav>`;
 }
-
-function fabHTML(){ return `<button class="fab" onclick="openDiceRoller()" aria-label="Tira i dadi">🎲</button>`; }
-
-function emptyState(icon, text){ return `<div class="empty-state"><div class="ic">${icon}</div><p>${escapeHtml(text)}</p></div>`; }
+function fabHTML(){ return `<button class="fab" onclick="openDiceRoller()" aria-label="Tira i dadi" title="Tira i dadi">🎲</button>`; }
 
 function render(){
   const app = $('#app');
-  if (!state.authReady) { app.innerHTML = loaderHTML(); return; }
-  if (!currentUser && !state.offlineMode && !state.characters.length && !state.npcs.length) {
+  if (!app) return;
+  if (!state.authReady){ app.innerHTML = loaderHTML(); return; }
+  if (!currentUser && !state.offlineMode && !state.characters.length && !state.npcs.length){
     app.innerHTML = authScreenHTML();
     return;
   }
+  const y = window.scrollY;
+  const key = [state.view, state.activeCharId||'', state.sheetTab, state.dmTab].join('|');
+  const changed = key !== __lastRenderKey;
+  __lastRenderKey = key;
 
   let body;
-  if (state.view === 'sheet' && state.characters.find(c=>c.id===state.activeCharId)) body = renderCharacterSheet();
+  if (state.view === 'sheet' && charById(state.activeCharId)) body = renderCharacterSheet();
   else if (state.view === 'grimoire') body = renderGrimoire();
   else if (state.view === 'dm') body = renderDM();
   else if (state.view === 'settings') body = renderSettings();
   else { state.view = 'party'; body = renderParty(); }
 
-  app.innerHTML = offlineBannerHTML() + saveStatusHTML() + body + (state.view === 'sheet' ? '' : bottomNavHTML()) + fabHTML();
+  app.innerHTML = offlineBannerHTML()
+    + `<div class="screen${changed ? ' anim-in' : ''}">${body}</div>`
+    + bottomNavHTML() + fabHTML();
+  updateSaveStatusEl();
+  if (!changed) window.scrollTo(0, y);
 }
 
-/* ─── 9. VISTA PARTY ─── */
-function renderParty(){
-  const chars = state.characters;
-  return `
-    <div class="screen">
-      <div class="brand-row">
-        <div class="brand-mark">
-          <div class="seal seal-mini" style="font-size:1.05rem;">📖</div>
-          <div class="topbar-title brand">Grimorio</div>
-        </div>
-        ${themeToggleBtn()}
-      </div>
-      ${chars.length ? `<div class="stagger list-gap">${chars.map(charCardHTML).join('')}</div>` : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe per iniziare l\'avventura.')}
-      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="openCharacterForm()">+ Nuovo personaggio</button>
-    </div>
-  `;
-}
-function charCardHTML(c){
-  const hpMax = getPath(c,'hp.max',1)||1;
-  const hpPct = clamp(100*(getPath(c,'hp.current',0)/hpMax), 0, 100);
-  return `
-    <div class="char-card" onclick="openSheet('${c.id}')">
-      <div class="seal" style="font-size:1.5rem;">${c.avatar||'⚔️'}</div>
-      <div class="char-card-body">
-        <div class="char-card-name">${escapeHtml(c.name||'Senza nome')}</div>
-        <div class="char-card-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
-        <div class="hp-mini"><div class="hp-mini-fill" style="width:${hpPct}%"></div></div>
-      </div>
-      <div class="char-card-chevron">›</div>
-    </div>
-  `;
-}
-
-/* ─── 10. MODALI GENERICHE (overlay riutilizzabili) ─── */
+/* ─── 10. MODALI ─── */
 function ensureModalRoot(){
   let root = document.getElementById('modal-root');
-  if (!root) { root = document.createElement('div'); root.id = 'modal-root'; document.body.appendChild(root); }
+  if (!root){ root = document.createElement('div'); root.id = 'modal-root'; document.body.appendChild(root); }
   return root;
 }
 function renderModalRoot(){
   const root = ensureModalRoot();
-  if (!state.modal) { root.innerHTML = ''; return; }
+  if (!state.modal){ root.innerHTML = ''; document.body.style.overflow = ''; return; }
   root.innerHTML = state.modal.render();
+  document.body.style.overflow = 'hidden';
   if (state.modal.after) state.modal.after();
 }
-function openModal(descriptor){ state.modal = descriptor; renderModalRoot(); }
-function closeModal(){ state.modal = null; renderModalRoot(); }
+function openModal(descriptor){
+  if (__modalDepth === 0){ __modalDepth = 1; try { history.pushState(Object.assign(navSnapshot(), {modal:true}), ''); } catch(e){} }
+  state.modal = descriptor;
+  renderModalRoot();
+}
+function closeModal(fromPop){
+  if (!state.modal && !__modalDepth) return;
+  state.modal = null;
+  renderModalRoot();
+  if (fromPop){ __modalDepth = 0; return; }
+  if (__modalDepth){ __modalDepth = 0; __ignorePop = true; try { history.back(); } catch(e){} }
+}
+document.addEventListener('keydown', (e)=>{
+  if (e.key === 'Escape' && state.modal) closeModal();
+});
 
 let __confirmAction = null;
-function confirmDialog(title, body, action){
+function confirmDialog(title, body, action, confirmLabel){
   __confirmAction = action;
   openModal({ render: () => `
     <div class="overlay center" onclick="if(event.target===this) closeModal()">
-      <div class="sheet-modal" style="padding:22px 18px; border-radius:20px;">
+      <div class="sheet-modal frame" style="padding:24px 20px;">
         <div class="section-title">${escapeHtml(title)}</div>
-        <p class="muted" style="margin-bottom:18px;">${escapeHtml(body)}</p>
-        <div style="display:flex; gap:10px;">
-          <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">Annulla</button>
-          <button class="btn" style="flex:1; background:var(--garnet); color:#fff8ec;" onclick="__confirmAction && __confirmAction(); closeModal();">Conferma</button>
+        <p class="muted" style="margin-bottom:20px;">${escapeHtml(body)}</p>
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+          <button class="btn btn-primary" onclick="runConfirm()">${escapeHtml(confirmLabel||'Conferma')}</button>
         </div>
       </div>
     </div>` });
 }
+function runConfirm(){ const a = __confirmAction; __confirmAction = null; closeModal(); if (a) a(); }
 
-/* ─── 11. CREAZIONE / MODIFICA PERSONAGGIO ─── */
-let draftChar = null;
-function openCharacterForm(existingId){
-  const c = existingId ? state.characters.find(x=>x.id===existingId) : null;
-  draftChar = c ? JSON.parse(JSON.stringify(c)) : newCharacter();
-  openModal({ render: () => characterFormHTML(!!c) });
-}
-function characterFormHTML(isEdit){
-  const d = draftChar;
-  return `
-  <div class="overlay" onclick="if(event.target===this) closeModal()">
+function modalShell(title, inner, opts){
+  opts = opts || {};
+  return `<div class="overlay${opts.center?' center':''}" onclick="if(event.target===this) closeModal()">
     <div class="sheet-modal">
       <div class="sheet-modal-handle"></div>
       <div class="sheet-modal-head">
-        <div class="sheet-modal-title">${isEdit?'Modifica personaggio':'Nuovo personaggio'}</div>
-        <button class="btn-icon" onclick="closeModal()">✕</button>
+        <div class="sheet-modal-title">${title}</div>
+        <button class="btn-icon" onclick="closeModal()" aria-label="Chiudi">✕</button>
       </div>
+      ${inner}
+    </div>
+  </div>`;
+}
+
+/* ─── 11. VISTA PARTY ─── */
+function renderParty(){
+  const chars = state.characters.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  return `
+    <div class="hero">
+      <div class="hero-actions">${themeToggleBtn()}</div>
+      <h1>Grimorio</h1>
+      <div class="rule">❖</div>
+      <div class="sub">La tua compagnia</div>
+    </div>
+    ${chars.length
+      ? `<div class="stagger list-gap party-grid">${chars.map(charCardHTML).join('')}</div>`
+      : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
+    <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="openCharacterForm()">✦ Nuovo personaggio</button>
+  `;
+}
+function charCardHTML(c){
+  const pct = hpPctFor(c);
+  return `
+    <button class="char-card" onclick="openSheet('${c.id}')">
+      <div class="seal" style="font-size:1.6rem;">${c.avatar||'⚔️'}</div>
+      <div class="char-card-body">
+        <div class="char-card-name">${escapeHtml(c.name||'Senza nome')}</div>
+        <div class="char-card-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
+        <div class="hp-mini"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
+      </div>
+      <div class="char-card-chevron">›</div>
+    </button>
+  `;
+}
+
+/* ─── 12. CREAZIONE / MODIFICA PERSONAGGIO ─── */
+let draftChar = null;
+function openCharacterForm(existingId){
+  const c = existingId ? charById(existingId) : null;
+  draftChar = c ? JSON.parse(JSON.stringify(c)) : newCharacter();
+  openModal({ render: () => characterFormHTML(!!c), after: () => { if (!c){ const el = document.getElementById('cf-name'); if (el) el.focus(); } } });
+}
+function pickDraftClass(val){
+  draftChar.classField = val;
+  applyClassDefaults(draftChar, true);
+  renderModalRoot();
+}
+function characterFormHTML(isEdit){
+  const d = draftChar;
+  const inner = `
       <div class="field">
         <label>Nome</label>
-        <input value="${escapeHtml(d.name)}" placeholder="Es. Elyndra Nightwhisper" oninput="draftChar.name=this.value">
+        <input id="cf-name" value="${attr(d.name)}" placeholder="Es. Elyndra Sussurronotte" oninput="draftChar.name=this.value">
       </div>
       <div class="form-row">
-        <div class="field"><label>Razza</label><input value="${escapeHtml(d.race)}" placeholder="Es. Elfo" oninput="draftChar.race=this.value"></div>
+        <div class="field"><label>Razza</label><input value="${attr(d.race)}" placeholder="Es. Elfo" oninput="draftChar.race=this.value"></div>
         <div class="field"><label>Classe</label>
-          <select onchange="draftChar.classField=this.value; applyClassDefaults(draftChar); renderModalRoot()">
+          <select onchange="pickDraftClass(this.value)">
             <option value="">—</option>
             ${CLASS_LIST_IT.map(cl=>`<option value="${cl}" ${d.classField===cl?'selected':''}>${cl}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Livello</label><input type="number" min="1" max="20" value="${d.level||1}" oninput="draftChar.level=clamp(parseInt(this.value)||1,1,20)"></div>
-        <div class="field"><label>Allineamento</label><input value="${escapeHtml(d.alignment||'')}" placeholder="Es. Neutrale Buono" oninput="draftChar.alignment=this.value"></div>
+        <div class="field"><label>Livello</label><input type="number" inputmode="numeric" min="1" max="20" value="${d.level||1}" oninput="draftChar.level=clamp(parseInt(this.value)||1,1,20)"></div>
+        <div class="field"><label>Allineamento</label><input value="${attr(d.alignment||'')}" placeholder="Es. Neutrale Buono" oninput="draftChar.alignment=this.value"></div>
       </div>
       <div class="field">
         <label>Background</label>
         <div class="chip-row" style="margin-bottom:8px;">
           ${BACKGROUND_PRESETS.slice(0,6).map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${b}'; renderModalRoot()">${b}</button>`).join('')}
         </div>
-        <input value="${escapeHtml(d.background||'')}" placeholder="Es. Eremita" oninput="draftChar.background=this.value">
+        <input value="${attr(d.background||'')}" placeholder="…oppure scrivi il tuo" oninput="draftChar.background=this.value">
+      </div>
+      <div class="form-row-3">
+        <div class="field"><label>PF max</label><input type="number" inputmode="numeric" min="1" value="${getPath(d,'hp.max',10)}" oninput="draftChar.hp=draftChar.hp||{}; draftChar.hp.max=clamp(parseInt(this.value)||1,1,9999); if(!draftChar.hp.current||draftChar.hp.current>draftChar.hp.max) draftChar.hp.current=draftChar.hp.max"></div>
+        <div class="field"><label>CA</label><input type="number" inputmode="numeric" value="${d.ac??10}" oninput="draftChar.ac=clamp(parseInt(this.value)||0,0,40)"></div>
+        <div class="field"><label>Dado Vita</label>
+          <select onchange="draftChar.hitDie=parseInt(this.value)">
+            ${[6,8,10,12].map(hd=>`<option value="${hd}" ${(d.hitDie||8)===hd?'selected':''}>d${hd}</option>`).join('')}
+          </select>
+        </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>PF massimi</label><input type="number" min="1" value="${getPath(d,'hp.max',10)}" oninput="draftChar.hp=draftChar.hp||{}; draftChar.hp.max=clamp(parseInt(this.value)||1,1,9999); if(!draftChar.hp.current) draftChar.hp.current=draftChar.hp.max"></div>
         <div class="field"><label>Tipo incantatore</label>
           <select onchange="draftChar.casterType=this.value">
             ${CASTER_TYPES.map(ct=>`<option value="${ct.key}" ${(d.casterType||'none')===ct.key?'selected':''}>${ct.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Caratteristica magia</label>
+          <select onchange="draftChar.spellAbility=this.value">
+            ${['int','wis','cha'].map(k=>`<option value="${k}" ${(d.spellAbility||'int')===k?'selected':''}>${ABILITY_BY_KEY[k].label}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="field">
         <label>Simbolo</label>
         <div class="chip-row">
-          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g?'active':''}" style="font-size:1.05rem;padding:7px 11px;" onclick="draftChar.avatar='${g}'; renderModalRoot()">${g}</button>`).join('')}
+          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g?'active':''}" style="font-size:1.1rem;padding:8px 12px;" onclick="draftChar.avatar='${g}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
         </div>
       </div>
       <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="saveCharacterDraft(${isEdit})">${isEdit?'Salva modifiche':'Crea personaggio'}</button>
-      ${isEdit?`<button class="btn btn-danger btn-block" style="margin-top:8px" onclick="closeModal(); confirmDeleteCharacter('${d.id}')">Elimina personaggio</button>`:''}
-    </div>
-  </div>`;
+      ${isEdit?`<div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-ghost" onclick="duplicateCharacter('${d.id}')">⧉ Duplica</button>
+          <button class="btn btn-danger" onclick="confirmDeleteCharacter('${d.id}')">Elimina</button>
+        </div>`:''}`;
+  return modalShell(isEdit?'Modifica personaggio':'Nuovo personaggio', inner);
 }
 function saveCharacterDraft(isEdit){
   if (!draftChar.name || !draftChar.name.trim()){ toast('Dai un nome al personaggio prima di continuare'); return; }
   draftChar.hp = draftChar.hp || { current: 10, max: 10, temp: 0 };
   if (!draftChar.hp.current) draftChar.hp.current = draftChar.hp.max || 10;
-  if (!isEdit && !draftChar.classField) applyClassDefaults(draftChar);
+  draftChar.hp.current = clamp(draftChar.hp.current, 0, draftChar.hp.max || 9999);
+  migrateCharacter(draftChar);
   const idx = state.characters.findIndex(c=>c.id===draftChar.id);
   if (idx>=0) state.characters[idx] = draftChar; else state.characters.push(draftChar);
   if (!currentUser) state.offlineMode = true;
   fsSet('characters', draftChar);
-  saveLocal();
   const newId = draftChar.id;
   closeModal();
   if (!isEdit) openSheet(newId); else render();
+  toast(isEdit ? '✓ Modifiche salvate' : '✦ Personaggio creato');
+}
+function duplicateCharacter(id){
+  const c = charById(id); if (!c) return;
+  const copy = JSON.parse(JSON.stringify(c));
+  copy.id = uid(); copy.createdAt = Date.now();
+  copy.name = (c.name||'Senza nome') + ' (copia)';
+  state.characters.push(copy);
+  fsSet('characters', copy);
+  closeModal(); render();
+  toast('⧉ Copia creata');
 }
 function confirmDeleteCharacter(id){
-  const c = state.characters.find(x=>x.id===id);
-  confirmDialog('Eliminare ' + (c?c.name:'questo personaggio') + '?', 'Il personaggio e i suoi dati andranno persi permanentemente.', () => doDeleteCharacter(id));
+  const c = charById(id);
+  confirmDialog('Eliminare ' + (c?c.name:'questo personaggio') + '?', 'La scheda e tutti i suoi dati andranno persi definitivamente.', () => doDeleteCharacter(id), 'Elimina');
 }
 function doDeleteCharacter(id){
   state.characters = state.characters.filter(c=>c.id!==id);
-  if (currentUser) fsDelete('characters', id);
+  fsDelete('characters', id);
   saveLocal();
-  if (state.activeCharId === id) { state.view='party'; state.activeCharId=null; }
+  if (state.activeCharId === id){ state.view='party'; state.activeCharId=null; replaceNav(); }
   render();
   toast('Personaggio eliminato');
 }
 
-/* ─── 12. CALCOLI DERIVATI PERSONAGGIO ─── */
-function skillMod(c, s){ return mod(getPath(c,'abilities.'+s.ability,10)) + ((c.skillProf||[]).includes(s.key) ? profBonus(c.level) : 0); }
-function saveMod(c, abilityKey){ return mod(getPath(c,'abilities.'+abilityKey,10)) + ((c.saveProf||[]).includes(abilityKey) ? profBonus(c.level) : 0); }
-function hpPctFor(c){ const max = getPath(c,'hp.max',1)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }
-function spellcastingMod(c){ return mod(getPath(c,'abilities.'+(c.spellAbility||'int'),10)) + profBonus(c.level); }
-
+/* ─── 13. MODIFICHE AI CAMPI ─── */
 function updateCharField(id, path, value){
-  const c = state.characters.find(x=>x.id===id);
-  if (!c) return;
+  const c = charById(id); if (!c) return;
   setPath(c, path, value);
   scheduleSave('characters', c);
-  saveLocal();
 }
-
 function updateAbility(charId, key, value){
-  const c = state.characters.find(x=>x.id===charId);
-  if (!c) return;
+  const c = charById(charId); if (!c) return;
   const score = clamp(parseInt(value)||10, 1, 30);
   setPath(c, 'abilities.'+key, score);
-  const modEl = document.getElementById('mod-'+key); if (modEl) modEl.textContent = modStr(score);
-  if (key === 'dex') {
-    c.initiative = mod(score);
-    const initEl = document.getElementById('cs-init'); if (initEl) initEl.value = c.initiative;
-  }
-  SKILLS.filter(s=>s.ability===key).forEach(s=>{
-    const el = document.getElementById('skmod-'+s.key);
-    if (el) el.textContent = signStr(skillMod(c, s));
-  });
-  const saveEl = document.getElementById('savemod-'+key);
-  if (saveEl) saveEl.textContent = signStr(saveMod(c, key));
+  refreshDerived(c, key);
   scheduleSave('characters', c);
-  saveLocal();
 }
-
-function toggleSkillProf(id, key){
-  const c = state.characters.find(x=>x.id===id); if (!c) return;
+// Aggiorna solo i numeri che cambiano, senza ridisegnare la pagina
+// (così la tastiera resta aperta e non si perde la posizione).
+function refreshDerived(c, key){
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  if (key){
+    set('mod-'+key, modStr(getPath(c,'abilities.'+key,10)));
+    set('savemod-'+key, signStr(saveMod(c,key)));
+    SKILLS.filter(s=>s.ability===key).forEach(s=> set('skmod-'+s.key, signStr(skillMod(c,s))));
+    if (key === 'dex'){
+      c.initiative = mod(getPath(c,'abilities.dex',10));
+      const initEl = document.getElementById('cs-init'); if (initEl && document.activeElement !== initEl) initEl.value = c.initiative;
+    }
+    if (key === 'wis') set('passive-perc', passivePerception(c));
+  } else {
+    ABILITIES.forEach(a => { set('mod-'+a.key, modStr(getPath(c,'abilities.'+a.key,10))); set('savemod-'+a.key, signStr(saveMod(c,a.key))); });
+    SKILLS.forEach(s => set('skmod-'+s.key, signStr(skillMod(c,s))));
+    set('passive-perc', passivePerception(c));
+  }
+}
+function toggleSkillProf(id, key, btn){
+  const c = charById(id); if (!c) return;
   c.skillProf = c.skillProf||[];
   const i = c.skillProf.indexOf(key);
   if (i>=0) c.skillProf.splice(i,1); else c.skillProf.push(key);
-  scheduleSave('characters', c); saveLocal(); render();
+  if (btn) btn.classList.toggle('on', c.skillProf.includes(key));
+  const s = SKILLS.find(x=>x.key===key);
+  const el = document.getElementById('skmod-'+key); if (el) el.textContent = signStr(skillMod(c,s));
+  const pp = document.getElementById('passive-perc'); if (pp) pp.textContent = passivePerception(c);
+  scheduleSave('characters', c);
 }
-function toggleSaveProf(id, key){
-  const c = state.characters.find(x=>x.id===id); if (!c) return;
+function toggleSaveProf(id, key, btn){
+  const c = charById(id); if (!c) return;
   c.saveProf = c.saveProf||[];
   const i = c.saveProf.indexOf(key);
   if (i>=0) c.saveProf.splice(i,1); else c.saveProf.push(key);
-  scheduleSave('characters', c); saveLocal(); render();
+  if (btn) btn.classList.toggle('on', c.saveProf.includes(key));
+  const el = document.getElementById('savemod-'+key); if (el) el.textContent = signStr(saveMod(c,key));
+  scheduleSave('characters', c);
 }
 
+/* ─── PUNTI FERITA ─── */
 function bumpHP(id, delta){
-  const c = state.characters.find(x=>x.id===id); if (!c) return;
+  const c = charById(id); if (!c) return;
   const max = getPath(c,'hp.max',0);
-  let cur = clamp(getPath(c,'hp.current',0) + delta, 0, max);
-  setPath(c,'hp.current',cur);
-  refreshHPDisplay(c);
-  scheduleSave('characters', c); saveLocal();
+  if (delta < 0){
+    // I PF temporanei assorbono per primi, come da regolamento.
+    let dmg = -delta;
+    const temp = Number(c.hp.temp)||0;
+    if (temp > 0){ const absorbed = Math.min(temp, dmg); c.hp.temp = temp - absorbed; dmg -= absorbed; }
+    if (dmg > 0) setPath(c,'hp.current', clamp(getPath(c,'hp.current',0) - dmg, 0, max));
+  } else {
+    setPath(c,'hp.current', clamp(getPath(c,'hp.current',0) + delta, 0, max));
+  }
+  if (getPath(c,'hp.current',0) > 0) c.deathSaves = { win:0, fail:0 };
+  scheduleSave('characters', c);
+  render();
 }
 function setHP(id, val){
-  const c = state.characters.find(x=>x.id===id); if (!c) return;
-  setPath(c,'hp.current', clamp(parseInt(val)||0, 0, 9999));
+  const c = charById(id); if (!c) return;
+  setPath(c,'hp.current', clamp(parseInt(val)||0, 0, getPath(c,'hp.max',9999)));
   refreshHPDisplay(c, false);
-  scheduleSave('characters', c); saveLocal();
+  scheduleSave('characters', c);
 }
 function setHPMax(id, val){
-  const c = state.characters.find(x=>x.id===id); if (!c) return;
-  setPath(c,'hp.max', clamp(parseInt(val)||0, 0, 9999));
-  refreshHPDisplay(c, false);
-  scheduleSave('characters', c); saveLocal();
+  const c = charById(id); if (!c) return;
+  const max = clamp(parseInt(val)||1, 1, 9999);
+  setPath(c,'hp.max', max);
+  if (getPath(c,'hp.current',0) > max) setPath(c,'hp.current', max);
+  refreshHPDisplay(c, true);
+  scheduleSave('characters', c);
 }
 function refreshHPDisplay(c, updateInput){
-  if (updateInput === undefined) updateInput = true;
   const cur = getPath(c,'hp.current',0), max = getPath(c,'hp.max',0);
   const numEl = document.getElementById('hp-current'); if (numEl) numEl.textContent = cur;
   const maxEl = document.getElementById('hp-max-lbl'); if (maxEl) maxEl.textContent = '/ ' + max + ' PF';
-  const fillEl = document.getElementById('hp-bar-fill'); if (fillEl) fillEl.style.width = hpPctFor(c) + '%';
-  if (updateInput) { const inputEl = document.getElementById('hp-current-input'); if (inputEl) inputEl.value = cur; }
+  const fillEl = document.getElementById('hp-bar-fill');
+  if (fillEl){ const pct = hpPctFor(c); fillEl.style.width = pct + '%'; fillEl.classList.toggle('low', pct <= 25); }
+  if (updateInput){ const i = document.getElementById('hp-current-input'); if (i && document.activeElement !== i) i.value = cur; }
+}
+function toggleDeathSave(id, kind, idx){
+  const c = charById(id); if (!c) return;
+  c.deathSaves = c.deathSaves || {win:0, fail:0};
+  const cur = c.deathSaves[kind] || 0;
+  c.deathSaves[kind] = idx < cur ? idx : idx + 1;
+  scheduleSave('characters', c);
+  render();
+  if (c.deathSaves.win >= 3) toast('✓ Stabilizzato!');
+  if (c.deathSaves.fail >= 3) toast('💀 Tiri salvezza contro morte falliti');
 }
 
-/* ─── 13. SCHEDA PERSONAGGIO — shell + tab ─── */
-function setSheetTab(tab){ state.sheetTab = tab; render(); window.scrollTo({top:0}); }
-
+/* ─── 14. SCHEDA PERSONAGGIO ─── */
 function renderCharacterSheet(){
-  const c = state.characters.find(x=>x.id===state.activeCharId);
-  if (!c) { state.view = 'party'; return renderParty(); }
-  let tabContent;
-  if (state.sheetTab === 'inventory') tabContent = renderSheetInventory(c);
-  else if (state.sheetTab === 'spells') tabContent = renderSheetSpells(c);
-  else if (state.sheetTab === 'background') tabContent = renderSheetBackground(c);
-  else tabContent = renderSheetOverview(c);
+  const c = charById(state.activeCharId);
+  if (!c){ state.view = 'party'; return renderParty(); }
+  let tab;
+  if (state.sheetTab === 'inventory') tab = renderSheetInventory(c);
+  else if (state.sheetTab === 'spells') tab = renderSheetSpells(c);
+  else if (state.sheetTab === 'background') tab = renderSheetBackground(c);
+  else tab = renderSheetOverview(c);
 
   return `
-    <div class="screen">
-      <div class="topbar">
-        <button class="topbar-back" onclick="goView('party')">←</button>
-        <div style="flex:1; min-width:0;">
-          <div class="topbar-title">${escapeHtml(c.name||'Senza nome')}</div>
-          <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
-        </div>
-        <div class="topbar-actions"><button class="btn-icon" onclick="openCharacterForm('${c.id}')">✎</button></div>
+    <div class="topbar">
+      <button class="topbar-back" onclick="goView('party')" aria-label="Torna al party">←</button>
+      <div style="flex:1; min-width:0;">
+        <div class="topbar-title">${escapeHtml(c.name||'Senza nome')}</div>
+        <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''} · Comp. ${signStr(profBonus(c.level))}</div>
       </div>
-      <div class="segmented" style="margin:14px 0;">
-        <button class="${state.sheetTab==='overview'?'active':''}" onclick="setSheetTab('overview')">Panoramica</button>
-        <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
-        <button class="${state.sheetTab==='spells'?'active':''}" onclick="setSheetTab('spells')">Incantesimi</button>
-        <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Background</button>
+      <div class="topbar-actions">
+        <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">🏕️</button>
+        <button class="btn-icon" onclick="openCharacterForm('${c.id}')" aria-label="Modifica" title="Modifica">✎</button>
       </div>
-      ${tabContent}
     </div>
+    <div class="segmented" style="margin:14px 0;">
+      <button class="${state.sheetTab==='overview'?'active':''}" onclick="setSheetTab('overview')">Panoramica</button>
+      <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
+      <button class="${state.sheetTab==='spells'?'active':''}" onclick="setSheetTab('spells')">Magie</button>
+      <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Storia</button>
+    </div>
+    ${tab}
   `;
 }
 
 function renderSheetOverview(c){
+  const cur = getPath(c,'hp.current',0), max = getPath(c,'hp.max',0), pct = hpPctFor(c);
+  const dying = cur <= 0;
   return `
-    <div class="ability-grid">
-      ${ABILITIES.map(a => `
-        <div class="ability-seal">
-          <div class="lbl">${a.abbr}</div>
-          <div class="seal"><div class="mod" id="mod-${a.key}">${modStr(getPath(c,'abilities.'+a.key,10))}</div></div>
-          <input type="number" class="score" value="${getPath(c,'abilities.'+a.key,10)}" min="1" max="30" oninput="updateAbility('${c.id}','${a.key}', this.value)">
+  <div class="desk-2">
+    <div>
+      <div class="ability-grid">
+        ${ABILITIES.map(a => `
+          <div class="ability-seal">
+            <div class="lbl">${a.abbr}</div>
+            <button class="seal" style="width:58px;height:58px;" onclick="rollAbility('${c.id}','${a.key}')" title="Tira prova di ${a.label}">
+              <div class="mod" id="mod-${a.key}">${modStr(getPath(c,'abilities.'+a.key,10))}</div>
+            </button>
+            <input type="number" inputmode="numeric" value="${getPath(c,'abilities.'+a.key,10)}" min="1" max="30"
+                   aria-label="Punteggio ${a.label}" oninput="updateAbility('${c.id}','${a.key}', this.value)">
+          </div>`).join('')}
+      </div>
+
+      <div class="combat-grid">
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.ac??10}" aria-label="Classe Armatura" oninput="updateCharField('${c.id}','ac',parseInt(this.value)||0)"><div class="l">CA</div></div>
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" id="cs-init" value="${c.initiative ?? mod(getPath(c,'abilities.dex',10))}" aria-label="Iniziativa" oninput="updateCharField('${c.id}','initiative',parseInt(this.value)||0)"><div class="l">Iniziativa</div></div>
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.speed??9}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
+      </div>
+      <div class="combat-grid">
+        <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
+        <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
+        <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
+      </div>
+
+      <div class="hp-block" style="margin-top:10px">
+        <div class="hp-block-top">
+          <div><span class="hp-num" id="hp-current">${cur}</span> <span class="hp-max" id="hp-max-lbl">/ ${max} PF</span></div>
+          ${getPath(c,'hp.temp',0) ? `<span class="badge arcane">+${getPath(c,'hp.temp',0)} temp.</span>` : ''}
+        </div>
+        <div class="hp-bar-lg"><div class="hp-bar-lg-fill ${pct<=25?'low':''}" id="hp-bar-fill" style="width:${pct}%"></div></div>
+        <div class="hp-controls">
+          <button class="stepper-btn" onclick="bumpHP('${c.id}',-5)" aria-label="-5 PF">−5</button>
+          <button class="stepper-btn" onclick="bumpHP('${c.id}',-1)" aria-label="-1 PF">−</button>
+          <input type="number" inputmode="numeric" id="hp-current-input" value="${cur}" aria-label="PF attuali" oninput="setHP('${c.id}', this.value)">
+          <button class="stepper-btn" onclick="bumpHP('${c.id}',1)" aria-label="+1 PF">+</button>
+          <button class="stepper-btn" onclick="bumpHP('${c.id}',5)" aria-label="+5 PF">+5</button>
+        </div>
+        <div class="mini-fields">
+          <div class="mini-field"><label>PF max</label><input type="number" inputmode="numeric" value="${max}" oninput="setHPMax('${c.id}', this.value)"></div>
+          <div class="mini-field"><label>PF temp.</label><input type="number" inputmode="numeric" value="${getPath(c,'hp.temp',0)}" oninput="updateCharField('${c.id}','hp.temp',clamp(parseInt(this.value)||0,0,999))"></div>
+          <div class="mini-field"><label>Dado vita</label><input type="text" value="d${c.hitDie||8}" readonly style="opacity:.7"></div>
+        </div>
+        ${dying ? `
+        <div class="death-saves">
+          <div class="ds-group">
+            <span class="ds-label" style="color:var(--good)">Successi</span>
+            ${[0,1,2].map(i=>`<button class="ds-dot win ${i < (c.deathSaves.win||0) ? 'on':''}" onclick="toggleDeathSave('${c.id}','win',${i})" aria-label="Successo ${i+1}"></button>`).join('')}
+          </div>
+          <div class="ds-group">
+            ${[0,1,2].map(i=>`<button class="ds-dot fail ${i < (c.deathSaves.fail||0) ? 'on':''}" onclick="toggleDeathSave('${c.id}','fail',${i})" aria-label="Fallimento ${i+1}"></button>`).join('')}
+            <span class="ds-label" style="color:var(--garnet-bright)">Fallimenti</span>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="rollDeathSave('${c.id}')">💀 Tiro salvezza contro morte</button>
+        ` : ''}
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn-ghost btn-sm" onclick="openRestModal('${c.id}','short')">☀️ Riposo breve</button>
+          <button class="btn btn-ghost btn-sm" onclick="openRestModal('${c.id}','long')">🌙 Riposo lungo</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="divider"><span class="flourish">❧</span><span>Tiri Salvezza</span></div>
+      <div class="card"><div class="skills-list">
+        ${ABILITIES.map(a=>`<div class="save-row">
+          <button class="skill-dot ${(c.saveProf||[]).includes(a.key)?'on':''}" onclick="toggleSaveProf('${c.id}','${a.key}', this)" aria-label="Competenza ${a.label}"></button>
+          <button class="skill-tap" onclick="rollSave('${c.id}','${a.key}')">
+            <span class="skill-name">${a.label}</span>
+            <span class="skill-mod" id="savemod-${a.key}">${signStr(saveMod(c,a.key))}</span>
+          </button>
         </div>`).join('')}
+      </div></div>
+
+      <div class="divider"><span class="flourish">❧</span><span>Abilità</span></div>
+      <div class="card"><div class="skills-list">
+        ${SKILLS.map(s=>`<div class="skill-row">
+          <button class="skill-dot ${(c.skillProf||[]).includes(s.key)?'on':''}" onclick="toggleSkillProf('${c.id}','${s.key}', this)" aria-label="Competenza ${s.label}"></button>
+          <button class="skill-tap" onclick="rollSkill('${c.id}','${s.key}')">
+            <span class="skill-name">${s.label}</span>
+            <span class="skill-ability">${ABILITY_BY_KEY[s.ability].abbr}</span>
+            <span class="skill-mod" id="skmod-${s.key}">${signStr(skillMod(c,s))}</span>
+          </button>
+        </div>`).join('')}
+      </div></div>
+      <div class="roll-hint">Tocca il nome di un'abilità o il sigillo di una caratteristica per tirare il d20.</div>
+
+      <div class="divider"><span class="flourish">❧</span><span>Talenti & Privilegi</span></div>
+      <div class="field"><textarea style="min-height:120px" placeholder="Talenti, privilegi di classe, tratti razziali, linguaggi…" oninput="updateCharField('${c.id}','features',this.value)">${escapeHtml(c.features||'')}</textarea></div>
     </div>
-
-    <div class="combat-grid">
-      <div class="combat-stat"><input type="number" class="v" value="${c.ac??10}" oninput="updateCharField('${c.id}','ac',parseInt(this.value)||0)"><div class="l">CA</div></div>
-      <div class="combat-stat"><input type="number" class="v" id="cs-init" value="${c.initiative ?? mod(getPath(c,'abilities.dex',10))}" oninput="updateCharField('${c.id}','initiative',parseInt(this.value)||0)"><div class="l">Iniziativa</div></div>
-      <div class="combat-stat"><input type="number" class="v" value="${c.speed??9}" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
-    </div>
-
-    <div class="hp-block">
-      <div class="hp-block-top">
-        <div><span class="hp-num" id="hp-current">${getPath(c,'hp.current',0)}</span> <span class="hp-max" id="hp-max-lbl">/ ${getPath(c,'hp.max',0)} PF</span></div>
-        <span class="badge gold">Dado Vita</span>
-      </div>
-      <div class="hp-bar-lg"><div class="hp-bar-lg-fill" id="hp-bar-fill" style="width:${hpPctFor(c)}%"></div></div>
-      <div class="hp-controls">
-        <button class="stepper-btn" onclick="bumpHP('${c.id}',-1)">−</button>
-        <input type="number" id="hp-current-input" value="${getPath(c,'hp.current',0)}" oninput="setHP('${c.id}', this.value)">
-        <button class="stepper-btn" onclick="bumpHP('${c.id}',1)">+</button>
-      </div>
-      <div class="temp-hp-row">
-        <span>PF temp.</span> <input type="number" value="${getPath(c,'hp.temp',0)}" oninput="updateCharField('${c.id}','hp.temp',parseInt(this.value)||0)">
-        <span>PF massimi</span> <input type="number" value="${getPath(c,'hp.max',0)}" oninput="setHPMax('${c.id}', this.value)">
-        <span>Dado Vita</span> <input type="text" style="width:56px" value="${escapeHtml(c.hitDice||'')}" placeholder="1d8" oninput="updateCharField('${c.id}','hitDice',this.value)">
-      </div>
-    </div>
-
-    <div class="divider"><span class="flourish">❧</span><span>Tiri Salvezza</span></div>
-    <div class="card"><div class="skills-list">
-      ${ABILITIES.map(a=>`<div class="save-row">
-        <button class="skill-dot ${(c.saveProf||[]).includes(a.key)?'on':''}" onclick="toggleSaveProf('${c.id}','${a.key}')"></button>
-        <div class="skill-name">${a.label}</div>
-        <div class="skill-mod" id="savemod-${a.key}">${signStr(saveMod(c,a.key))}</div>
-      </div>`).join('')}
-    </div></div>
-
-    <div class="divider"><span class="flourish">❧</span><span>Abilità</span></div>
-    <div class="card"><div class="skills-list">
-      ${SKILLS.map(s=>`<div class="skill-row">
-        <button class="skill-dot ${(c.skillProf||[]).includes(s.key)?'on':''}" onclick="toggleSkillProf('${c.id}','${s.key}')"></button>
-        <div class="skill-name">${s.label}</div>
-        <div class="skill-ability">${ABILITIES.find(a=>a.key===s.ability).abbr}</div>
-        <div class="skill-mod" id="skmod-${s.key}">${signStr(skillMod(c,s))}</div>
-      </div>`).join('')}
-    </div></div>
-
-    <div class="divider"><span class="flourish">❧</span><span>Talenti & Caratteristiche</span></div>
-    <div class="field"><textarea placeholder="Talenti, caratteristiche di classe, tratti razziali…" oninput="updateCharField('${c.id}','features',this.value)">${escapeHtml(c.features||'')}</textarea></div>
-  `;
-}
-
-/* ─── 14. SCHEDA — Zaino ─── */
-function renderSheetInventory(c){
-  const items = c.inventory||[];
-  return `
-    <div class="section-title">Zaino & Equipaggiamento</div>
-    ${items.length ? items.map((it,i)=>invItemHTML(c,it,i)).join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
-    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="addInventoryItem('${c.id}')">+ Aggiungi oggetto</button>
-  `;
-}
-function invItemHTML(c, it, i){
-  return `<div class="inv-item" onclick="editInventoryItem('${c.id}',${i})" style="cursor:pointer;">
-    <button class="equip-toggle ${it.equipped?'on':''}" title="Indossato/impugnato" onclick="event.stopPropagation(); toggleEquip('${c.id}',${i})">${it.equipped?'✓':''}</button>
-    <div class="inv-item-name ${it.equipped?'equipped':''}">${escapeHtml(it.name)}${it.notes?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(it.notes)}</div>`:''}</div>
-    <div class="inv-qty">×${it.qty||1}</div>
-    <button class="btn-icon" style="width:30px;height:30px;font-size:.8rem;" onclick="event.stopPropagation(); removeInventoryItem('${c.id}',${i})">✕</button>
   </div>`;
 }
-function addInventoryItem(charId){
+
+/* ─── 15. TIRI RAPIDI ─── */
+function setRollMode(m){ state.rollMode = m; }
+function rollAbility(charId, key){
+  const c = charById(charId); if (!c) return;
+  performD20('Prova di ' + ABILITY_BY_KEY[key].label, mod(getPath(c,'abilities.'+key,10)), 'normal', {t:'ability', c:charId, k:key});
+}
+function rollSkill(charId, key){
+  const c = charById(charId); if (!c) return;
+  const s = SKILLS.find(x=>x.key===key);
+  performD20(s.label, skillMod(c, s), 'normal', {t:'skill', c:charId, k:key});
+}
+function rollSave(charId, key){
+  const c = charById(charId); if (!c) return;
+  performD20('TS ' + ABILITY_BY_KEY[key].label, saveMod(c, key), 'normal', {t:'save', c:charId, k:key});
+}
+function rollInitiative(charId){
+  const c = charById(charId); if (!c) return;
+  performD20('Iniziativa', c.initiative ?? mod(getPath(c,'abilities.dex',10)), 'normal', {t:'init', c:charId});
+}
+function rollSpellAttack(charId){
+  const c = charById(charId); if (!c) return;
+  performD20('Attacco con incantesimo', spellcastingMod(c), 'normal', {t:'spellatk', c:charId});
+}
+function rollDeathSave(charId){
+  const nat = rollDie(20);
+  const c = charById(charId);
+  let extra = '';
+  if (c){
+    c.deathSaves = c.deathSaves || {win:0,fail:0};
+    if (nat === 20){ setPath(c,'hp.current', Math.max(1, getPath(c,'hp.current',0))); c.deathSaves = {win:0,fail:0}; extra = 'Naturale 20: torni cosciente con 1 PF!'; }
+    else if (nat === 1){ c.deathSaves.fail = clamp(c.deathSaves.fail + 2, 0, 3); extra = 'Naturale 1: due fallimenti.'; }
+    else if (nat >= 10){ c.deathSaves.win = clamp(c.deathSaves.win + 1, 0, 3); extra = 'Successo.'; }
+    else { c.deathSaves.fail = clamp(c.deathSaves.fail + 1, 0, 3); extra = 'Fallimento.'; }
+    scheduleSave('characters', c);
+  }
+  showRollResult({ label: 'TS contro morte', nat, modifier: 0, total: nat, mode: 'normal', extra, repeat: {t:'death', c:charId} });
+  render();
+}
+function performD20(label, modifier, mode, repeat){
+  const a = rollDie(20), b = rollDie(20);
+  let nat = a, other = null;
+  if (mode === 'adv'){ nat = Math.max(a,b); other = Math.min(a,b); }
+  else if (mode === 'dis'){ nat = Math.min(a,b); other = Math.max(a,b); }
+  showRollResult({ label, nat, other, modifier, mode, total: nat + modifier, repeat });
+}
+function repeatRoll(mode){
+  const r = state.lastRoll;
+  if (!r || !r.repeat) return;
+  const rp = r.repeat;
+  const c = charById(rp.c);
+  let m = 0, label = r.label;
+  if (!c && rp.t !== 'plain') { closeModal(); return; }
+  if (rp.t === 'ability') m = mod(getPath(c,'abilities.'+rp.k,10));
+  else if (rp.t === 'skill') m = skillMod(c, SKILLS.find(x=>x.key===rp.k));
+  else if (rp.t === 'save') m = saveMod(c, rp.k);
+  else if (rp.t === 'init') m = c.initiative ?? mod(getPath(c,'abilities.dex',10));
+  else if (rp.t === 'spellatk') m = spellcastingMod(c);
+  else if (rp.t === 'death'){ rollDeathSave(rp.c); return; }
+  else m = r.modifier || 0;
+  performD20(label, m, mode, rp);
+}
+function showRollResult(r){
+  state.lastRoll = r;
+  const crit = r.nat === 20, fumble = r.nat === 1;
+  state.diceHistory.unshift({ label: r.label, total: r.total, detail: `d20 ${r.nat}${r.modifier ? ' ' + signStr(r.modifier) : ''}` });
+  state.diceHistory = state.diceHistory.slice(0,30);
+  saveSession();
+  const modeLabel = r.mode === 'adv' ? 'con vantaggio' : (r.mode === 'dis' ? 'con svantaggio' : '');
   openModal({ render: () => `
-    <div class="overlay" onclick="if(event.target===this) closeModal()">
-      <div class="sheet-modal">
-        <div class="sheet-modal-handle"></div>
-        <div class="sheet-modal-head"><div class="sheet-modal-title">Nuovo oggetto</div><button class="btn-icon" onclick="closeModal()">✕</button></div>
-        <div class="field"><label>Nome</label><input id="inv-name" placeholder="Es. Spada corta"></div>
-        <div class="form-row">
-          <div class="field"><label>Quantità</label><input id="inv-qty" type="number" min="1" value="1"></div>
-          <div class="field"><label>Note</label><input id="inv-notes" placeholder="Peso, dettagli… (facoltativo)"></div>
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="text-align:center;">
+        <div class="roll-card">
+          <div class="roll-label">${escapeHtml(r.label)}${modeLabel ? ' · ' + modeLabel : ''}</div>
+          <div class="roll-die-wrap ${crit?'crit':''} ${fumble?'fumble':''}"><div class="roll-die ${crit?'crit':''} ${fumble?'fumble':''}">${r.nat}</div></div>
+          <div class="roll-total">${r.total}</div>
+          <div class="roll-detail">d20 (${r.nat})${r.other!=null?` · scartato ${r.other}`:''}${r.modifier?` ${signStr(r.modifier)}`:''}</div>
+          ${crit?'<div class="roll-verdict crit">✦ Critico! ✦</div>':''}
+          ${fumble?'<div class="roll-verdict fumble">Fallimento critico</div>':''}
+          ${r.extra?`<div class="roll-verdict">${escapeHtml(r.extra)}</div>`:''}
         </div>
-        <button class="btn btn-primary btn-block" onclick="confirmAddInventory('${charId}')">Aggiungi allo zaino</button>
-      </div>
-    </div>`, after: () => { const el = document.getElementById('inv-name'); if (el) el.focus(); } });
-}
-function confirmAddInventory(charId){
-  const nameEl = document.getElementById('inv-name');
-  const name = nameEl.value.trim();
-  if (!name){ toast('Dai un nome all\'oggetto'); return; }
-  const qty = parseInt(document.getElementById('inv-qty').value)||1;
-  const notes = document.getElementById('inv-notes').value.trim();
-  const c = state.characters.find(x=>x.id===charId);
-  c.inventory = c.inventory||[];
-  c.inventory.push({name, qty, notes, equipped:false});
-  scheduleSave('characters', c); saveLocal();
-  closeModal(); render();
-}
-function toggleEquip(charId, i){
-  const c = state.characters.find(x=>x.id===charId);
-  c.inventory[i].equipped = !c.inventory[i].equipped;
-  scheduleSave('characters', c); saveLocal(); render();
-}
-function removeInventoryItem(charId, i){
-  const c = state.characters.find(x=>x.id===charId);
-  c.inventory.splice(i,1);
-  scheduleSave('characters', c); saveLocal(); render();
-}
-function editInventoryItem(charId, i){
-  const c = state.characters.find(x=>x.id===charId);
-  const it = (c.inventory||[])[i];
-  if (!it) return;
-  openModal({ render: () => `
-    <div class="overlay" onclick="if(event.target===this) closeModal()">
-      <div class="sheet-modal">
-        <div class="sheet-modal-handle"></div>
-        <div class="sheet-modal-head"><div class="sheet-modal-title">Modifica oggetto</div><button class="btn-icon" onclick="closeModal()">✕</button></div>
-        <div class="field"><label>Nome</label><input id="inv-edit-name" value="${escapeHtml(it.name)}"></div>
-        <div class="form-row">
-          <div class="field"><label>Quantità</label><input id="inv-edit-qty" type="number" min="1" value="${it.qty||1}"></div>
-          <div class="field"><label>Note</label><input id="inv-edit-notes" value="${escapeHtml(it.notes||'')}"></div>
-        </div>
-        <button class="btn btn-primary btn-block" onclick="confirmEditInventory('${charId}',${i})">Salva modifiche</button>
+        ${r.repeat ? `<div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-ghost btn-sm" onclick="repeatRoll('adv')">▲ Vantaggio</button>
+          <button class="btn btn-ghost btn-sm" onclick="repeatRoll('normal')">↻ Ritira</button>
+          <button class="btn btn-ghost btn-sm" onclick="repeatRoll('dis')">▼ Svantaggio</button>
+        </div>` : ''}
+        <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal()">Chiudi</button>
       </div>
     </div>` });
 }
+
+/* ─── 16. RIPOSI ─── */
+function openRestModal(charId, focus){
+  const c = charById(charId); if (!c) return;
+  openModal({ render: () => restModalHTML(charId) });
+}
+function restModalHTML(charId){
+  const c = charById(charId); if (!c) return '';
+  const left = hitDiceLeft(c);
+  const conMod = mod(getPath(c,'abilities.con',10));
+  const inner = `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">☀️ Riposo breve</div>
+      <p class="muted" style="margin-bottom:12px">Puoi spendere i dadi vita per curarti: ogni dado tira <b>d${c.hitDie||8} ${signStr(conMod)}</b> (Costituzione).</p>
+      <div class="row-between" style="margin-bottom:12px">
+        <span class="muted">Dadi vita disponibili</span>
+        <span class="badge gold">${left} / ${c.level||1}</span>
+      </div>
+      ${left ? `<div class="btn-row">
+        <button class="btn btn-gold" onclick="spendHitDice('${charId}',1)">Spendi 1 dado</button>
+        ${left>1?`<button class="btn btn-ghost" onclick="spendHitDice('${charId}',${left})">Spendi tutti (${left})</button>`:''}
+      </div>` : `<p class="muted">Nessun dado vita rimasto: serve un riposo lungo.</p>`}
+      ${(c.casterType==='pact') ? `<button class="btn btn-arcane btn-block" style="margin-top:10px" onclick="restorePactSlots('${charId}')">✦ Recupera slot del Patto</button>` : ''}
+    </div>
+    <div class="card">
+      <div class="card-title">🌙 Riposo lungo</div>
+      <p class="muted" style="margin-bottom:12px">Ripristina tutti i PF, azzera i PF temporanei e gli slot incantesimo, recupera metà dei dadi vita e cancella i tiri contro morte.</p>
+      <button class="btn btn-primary btn-block" onclick="longRest('${charId}')">Effettua riposo lungo</button>
+    </div>`;
+  return modalShell('🏕️ Riposo', inner);
+}
+function spendHitDice(charId, n){
+  const c = charById(charId); if (!c) return;
+  const avail = hitDiceLeft(c);
+  n = clamp(n, 0, avail);
+  if (!n) return;
+  const conMod = mod(getPath(c,'abilities.con',10));
+  const rolls = [];
+  let healed = 0;
+  for (let i=0;i<n;i++){ const r = rollDie(c.hitDie||8); rolls.push(r); healed += Math.max(0, r + conMod); }
+  c.hitDiceUsed = (c.hitDiceUsed||0) + n;
+  const max = getPath(c,'hp.max',0);
+  const before = getPath(c,'hp.current',0);
+  setPath(c,'hp.current', clamp(before + healed, 0, max));
+  const real = getPath(c,'hp.current',0) - before;
+  if (getPath(c,'hp.current',0) > 0) c.deathSaves = { win:0, fail:0 };
+  scheduleSave('characters', c);
+  closeModal(); render();
+  toast(`☀️ +${real} PF — ${n}d${c.hitDie||8} [${rolls.join(', ')}] ${signStr(conMod)} per dado`);
+}
+function restorePactSlots(charId){
+  const c = charById(charId); if (!c) return;
+  c.slotsUsed = {};
+  scheduleSave('characters', c);
+  closeModal(); render();
+  toast('✦ Slot del Patto recuperati');
+}
+function longRest(charId){
+  const c = charById(charId); if (!c) return;
+  const max = getPath(c,'hp.max',0);
+  setPath(c,'hp.current', max);
+  setPath(c,'hp.temp', 0);
+  c.slotsUsed = {};
+  c.deathSaves = { win:0, fail:0 };
+  c.concentration = null;
+  c.hitDiceUsed = clamp((c.hitDiceUsed||0) - Math.max(1, Math.floor((c.level||1)/2)), 0, 20);
+  scheduleSave('characters', c);
+  closeModal(); render();
+  toast('🌙 Riposo lungo: PF e slot ripristinati');
+}
+
+/* ─── 17. ZAINO ─── */
+function renderSheetInventory(c){
+  const items = c.inventory||[];
+  const coins = c.coins || {};
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">💰 Borsa</div>
+      <div class="coin-grid">
+        ${COINS.map(co=>`<div class="coin ${co.key}">
+          <label title="${co.title}">${co.label}</label>
+          <input type="number" inputmode="numeric" min="0" value="${coins[co.key]||0}" aria-label="${co.title}"
+                 oninput="updateCharField('${c.id}','coins.${co.key}',clamp(parseInt(this.value)||0,0,999999))">
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="divider"><span class="flourish">❧</span><span>Equipaggiamento</span></div>
+    <div class="list-gap">
+      ${items.length ? items.map((it,i)=>invItemHTML(c,it,i)).join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="addInventoryItem('${c.id}')">✦ Aggiungi oggetto</button>
+  `;
+}
+function invItemHTML(c, it, i){
+  return `<div class="inv-item">
+    <button class="equip-toggle ${it.equipped?'on':''}" title="Indossato / impugnato" onclick="toggleEquip('${c.id}',${i}, this)">${it.equipped?'✓':'○'}</button>
+    <button class="inv-item-main" onclick="editInventoryItem('${c.id}',${i})">
+      <div class="inv-item-name ${it.equipped?'equipped':''}">${escapeHtml(it.name)}</div>
+      ${it.notes?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(it.notes)}</div>`:''}
+    </button>
+    <span class="inv-qty">×${it.qty||1}</span>
+    <button class="btn-icon" style="width:32px;height:32px;font-size:.8rem;" onclick="removeInventoryItem('${c.id}',${i})" aria-label="Rimuovi">✕</button>
+  </div>`;
+}
+function addInventoryItem(charId){
+  const inner = `
+    <div class="field"><label>Nome</label><input id="inv-name" placeholder="Es. Spada corta"></div>
+    <div class="form-row">
+      <div class="field"><label>Quantità</label><input id="inv-qty" type="number" inputmode="numeric" min="1" value="1"></div>
+      <div class="field"><label>Note</label><input id="inv-notes" placeholder="Danni, peso, dettagli…"></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="confirmAddInventory('${charId}')">Aggiungi allo zaino</button>`;
+  openModal({ render: () => modalShell('Nuovo oggetto', inner), after: () => { const el = document.getElementById('inv-name'); if (el) el.focus(); } });
+}
+function confirmAddInventory(charId){
+  const c = charById(charId); if (!c) return;
+  const nameEl = document.getElementById('inv-name'); if (!nameEl) return;
+  const name = nameEl.value.trim();
+  if (!name){ toast('Dai un nome all\'oggetto'); nameEl.focus(); return; }
+  c.inventory = c.inventory||[];
+  c.inventory.push({
+    name,
+    qty: clamp(parseInt((document.getElementById('inv-qty')||{}).value)||1, 1, 9999),
+    notes: ((document.getElementById('inv-notes')||{}).value||'').trim(),
+    equipped: false
+  });
+  scheduleSave('characters', c);
+  closeModal(); render();
+}
+function toggleEquip(charId, i, btn){
+  const c = charById(charId); if (!c || !c.inventory[i]) return;
+  c.inventory[i].equipped = !c.inventory[i].equipped;
+  if (btn){ btn.classList.toggle('on', c.inventory[i].equipped); btn.textContent = c.inventory[i].equipped ? '✓' : '○';
+    const nameEl = btn.parentElement.querySelector('.inv-item-name'); if (nameEl) nameEl.classList.toggle('equipped', c.inventory[i].equipped); }
+  scheduleSave('characters', c);
+}
+function removeInventoryItem(charId, i){
+  const c = charById(charId); if (!c || !c.inventory[i]) return;
+  const name = c.inventory[i].name;
+  confirmDialog('Rimuovere ' + name + '?', 'L\'oggetto verrà tolto dallo zaino.', () => {
+    c.inventory.splice(i,1);
+    scheduleSave('characters', c); render();
+  }, 'Rimuovi');
+}
+function editInventoryItem(charId, i){
+  const c = charById(charId);
+  const it = c && (c.inventory||[])[i];
+  if (!it) return;
+  const inner = `
+    <div class="field"><label>Nome</label><input id="inv-edit-name" value="${attr(it.name)}"></div>
+    <div class="form-row">
+      <div class="field"><label>Quantità</label><input id="inv-edit-qty" type="number" inputmode="numeric" min="1" value="${it.qty||1}"></div>
+      <div class="field"><label>Note</label><input id="inv-edit-notes" value="${attr(it.notes||'')}"></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="confirmEditInventory('${charId}',${i})">Salva modifiche</button>`;
+  openModal({ render: () => modalShell('Modifica oggetto', inner) });
+}
 function confirmEditInventory(charId, i){
-  const c = state.characters.find(x=>x.id===charId);
-  const name = document.getElementById('inv-edit-name').value.trim();
+  const c = charById(charId); if (!c || !c.inventory[i]) return;
+  const name = (document.getElementById('inv-edit-name').value||'').trim();
   if (!name){ toast('Dai un nome all\'oggetto'); return; }
   c.inventory[i].name = name;
-  c.inventory[i].qty = parseInt(document.getElementById('inv-edit-qty').value)||1;
-  c.inventory[i].notes = document.getElementById('inv-edit-notes').value.trim();
-  scheduleSave('characters', c); saveLocal();
+  c.inventory[i].qty = clamp(parseInt(document.getElementById('inv-edit-qty').value)||1, 1, 9999);
+  c.inventory[i].notes = (document.getElementById('inv-edit-notes').value||'').trim();
+  scheduleSave('characters', c);
   closeModal(); render();
 }
 
-/* ─── 15. SCHEDA — Incantesimi ─── */
+/* ─── 18. MAGIE ─── */
 function spellByRef(ref){
+  if (!ref) return null;
   if (ref.source === 'custom') return state.customSpells.find(s=>s.id===ref.id);
-  return SRD_SPELLS.find(s=>s.id===ref.id);
+  return (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).find(s=>s.id===ref.id);
 }
 function renderSheetSpells(c){
   const slots = slotsForCharacter(c.casterType, c.level);
   const used = c.slotsUsed || {};
-  const known = c.knownSpells || [];
   const isCaster = c.casterType && c.casterType !== 'none';
+  let known = (c.knownSpells||[]).map(k => ({ ref:k, sp: spellByRef(k) })).filter(x => x.sp);
+  known.sort((a,b) => (a.sp.level - b.sp.level) || a.sp.name.localeCompare(b.sp.name));
+  const prepared = c.preparedSpells || [];
+  if (state.knownFilter === 'prepared') known = known.filter(x => prepared.includes(x.sp.id) || x.sp.level === 0);
+
   return `
-    <div class="card" style="margin-bottom:14px;">
+    ${c.concentration ? `<div class="conc-banner">
+      <span style="font-size:1.1rem">🌀</span>
+      <span class="t">Concentrazione: ${escapeHtml(c.concentration.name)}</span>
+      <button class="btn btn-sm btn-ghost" onclick="clearConcentration('${c.id}')">Interrompi</button>
+    </div>` : ''}
+
+    <div class="card" style="margin-bottom:12px;">
       <div class="form-row" style="margin-bottom:0;">
-        <div class="field" style="margin-bottom:0;"><label>Tipo Incantatore</label>
+        <div class="field" style="margin-bottom:0;"><label>Tipo incantatore</label>
           <select onchange="updateCasterType('${c.id}', this.value)">
-            ${CASTER_TYPES.map(ct=>`<option value="${ct.key}" ${c.casterType===ct.key?'selected':''}>${ct.label}</option>`).join('')}
+            ${CASTER_TYPES.map(ct=>`<option value="${ct.key}" ${(c.casterType||'none')===ct.key?'selected':''}>${ct.label}</option>`).join('')}
           </select>
         </div>
         <div class="field" style="margin-bottom:0;"><label>Caratteristica</label>
           <select onchange="updateCharField('${c.id}','spellAbility',this.value); render();">
-            ${['int','wis','cha'].map(k=>`<option value="${k}" ${(c.spellAbility||'int')===k?'selected':''}>${ABILITIES.find(a=>a.key===k).label}</option>`).join('')}
+            ${['int','wis','cha'].map(k=>`<option value="${k}" ${(c.spellAbility||'int')===k?'selected':''}>${ABILITY_BY_KEY[k].label}</option>`).join('')}
           </select>
         </div>
       </div>
     </div>
 
     ${isCaster ? `
-      <div class="combat-grid" style="margin-bottom:14px;">
-        <div class="combat-stat"><div class="v">${8+spellcastingMod(c)}</div><div class="l">CD Incantesimo</div></div>
-        <div class="combat-stat"><div class="v">${signStr(spellcastingMod(c))}</div><div class="l">Att. Incantesimo</div></div>
-        <div class="combat-stat"><div class="v">${profBonus(c.level)}</div><div class="l">Bon. Competenza</div></div>
+      <div class="combat-grid">
+        <div class="combat-stat"><div class="v">${8+spellcastingMod(c)}</div><div class="l">CD magia</div></div>
+        <button class="combat-stat tappable" onclick="rollSpellAttack('${c.id}')"><div class="v">${signStr(spellcastingMod(c))}</div><div class="l">Attacco 🎲</div></button>
+        <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
       </div>
       <div class="slot-tracker">
         <div class="slot-tracker-head">
-          <div class="section-title" style="margin:0;">Slot Incantesimo</div>
-          <button class="btn btn-sm btn-ghost" onclick="longRest('${c.id}')">🌙 Riposo lungo</button>
+          <div class="section-title" style="margin:0;">Slot incantesimo</div>
+          <button class="btn btn-sm btn-ghost" onclick="openRestModal('${c.id}')">🏕️ Riposo</button>
         </div>
-        ${slots.map((count,i)=>{
+        ${slots.some(n=>n) ? slots.map((count,i)=>{
           if (!count) return '';
-          const lvl = i+1, usedCount = used[lvl]||0;
+          const lvl = i+1, usedCount = clamp(used[lvl]||0, 0, count);
           return `<div class="slot-row">
             <div class="slot-level-label">${lvl}°</div>
-            <div class="slot-runes">${Array.from({length:count}).map((_,ri)=>`<button class="rune ${ri<usedCount?'spent':''}" onclick="toggleSlot('${c.id}',${lvl},${ri})"></button>`).join('')}</div>
+            <div class="slot-runes">${Array.from({length:count}).map((_,ri)=>`<button class="rune ${ri<usedCount?'spent':''}" onclick="toggleSlot('${c.id}',${lvl},${ri})" aria-label="Slot ${lvl}° livello">${ri<usedCount?'':'✦'}</button>`).join('')}</div>
           </div>`;
-        }).join('')}
+        }).join('') : `<p class="muted">Nessuno slot a questo livello.</p>`}
       </div>
-    ` : `<div class="empty-state" style="padding:26px 20px;"><div class="ic">🪄</div><p>Nessun incantesimo per ora. Se il personaggio lancia magie, imposta il tipo incantatore sopra.</p></div>`}
+    ` : `<div class="empty-state" style="padding:26px 20px;"><div class="ic">🪄</div><p>Questo personaggio non lancia incantesimi. Se invece è un incantatore, imposta il tipo qui sopra.</p></div>`}
 
-    <div class="divider"><span class="flourish">❧</span><span>Incantesimi Conosciuti</span></div>
-    ${known.length ? known.map(k => knownSpellRow(c, k)).join('') : emptyState('📜','Nessun incantesimo ancora: aggiungine dal Grimorio.')}
-    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="pickSpellForCharacter('${c.id}')">+ Aggiungi dal Grimorio</button>
+    <div class="divider"><span class="flourish">❧</span><span>Incantesimi conosciuti</span></div>
+    <div class="filter-bar">
+      <button class="filter-chip ${state.knownFilter==='all'?'active':''}" onclick="setKnownFilter('all')">Tutti (${(c.knownSpells||[]).length})</button>
+      <button class="filter-chip ${state.knownFilter==='prepared'?'active':''}" id="chip-prepared" onclick="setKnownFilter('prepared')">★ Preparati (${prepared.length})</button>
+    </div>
+    <div class="spell-grid list-gap">
+      ${known.length ? known.map(x => knownSpellRow(c, x.ref, x.sp)).join('') : emptyState('📜', state.knownFilter==='prepared' ? 'Nessun incantesimo preparato: tocca la stella per prepararne uno.' : 'Nessun incantesimo: aggiungine dal Grimorio.')}
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="pickSpellForCharacter('${c.id}')">✦ Aggiungi dal Grimorio</button>
   `;
 }
-function knownSpellRow(c, ref){
-  const sp = spellByRef(ref);
-  if (!sp) return '';
-  return `<div class="spell-item" onclick="viewSpellDetail('${sp.id}','${ref.source}')">
+function setKnownFilter(f){ state.knownFilter = f; render(); }
+function knownSpellRow(c, ref, sp){
+  const isPrep = (c.preparedSpells||[]).includes(sp.id);
+  return `<div class="spell-item">
     <div class="spell-lvl-badge">${sp.level===0?'C':sp.level}</div>
-    <div class="spell-item-body">
+    <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${sp.id}','${ref.source}','${c.id}')">
       <div class="spell-item-name">${escapeHtml(sp.name)}</div>
-      <div class="spell-item-meta">${escapeHtml(schoolIt(sp.school||''))}${ref.source==='custom'?' · personalizzato':''}</div>
-    </div>
-    <button class="spell-item-add" style="color:var(--garnet);" onclick="event.stopPropagation(); removeKnownSpell('${c.id}','${sp.id}','${ref.source}')">✕</button>
+      <div class="spell-item-meta">${escapeHtml(schoolIt(sp.school||''))}${sp.conc?' · concentrazione':''}${ref.source==='custom'?' · personalizzato':''}</div>
+    </button>
+    ${sp.level>0?`<button class="prep-star ${isPrep?'on':''}" onclick="togglePrepared('${c.id}','${sp.id}', this)" title="Preparato" aria-label="Preparato">★</button>`:''}
+    <button class="spell-item-add" style="color:var(--garnet-bright)" onclick="removeKnownSpell('${c.id}','${sp.id}','${ref.source}')" aria-label="Rimuovi">✕</button>
   </div>`;
 }
+function togglePrepared(charId, spellId, btn){
+  const c = charById(charId); if (!c) return;
+  c.preparedSpells = c.preparedSpells || [];
+  const i = c.preparedSpells.indexOf(spellId);
+  if (i>=0) c.preparedSpells.splice(i,1); else c.preparedSpells.push(spellId);
+  if (btn) btn.classList.toggle('on', c.preparedSpells.includes(spellId));
+  const chip = document.getElementById('chip-prepared');
+  if (chip) chip.textContent = '★ Preparati (' + c.preparedSpells.length + ')';
+  scheduleSave('characters', c);
+}
 function toggleSlot(charId, level, idx){
-  const c = state.characters.find(x=>x.id===charId);
+  const c = charById(charId); if (!c) return;
   c.slotsUsed = c.slotsUsed || {};
   const cur = c.slotsUsed[level]||0;
   c.slotsUsed[level] = idx < cur ? idx : idx+1;
-  scheduleSave('characters', c); saveLocal(); render();
-}
-function longRest(charId){
-  const c = state.characters.find(x=>x.id===charId);
-  c.slotsUsed = {};
-  scheduleSave('characters', c); saveLocal(); render();
-  toast('🌙 Riposo lungo effettuato: slot ripristinati');
+  scheduleSave('characters', c); render();
 }
 function updateCasterType(charId, val){
-  const c = state.characters.find(x=>x.id===charId);
+  const c = charById(charId); if (!c) return;
   c.casterType = val;
-  scheduleSave('characters', c); saveLocal(); render();
+  scheduleSave('characters', c); render();
+}
+function setConcentration(charId, name){
+  const c = charById(charId); if (!c) return;
+  c.concentration = { name };
+  scheduleSave('characters', c);
+  closeModal(); render();
+  toast('🌀 Concentrazione su ' + name);
+}
+function clearConcentration(charId){
+  const c = charById(charId); if (!c) return;
+  c.concentration = null;
+  scheduleSave('characters', c); render();
 }
 function pickSpellForCharacter(charId){
   state.grimoireMode = 'pick';
   state.grimoirePickFor = charId;
-  goView('grimoire');
+  state.view = 'grimoire';
+  pushNav(); render(); scrollTop();
 }
 function addKnownSpell(charId, spellId, source){
-  const c = state.characters.find(x=>x.id===charId);
+  const c = charById(charId); if (!c) return false;
   c.knownSpells = c.knownSpells||[];
-  if (c.knownSpells.some(k=>k.id===spellId && k.source===source)) { toast('Incantesimo già presente'); return; }
+  if (c.knownSpells.some(k=>k.id===spellId && k.source===source)){
+    c.knownSpells = c.knownSpells.filter(k=>!(k.id===spellId && k.source===source));
+    scheduleSave('characters', c);
+    return false;
+  }
   c.knownSpells.push({id:spellId, source});
-  scheduleSave('characters', c); saveLocal();
-  toast('✨ Incantesimo aggiunto');
-  render();
+  scheduleSave('characters', c);
+  return true;
 }
 function removeKnownSpell(charId, spellId, source){
-  const c = state.characters.find(x=>x.id===charId);
+  const c = charById(charId); if (!c) return;
   c.knownSpells = (c.knownSpells||[]).filter(k=>!(k.id===spellId && k.source===source));
-  scheduleSave('characters', c); saveLocal(); render();
+  c.preparedSpells = (c.preparedSpells||[]).filter(id=>id!==spellId);
+  scheduleSave('characters', c); render();
 }
 
-/* ─── 16. SCHEDA — Background ─── */
+/* ─── 19. STORIA / BACKGROUND ─── */
 function renderSheetBackground(c){
   return `
     <div class="field">
@@ -975,147 +1385,173 @@ function renderSheetBackground(c){
       <div class="chip-row" style="margin-bottom:8px;">
         ${BACKGROUND_PRESETS.map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${b}')">${b}</button>`).join('')}
       </div>
-      <input value="${escapeHtml(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
+      <input value="${attr(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Personalità</span></div>
     <div class="trait-grid">
-      <div class="field"><label>Tratti Personalità</label><textarea oninput="updateCharField('${c.id}','traits',this.value)">${escapeHtml(c.traits||'')}</textarea></div>
-      <div class="field"><label>Ideali</label><textarea oninput="updateCharField('${c.id}','ideals',this.value)">${escapeHtml(c.ideals||'')}</textarea></div>
-      <div class="field"><label>Legami</label><textarea oninput="updateCharField('${c.id}','bonds',this.value)">${escapeHtml(c.bonds||'')}</textarea></div>
-      <div class="field"><label>Difetti</label><textarea oninput="updateCharField('${c.id}','flaws',this.value)">${escapeHtml(c.flaws||'')}</textarea></div>
+      <div class="field"><label>Tratti</label><textarea placeholder="Come si comporta?" oninput="updateCharField('${c.id}','traits',this.value)">${escapeHtml(c.traits||'')}</textarea></div>
+      <div class="field"><label>Ideali</label><textarea placeholder="In cosa crede?" oninput="updateCharField('${c.id}','ideals',this.value)">${escapeHtml(c.ideals||'')}</textarea></div>
+      <div class="field"><label>Legami</label><textarea placeholder="A chi o cosa tiene?" oninput="updateCharField('${c.id}','bonds',this.value)">${escapeHtml(c.bonds||'')}</textarea></div>
+      <div class="field"><label>Difetti</label><textarea placeholder="Qual è la sua debolezza?" oninput="updateCharField('${c.id}','flaws',this.value)">${escapeHtml(c.flaws||'')}</textarea></div>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Storia</span></div>
-    <div class="field"><textarea style="min-height:180px;" placeholder="Da dove viene questo personaggio? Cosa lo spinge all'avventura?" oninput="updateCharField('${c.id}','backstory',this.value)">${escapeHtml(c.backstory||'')}</textarea></div>
+    <div class="field"><textarea style="min-height:220px;" placeholder="Da dove viene questo personaggio? Cosa lo spinge all'avventura?" oninput="updateCharField('${c.id}','backstory',this.value)">${escapeHtml(c.backstory||'')}</textarea></div>
   `;
 }
-function setBackgroundPreset(charId, val){
-  updateCharField(charId, 'background', val);
-  render();
-}
+function setBackgroundPreset(charId, val){ updateCharField(charId, 'background', val); render(); }
 
-/* ─── 17. GRIMORIO — compendio incantesimi ─── */
+/* ─── 20. GRIMORIO — compendio incantesimi ─── */
+function allSpells(){
+  const custom = state.customSpells.map(s=>({...s, source:'custom'}));
+  const srd = (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).map(s=>({...s, source:'srd'}));
+  return custom.concat(srd);
+}
 function renderGrimoire(){
   const picking = state.grimoireMode === 'pick';
-  const pickChar = picking ? state.characters.find(c=>c.id===state.grimoirePickFor) : null;
+  const pickChar = picking ? charById(state.grimoirePickFor) : null;
+  if (picking && !pickChar){ state.grimoireMode = 'browse'; state.grimoirePickFor = null; }
   const f = state.grimoireFilter;
   return `
-    <div class="screen">
-      ${picking ? `
-        <div class="topbar">
-          <button class="topbar-back" onclick="cancelPickSpell()">←</button>
-          <div style="flex:1;min-width:0;"><div class="topbar-title">Aggiungi a ${escapeHtml(pickChar?pickChar.name:'')}</div><div class="topbar-sub">Tocca un incantesimo per aggiungerlo</div></div>
-          <button class="btn btn-sm btn-primary" onclick="cancelPickSpell()">Fatto</button>
+    ${picking && pickChar ? `
+      <div class="topbar">
+        <button class="topbar-back" onclick="cancelPickSpell()" aria-label="Torna alla scheda">←</button>
+        <div style="flex:1;min-width:0;">
+          <div class="topbar-title">Aggiungi a ${escapeHtml(pickChar.name)}</div>
+          <div class="topbar-sub">Tocca ✦ per aggiungere</div>
         </div>
-      ` : `<div class="brand-row"><div class="topbar-title brand">Grimorio</div>${themeToggleBtn()}</div>`}
-      <div class="search-wrap">
-        <span class="search-ic">🔍</span>
-        <input id="grimoire-search-input" placeholder="Cerca un incantesimo…" value="${escapeHtml(f.q)}" oninput="setGrimoireSearch(this.value)">
+        <button class="btn btn-sm btn-primary" onclick="cancelPickSpell()">Fatto</button>
       </div>
-      <div class="filter-bar">
-        <button class="filter-chip ${f.level==='all'?'active':''}" onclick="setGrimoireFilter('level','all')">Tutti</button>
-        <button class="filter-chip ${f.level==='0'?'active':''}" onclick="setGrimoireFilter('level','0')">Trucchetti</button>
-        ${[1,2,3,4,5,6,7,8,9].map(l=>`<button class="filter-chip ${f.level===String(l)?'active':''}" onclick="setGrimoireFilter('level','${l}')">${l}°</button>`).join('')}
-      </div>
-      <div class="filter-bar">
-        <button class="filter-chip ${f.clas==='all'?'active':''}" onclick="setGrimoireFilter('clas','all')">Tutte le classi</button>
-        ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
-      </div>
-      <div id="grimoire-results">${grimoireResultsHTML()}</div>
-      ${!picking ? `<button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openCustomSpellForm()">+ Incantesimo personalizzato</button>` : ''}
+    ` : `<div class="hero" style="padding:16px;">
+        <div class="hero-actions">${themeToggleBtn()}</div>
+        <h1 style="font-size:1.5rem">Grimorio</h1>
+        <div class="sub">Compendio degli incantesimi</div>
+      </div>`}
+    <div class="search-wrap">
+      <span class="search-ic">🔍</span>
+      <input id="grimoire-search-input" placeholder="Cerca per nome o scuola…" value="${attr(f.q)}" oninput="setGrimoireSearch(this.value)" autocomplete="off">
+      ${f.q ? `<button class="search-clear" onclick="clearGrimoireSearch()" aria-label="Cancella">✕</button>` : ''}
     </div>
+    <div class="filter-bar">
+      <button class="filter-chip ${f.level==='all'?'active':''}" onclick="setGrimoireFilter('level','all')">Tutti</button>
+      <button class="filter-chip ${f.level==='0'?'active':''}" onclick="setGrimoireFilter('level','0')">Trucchetti</button>
+      ${[1,2,3,4,5,6,7,8,9].map(l=>`<button class="filter-chip ${f.level===String(l)?'active':''}" onclick="setGrimoireFilter('level','${l}')">${l}°</button>`).join('')}
+    </div>
+    <div class="filter-bar">
+      <button class="filter-chip ${f.clas==='all'?'active':''}" onclick="setGrimoireFilter('clas','all')">Tutte le classi</button>
+      ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
+    </div>
+    <div id="grimoire-results">${grimoireResultsHTML()}</div>
+    ${!picking ? `<button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openCustomSpellForm()">✦ Incantesimo personalizzato</button>` : ''}
   `;
 }
-function grimoireResultsHTML(){
+function filteredSpells(){
   const f = state.grimoireFilter;
-  const picking = state.grimoireMode === 'pick';
-  const pickChar = picking ? state.characters.find(c=>c.id===state.grimoirePickFor) : null;
-  let all = state.customSpells.map(s=>({...s, source:'custom'})).concat(SRD_SPELLS.map(s=>({...s, source:'srd'})));
-  if (f.q) {
-    const q = f.q.toLowerCase();
-    all = all.filter(s => {
-      const school = (schoolIt(s.school||'')).toLowerCase();
-      return s.name.toLowerCase().includes(q) || school.includes(q);
-    });
+  let all = allSpells();
+  if (f.q){
+    const q = f.q.toLowerCase().trim();
+    all = all.filter(s => (s.name||'').toLowerCase().includes(q) || schoolIt(s.school||'').toLowerCase().includes(q));
   }
   if (f.level !== 'all') all = all.filter(s => String(s.level) === f.level);
   if (f.clas !== 'all') all = all.filter(s => (s.classes||[]).includes(f.clas));
-  const countLine = `<div class="muted" style="margin:2px 0 10px;">${all.length} incantesim${all.length===1?'o':'i'}</div>`;
+  all.sort((a,b)=> (a.level-b.level) || a.name.localeCompare(b.name));
+  return all;
+}
+function grimoireResultsHTML(){
+  const picking = state.grimoireMode === 'pick';
+  const pickChar = picking ? charById(state.grimoirePickFor) : null;
+  const all = filteredSpells();
+  const countLine = `<div class="muted" style="margin:2px 0 10px;">${all.length} ${pluralize(all.length,'incantesimo','incantesimi')}</div>`;
   if (!all.length) return countLine + emptyState('🔍','Nessun incantesimo trovato con questi filtri.');
-  const CAP = 350; // sopra il massimo teorico (319 SRD + personalizzati): il tetto è solo una rete di sicurezza, non un limite attivo
-  const capped = all.slice(0,CAP);
-  const capNote = all.length>CAP ? `<div class="muted" style="text-align:center;padding:14px;">Primi ${CAP} risultati — affina la ricerca per trovarne altri.</div>` : '';
-  return countLine + capped.map(s=>grimoireItemHTML(s, picking, pickChar)).join('') + capNote;
+  return countLine + `<div class="spell-grid list-gap">` + all.map(s=>grimoireItemHTML(s, picking, pickChar)).join('') + `</div>`;
 }
 function grimoireItemHTML(s, picking, pickChar){
   const already = picking && pickChar && (pickChar.knownSpells||[]).some(k=>k.id===s.id && k.source===s.source);
   const classesIt = (s.classes||[]).map(en=>CLASSES_IT[en]||en).join(', ');
-  const action = picking ? `addKnownSpellFromGrimoire('${s.id}','${s.source}')` : `viewSpellDetail('${s.id}','${s.source}')`;
-  return `<div class="spell-item" onclick="${action}">
+  return `<div class="spell-item" id="sp-row-${s.source}-${s.id}">
     <div class="spell-lvl-badge">${s.level===0?'C':s.level}</div>
-    <div class="spell-item-body">
+    <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${s.id}','${s.source}'${picking?`,'${pickChar.id}'`:''})">
       <div class="spell-item-name">${escapeHtml(s.name)}</div>
       <div class="spell-item-meta">${escapeHtml(schoolIt(s.school||''))}${classesIt?(' · '+escapeHtml(classesIt)):''}${s.source==='custom'?' · personalizzato':''}</div>
-    </div>
-    ${picking ? `<div class="spell-item-add ${already?'added':''}">${already?'✓':'+'}</div>` : `<div class="char-card-chevron">›</div>`}
+    </button>
+    ${picking
+      ? `<button class="spell-item-add ${already?'added':''}" id="sp-add-${s.source}-${s.id}" onclick="toggleSpellFromGrimoire('${s.id}','${s.source}')" aria-label="Aggiungi">${already?'✓':'✦'}</button>`
+      : `<span class="char-card-chevron">›</span>`}
   </div>`;
 }
 const setGrimoireSearch = debounce((val) => {
   state.grimoireFilter.q = val;
   const el = document.getElementById('grimoire-results');
   if (el) el.innerHTML = grimoireResultsHTML();
-}, 150);
-function setGrimoireFilter(key, val){ state.grimoireFilter[key] = val; render(); }
+}, 180);
+function clearGrimoireSearch(){ state.grimoireFilter.q = ''; render(); }
+function setGrimoireFilter(key, val){
+  state.grimoireFilter[key] = val;
+  render();
+}
 function cancelPickSpell(){
   const charId = state.grimoirePickFor;
   state.grimoireMode = 'browse'; state.grimoirePickFor = null;
   state.view = 'sheet'; state.activeCharId = charId; state.sheetTab = 'spells';
-  render(); window.scrollTo({top:0});
+  replaceNav(); render(); scrollTop();
 }
-function addKnownSpellFromGrimoire(spellId, source){ addKnownSpell(state.grimoirePickFor, spellId, source); }
+// Aggiunge/toglie senza ridisegnare la lista: resti dove sei nello scorrimento.
+function toggleSpellFromGrimoire(spellId, source){
+  const charId = state.grimoirePickFor;
+  const added = addKnownSpell(charId, spellId, source);
+  const btn = document.getElementById('sp-add-' + source + '-' + spellId);
+  if (btn){ btn.classList.toggle('added', added); btn.textContent = added ? '✓' : '✦'; }
+  toast(added ? '✨ Aggiunto alla scheda' : 'Rimosso dalla scheda');
+}
 
-function viewSpellDetail(id, source){
-  const sp = source==='custom' ? state.customSpells.find(s=>s.id===id) : SRD_SPELLS.find(s=>s.id===id);
+function viewSpellDetail(id, source, charId){
+  const sp = source==='custom' ? state.customSpells.find(s=>s.id===id) : (typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).find(s=>s.id===id);
   if (!sp) return;
-  openModal({ render: () => spellDetailHTML(sp, source) });
+  openModal({ render: () => spellDetailHTML(sp, source, charId) });
 }
-function spellDetailHTML(sp, source){
+function spellDetailHTML(sp, source, charId){
+  const c = charId ? charById(charId) : null;
+  const has = c && (c.knownSpells||[]).some(k=>k.id===sp.id && k.source===source);
   const classesIt = (sp.classes||[]).map(en=>CLASSES_IT[en]||en);
   const descParas = (sp.desc||'').split(/\n+/).filter(Boolean);
-  return `
-  <div class="overlay" onclick="if(event.target===this) closeModal()">
-    <div class="sheet-modal">
-      <div class="sheet-modal-handle"></div>
-      <div class="spell-detail-head">
+  const inner = `
+      <div style="margin-bottom:6px">
         <div class="spell-detail-name">${escapeHtml(sp.name)}</div>
-        <div class="muted" style="font-style:italic;">${sp.level===0?'Trucchetto':(sp.level+'° livello')} · ${escapeHtml(schoolIt(sp.school||''))}${sp.ritual?' (rituale)':''}</div>
+        <div class="muted" style="font-style:italic;">${levelLabel(sp.level)} · ${escapeHtml(schoolIt(sp.school||''))}${sp.ritual?' · rituale':''}</div>
       </div>
       <div class="spell-detail-tags">
         ${sp.conc?'<span class="badge garnet">Concentrazione</span>':''}
-        ${classesIt.map(c=>`<span class="badge">${escapeHtml(c)}</span>`).join('')}
+        ${sp.ritual?'<span class="badge">Rituale</span>':''}
+        ${sp.dmg?`<span class="badge arcane">${escapeHtml(sp.dmg)}</span>`:''}
+        ${classesIt.map(x=>`<span class="badge">${escapeHtml(x)}</span>`).join('')}
         ${source==='custom'?'<span class="badge gold">Personalizzato</span>':''}
       </div>
       <div class="spell-detail-grid">
         <div><b>Tempo di lancio</b><span>${escapeHtml(sp.cast||'—')}</span></div>
         <div><b>Gittata</b><span>${escapeHtml(sp.range||'—')}</span></div>
-        <div><b>Componenti</b><span>${escapeHtml(sp.comp||'—')}${sp.mat?(' — '+escapeHtml(sp.mat)):''}</span></div>
+        <div><b>Componenti</b><span>${escapeHtml(formatComponents(sp.comp, sp.mat))}</span></div>
         <div><b>Durata</b><span>${escapeHtml(sp.dur||'—')}</span></div>
       </div>
       <div class="spell-detail-desc">${descParas.map(p=>`<p>${escapeHtml(p)}</p>`).join('')}</div>
-      ${sp.higher?`<div class="spell-detail-desc"><b>Ai livelli superiori. </b>${escapeHtml(sp.higher)}</div>`:''}
+      ${sp.higher?`<div class="spell-detail-desc" style="margin-top:10px"><p><b>Ai livelli superiori. </b>${escapeHtml(sp.higher)}</p></div>`:''}
       ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a — lingua originale inglese.</div>` : ''}
-      <div style="display:flex; gap:10px; margin-top:16px;">
-        ${source==='custom' ? `<button class="btn btn-danger" style="flex:1;" onclick="closeModal(); confirmDeleteCustomSpell('${sp.id}')">Elimina</button>` : ''}
-        <button class="btn btn-ghost" style="flex:1;" onclick="closeModal()">Chiudi</button>
-      </div>
-    </div>
-  </div>`;
+      <div class="list-gap" style="margin-top:16px;">
+        ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
+        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${attr(sp.name)}')">🌀 Concentrati su questo</button>` : ''}
+        ${source==='custom' ? `<button class="btn btn-danger btn-block" onclick="confirmDeleteCustomSpell('${sp.id}')">Elimina incantesimo</button>` : ''}
+      </div>`;
+  return modalShell(levelLabel(sp.level), inner);
+}
+function toggleSpellFromDetail(spellId, source, charId){
+  const added = addKnownSpell(charId, spellId, source);
+  toast(added ? '✨ Aggiunto alla scheda' : 'Rimosso dalla scheda');
+  closeModal(); render();
 }
 
 let draftSpell = null;
 function openCustomSpellForm(){
-  draftSpell = { id: uid(), name:'', level:0, school:'', cast:'1 azione', range:'', comp:'V, S', mat:'', dur:'', conc:false, ritual:false, classes:[], desc:'', higher:'' };
+  draftSpell = { id: uid(), name:'', level:0, school:'', cast:'1 azione', range:'', comp:'V, S', mat:'', dur:'Istantanea', conc:false, ritual:false, classes:[], desc:'', higher:'', createdAt: Date.now() };
   openModal({ render: () => customSpellFormHTML() });
 }
 function toggleDraftSpellClass(en){
@@ -1126,59 +1562,55 @@ function toggleDraftSpellClass(en){
 }
 function customSpellFormHTML(){
   const d = draftSpell;
-  return `
-  <div class="overlay" onclick="if(event.target===this) closeModal()">
-    <div class="sheet-modal">
-      <div class="sheet-modal-handle"></div>
-      <div class="sheet-modal-head"><div class="sheet-modal-title">Incantesimo personalizzato</div><button class="btn-icon" onclick="closeModal()">✕</button></div>
-      <div class="field"><label>Nome</label><input value="${escapeHtml(d.name)}" oninput="draftSpell.name=this.value"></div>
+  const inner = `
+      <div class="field"><label>Nome</label><input value="${attr(d.name)}" placeholder="Es. Fiamma di Vhalgor" oninput="draftSpell.name=this.value"></div>
       <div class="form-row">
         <div class="field"><label>Livello</label>
-          <select oninput="draftSpell.level=parseInt(this.value)">
+          <select onchange="draftSpell.level=parseInt(this.value)">
             <option value="0" ${d.level===0?'selected':''}>Trucchetto</option>
             ${[1,2,3,4,5,6,7,8,9].map(l=>`<option value="${l}" ${d.level===l?'selected':''}>${l}°</option>`).join('')}
           </select>
         </div>
         <div class="field"><label>Scuola</label>
-          <select oninput="draftSpell.school=this.value">
+          <select onchange="draftSpell.school=this.value">
             <option value="">—</option>
             ${Object.values(SCHOOLS_IT).map(s=>`<option value="${s}" ${d.school===s?'selected':''}>${s}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Tempo di lancio</label><input value="${escapeHtml(d.cast)}" oninput="draftSpell.cast=this.value"></div>
-        <div class="field"><label>Gittata</label><input value="${escapeHtml(d.range)}" placeholder="Es. 18 metri" oninput="draftSpell.range=this.value"></div>
+        <div class="field"><label>Tempo di lancio</label><input value="${attr(d.cast)}" oninput="draftSpell.cast=this.value"></div>
+        <div class="field"><label>Gittata</label><input value="${attr(d.range)}" placeholder="Es. 18 metri" oninput="draftSpell.range=this.value"></div>
       </div>
       <div class="form-row">
-        <div class="field"><label>Componenti</label><input value="${escapeHtml(d.comp)}" placeholder="Es. V, S, M" oninput="draftSpell.comp=this.value"></div>
-        <div class="field"><label>Durata</label><input value="${escapeHtml(d.dur)}" placeholder="Es. Istantanea" oninput="draftSpell.dur=this.value"></div>
+        <div class="field"><label>Componenti</label><input value="${attr(d.comp)}" placeholder="Es. V, S, M" oninput="draftSpell.comp=this.value"></div>
+        <div class="field"><label>Durata</label><input value="${attr(d.dur)}" placeholder="Es. Istantanea" oninput="draftSpell.dur=this.value"></div>
       </div>
-      <div class="field"><label>Descrizione</label><textarea style="min-height:120px;" oninput="draftSpell.desc=this.value">${escapeHtml(d.desc)}</textarea></div>
+      <div class="field"><label>Materiali</label><input value="${attr(d.mat||'')}" placeholder="Facoltativo" oninput="draftSpell.mat=this.value"></div>
+      <div class="field"><label>Descrizione</label><textarea style="min-height:130px;" oninput="draftSpell.desc=this.value">${escapeHtml(d.desc)}</textarea></div>
+      <div class="field"><label>Ai livelli superiori</label><textarea style="min-height:70px;" oninput="draftSpell.higher=this.value">${escapeHtml(d.higher||'')}</textarea></div>
       <div class="field">
         <label>Classi</label>
         <div class="chip-row">
-          ${['Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard'].map(en=>`<button class="chip ${(d.classes||[]).includes(en)?'active':''}" onclick="toggleDraftSpellClass('${en}')">${CLASSES_IT[en]}</button>`).join('')}
+          ${GRIMOIRE_CLASSES.map(en=>`<button class="chip ${(d.classes||[]).includes(en)?'active':''}" onclick="toggleDraftSpellClass('${en}')">${CLASSES_IT[en]}</button>`).join('')}
         </div>
       </div>
       <div class="chip-row" style="margin-bottom:14px;">
         <button class="chip ${d.conc?'active':''}" onclick="draftSpell.conc=!draftSpell.conc; renderModalRoot()">Concentrazione</button>
         <button class="chip ${d.ritual?'active':''}" onclick="draftSpell.ritual=!draftSpell.ritual; renderModalRoot()">Rituale</button>
       </div>
-      <button class="btn btn-primary btn-block" onclick="saveCustomSpell()">Salva incantesimo</button>
-    </div>
-  </div>`;
+      <button class="btn btn-primary btn-block" onclick="saveCustomSpell()">Salva incantesimo</button>`;
+  return modalShell('Incantesimo personalizzato', inner);
 }
 function saveCustomSpell(){
   if (!draftSpell.name.trim()){ toast('Dai un nome all\'incantesimo'); return; }
   state.customSpells.push(draftSpell);
   fsSet('customSpells', draftSpell);
-  saveLocal();
   closeModal(); render();
   toast('📜 Incantesimo salvato');
 }
 function confirmDeleteCustomSpell(id){
-  confirmDialog('Eliminare questo incantesimo?', 'Verrà rimosso anche dai personaggi che lo conoscono.', () => {
+  confirmDialog('Eliminare questo incantesimo?', 'Verrà rimosso anche dalle schede dei personaggi che lo conoscono.', () => {
     state.customSpells = state.customSpells.filter(s=>s.id!==id);
     fsDelete('customSpells', id);
     state.characters.forEach(c=>{
@@ -1188,87 +1620,91 @@ function confirmDeleteCustomSpell(id){
     });
     saveLocal(); render();
     toast('Incantesimo eliminato');
-  });
+  }, 'Elimina');
 }
 
-/* ─── 18. TAVOLO DEL MASTER — bestiario + iniziativa ─── */
+/* ─── 21. TAVOLO DEL MASTER ─── */
 function newNPC(){ return { id: uid(), name:'', type:'', avatar:'🐉', ac:10, hpMax:10, hpCurrent:null, speed:9, notes:'', createdAt: Date.now() }; }
 
 function renderDM(){
   return `
-    <div class="screen">
-      <div class="brand-row"><div class="topbar-title brand">Tavolo del Master</div>${themeToggleBtn()}</div>
-      <div class="segmented" style="margin-bottom:14px;">
-        <button class="${state.dmTab!=='initiative'?'active':''}" onclick="setDmTab('bestiario')">Bestiario</button>
-        <button class="${state.dmTab==='initiative'?'active':''}" onclick="setDmTab('initiative')">Iniziativa</button>
-      </div>
-      ${state.dmTab==='initiative' ? renderInitiativeTracker() : renderBestiary()}
+    <div class="hero" style="padding:16px;">
+      <div class="hero-actions">${themeToggleBtn()}</div>
+      <h1 style="font-size:1.5rem">Tavolo del Master</h1>
+      <div class="sub">Bestiario e iniziativa</div>
     </div>
+    <div class="segmented" style="margin-bottom:14px;">
+      <button class="${state.dmTab!=='initiative'?'active':''}" onclick="setDmTab('bestiary')">🐉 Bestiario</button>
+      <button class="${state.dmTab==='initiative'?'active':''}" onclick="setDmTab('initiative')">⚔️ Iniziativa${state.combat.list.length?' ('+state.combat.list.length+')':''}</button>
+    </div>
+    ${state.dmTab==='initiative' ? renderInitiativeTracker() : renderBestiary()}
   `;
 }
-function setDmTab(tab){ state.dmTab = tab; render(); }
-
 function renderBestiary(){
-  const npcs = state.npcs;
+  const npcs = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   return `
-    ${npcs.length ? `<div class="stagger list-gap">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro ancora. Aggiungi qui nemici e alleati per le tue sessioni.')}
-    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">+ Nuovo PNG / Mostro</button>
+    ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro. Aggiungi qui nemici e alleati per le tue sessioni.')}
+    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">✦ Nuovo PNG / Mostro</button>
   `;
 }
 function npcCardHTML(n){
-  return `<div class="npc-card card" onclick="openNpcForm('${n.id}')" style="cursor:pointer;">
+  return `<button class="char-card npc-card" onclick="openNpcForm('${n.id}')">
     <div class="seal">${n.avatar||'🐉'}</div>
     <div class="char-card-body">
       <div class="char-card-name">${escapeHtml(n.name||'Senza nome')}</div>
       <div class="char-card-sub">${n.type?escapeHtml(n.type)+' · ':''}CA ${n.ac??10} · PF ${n.hpCurrent??n.hpMax??0}/${n.hpMax??0}</div>
     </div>
     <div class="char-card-chevron">›</div>
-  </div>`;
+  </button>`;
 }
 let draftNpc = null;
 function openNpcForm(existingId){
   const n = existingId ? state.npcs.find(x=>x.id===existingId) : null;
   draftNpc = n ? JSON.parse(JSON.stringify(n)) : newNPC();
-  openModal({ render: () => npcFormHTML(!!n) });
+  openModal({ render: () => npcFormHTML(!!n), after: () => { if(!n){ const el = document.getElementById('npc-name'); if (el) el.focus(); } } });
 }
 function npcFormHTML(isEdit){
   const d = draftNpc;
-  return `
-  <div class="overlay" onclick="if(event.target===this) closeModal()">
-    <div class="sheet-modal">
-      <div class="sheet-modal-handle"></div>
-      <div class="sheet-modal-head"><div class="sheet-modal-title">${isEdit?'Modifica':'Nuovo'} PNG / Mostro</div><button class="btn-icon" onclick="closeModal()">✕</button></div>
-      <div class="field"><label>Nome</label><input value="${escapeHtml(d.name)}" placeholder="Es. Capo Goblin" oninput="draftNpc.name=this.value"></div>
+  const inner = `
+      <div class="field"><label>Nome</label><input id="npc-name" value="${attr(d.name)}" placeholder="Es. Capo Goblin" oninput="draftNpc.name=this.value"></div>
       <div class="form-row">
-        <div class="field"><label>Tipo / GS</label><input value="${escapeHtml(d.type)}" placeholder="Es. Umanoide, GS 1" oninput="draftNpc.type=this.value"></div>
+        <div class="field"><label>Tipo / GS</label><input value="${attr(d.type)}" placeholder="Es. Umanoide, GS 1" oninput="draftNpc.type=this.value"></div>
         <div class="field"><label>Simbolo</label>
-          <select oninput="draftNpc.avatar=this.value">
+          <select onchange="draftNpc.avatar=this.value">
             ${AVATAR_GLYPHS.map(g=>`<option value="${g}" ${d.avatar===g?'selected':''}>${g}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="form-row-3">
-        <div class="field"><label>CA</label><input type="number" value="${d.ac??10}" oninput="draftNpc.ac=parseInt(this.value)||0"></div>
-        <div class="field"><label>PF Max</label><input type="number" value="${d.hpMax??10}" oninput="draftNpc.hpMax=parseInt(this.value)||0"></div>
-        <div class="field"><label>Velocità</label><input type="number" value="${d.speed??9}" oninput="draftNpc.speed=parseInt(this.value)||0"></div>
+        <div class="field"><label>CA</label><input type="number" inputmode="numeric" value="${d.ac??10}" oninput="draftNpc.ac=parseInt(this.value)||0"></div>
+        <div class="field"><label>PF max</label><input type="number" inputmode="numeric" value="${d.hpMax??10}" oninput="draftNpc.hpMax=parseInt(this.value)||0"></div>
+        <div class="field"><label>Velocità</label><input type="number" inputmode="numeric" value="${d.speed??9}" oninput="draftNpc.speed=parseInt(this.value)||0"></div>
       </div>
-      ${isEdit ? `<div class="field"><label>PF Attuali</label><input type="number" value="${d.hpCurrent??d.hpMax??10}" oninput="draftNpc.hpCurrent=parseInt(this.value)||0"></div>` : ''}
-      <div class="field"><label>Azioni / Note</label><textarea style="min-height:100px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
+      ${isEdit ? `<div class="field"><label>PF attuali</label><input type="number" inputmode="numeric" value="${d.hpCurrent??d.hpMax??10}" oninput="draftNpc.hpCurrent=parseInt(this.value)||0"></div>` : ''}
+      <div class="field"><label>Azioni / Note</label><textarea style="min-height:110px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
       <button class="btn btn-primary btn-block" onclick="saveNpcDraft()">${isEdit?'Salva modifiche':'Aggiungi al bestiario'}</button>
-      ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:8px;" onclick="addNpcToInitiative('${d.id}')">⚔️ Aggiungi all'iniziativa</button>`:''}
-      ${isEdit?`<button class="btn btn-danger btn-block" style="margin-top:8px;" onclick="closeModal(); confirmDeleteNpc('${d.id}')">Elimina</button>`:''}
-    </div>
-  </div>`;
+      ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:10px;" onclick="addNpcToInitiative('${d.id}')">⚔️ Aggiungi all'iniziativa</button>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-ghost" onclick="duplicateNpc('${d.id}')">⧉ Duplica</button>
+        <button class="btn btn-danger" onclick="confirmDeleteNpc('${d.id}')">Elimina</button>
+      </div>`:''}`;
+  return modalShell((isEdit?'Modifica':'Nuovo') + ' PNG / Mostro', inner);
 }
 function saveNpcDraft(){
   if (!draftNpc.name.trim()){ toast('Dai un nome al PNG'); return; }
-  draftNpc.hpCurrent = draftNpc.hpCurrent ?? draftNpc.hpMax;
+  if (draftNpc.hpCurrent == null) draftNpc.hpCurrent = draftNpc.hpMax;
   const idx = state.npcs.findIndex(n=>n.id===draftNpc.id);
   if (idx>=0) state.npcs[idx]=draftNpc; else state.npcs.push(draftNpc);
   if (!currentUser) state.offlineMode = true;
   fsSet('npcs', draftNpc);
-  saveLocal();
   closeModal(); render();
+}
+function duplicateNpc(id){
+  const n = state.npcs.find(x=>x.id===id); if (!n) return;
+  const copy = JSON.parse(JSON.stringify(n));
+  copy.id = uid(); copy.createdAt = Date.now(); copy.name = n.name + ' (copia)';
+  state.npcs.push(copy); fsSet('npcs', copy);
+  closeModal(); render(); toast('⧉ Copia creata');
 }
 function addNpcToInitiative(npcId){
   closeModal();
@@ -1279,65 +1715,72 @@ function confirmDeleteNpc(id){
   const n = state.npcs.find(x=>x.id===id);
   confirmDialog('Eliminare ' + (n?n.name:'questo PNG') + '?', 'Questa azione non può essere annullata.', () => {
     state.npcs = state.npcs.filter(x=>x.id!==id);
-    if (currentUser) fsDelete('npcs', id);
+    fsDelete('npcs', id);
     saveLocal(); render();
-  });
+  }, 'Elimina');
 }
 
-/* ─── Tracciatore Iniziativa (sessione locale) ─── */
+/* ─── Iniziativa (salvata per la sessione) ─── */
 function renderInitiativeTracker(){
-  const combat = state.combat;
-  const list = combat.list;
+  const { list, round, turn } = state.combat;
   return `
     ${list.length ? `
-      <div class="row-between" style="margin-bottom:10px;">
-        <div class="section-title" style="margin:0;">Round ${combat.round}</div>
-        <div style="display:flex; gap:8px;">
-          <button class="btn btn-sm btn-gold" onclick="nextTurn()">Turno succ. →</button>
-          <button class="btn btn-sm btn-danger" onclick="confirmResetCombat()">Fine</button>
+      <div class="card" style="margin-bottom:12px">
+        <div class="row-between">
+          <div>
+            <div class="section-title" style="margin:0;">Round ${round}</div>
+            <div class="muted" style="font-size:.74rem">Turno di ${escapeHtml((list[turn]||{}).name||'—')}</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-sm btn-ghost" onclick="prevTurn()" aria-label="Turno precedente">←</button>
+            <button class="btn btn-sm btn-gold" onclick="nextTurn()">Turno →</button>
+          </div>
         </div>
       </div>
-      ${list.map((cb,i)=>initRowHTML(cb,i,i===combat.turn)).join('')}
-    ` : emptyState('⚔️','Nessun combattimento attivo. Aggiungi combattenti qui sotto per iniziare.')}
+      <div class="list-gap">${list.map((cb,i)=>initRowHTML(cb,i,i===turn)).join('')}</div>
+      <button class="btn btn-danger btn-block" style="margin-top:12px" onclick="confirmResetCombat()">Termina combattimento</button>
+    ` : emptyState('⚔️','Nessun combattimento attivo. Aggiungi i combattenti qui sotto: l\'iniziativa viene tirata automaticamente.')}
 
-    <div class="divider"><span class="flourish">❧</span><span>Aggiungi Combattente</span></div>
+    <div class="divider"><span class="flourish">❧</span><span>Aggiungi combattente</span></div>
     <div class="card">
       ${(state.characters.length||state.npcs.length) ? `<div class="chip-row" style="margin-bottom:12px;">
         ${state.characters.map(c=>`<button class="chip" onclick="addToCombat('${c.id}','pc')">${c.avatar||'⚔️'} ${escapeHtml(c.name)}</button>`).join('')}
         ${state.npcs.map(n=>`<button class="chip" onclick="addToCombat('${n.id}','npc')">${n.avatar||'🐉'} ${escapeHtml(n.name)}</button>`).join('')}
       </div>` : ''}
       <div style="display:flex; gap:8px;">
-        <input id="quick-combatant-name" placeholder="Nome combattente rapido" style="flex:1; padding:11px 13px; border-radius:10px; border:1.5px solid var(--card-border); background:var(--card); font-family:'Lora',serif;">
-        <button class="btn btn-gold" onclick="addQuickCombatant()">+ Aggiungi</button>
+        <input id="quick-combatant-name" placeholder="Nome rapido…" onkeydown="if(event.key==='Enter') addQuickCombatant()"
+               style="flex:1; padding:12px 13px; border-radius:11px; border:1px solid var(--line); background:var(--bg-1); font-family:var(--font-body); min-width:0;">
+        <button class="btn btn-gold" onclick="addQuickCombatant()">✦</button>
       </div>
+      ${state.characters.length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="addAllPartyToCombat()">Aggiungi tutto il party</button>` : ''}
     </div>
   `;
 }
 function initRowHTML(cb, i, isCurrent){
-  return `<div class="init-row ${isCurrent?'current-turn':''}">
-    <div class="init-badge">${cb.init}</div>
+  const down = cb.hp != null && cb.hp <= 0;
+  return `<div class="init-row ${isCurrent?'current-turn':''} ${down?'down':''}">
+    <button class="init-badge" onclick="editCombatInit(${i})" title="Modifica iniziativa">${cb.init}</button>
     <div style="flex:1; min-width:0;">
-      <div class="init-name">${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}</div>
-      <div class="init-hp">${cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : '—'}</div>
+      <div class="init-name">${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}</div>
+      <div class="init-hp">${cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : (cb.kind==='quick'?'—':'')}</div>
     </div>
     <div class="init-actions">
-      ${cb.hp!=null ? `<button class="stepper-btn" style="width:32px;height:32px;font-size:.9rem;" onclick="bumpCombatHP(${i},-1)">−</button>
-      <button class="stepper-btn" style="width:32px;height:32px;font-size:.9rem;" onclick="bumpCombatHP(${i},1)">+</button>` : ''}
-      <button class="btn-icon" style="width:32px;height:32px;font-size:.75rem;" onclick="removeFromCombat(${i})">✕</button>
+      ${cb.hp!=null ? `<button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem;" onclick="bumpCombatHP(${i},-1)" aria-label="-1 PF">−</button>
+      <button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem;" onclick="bumpCombatHP(${i},1)" aria-label="+1 PF">+</button>` : ''}
+      <button class="btn-icon" style="width:34px;height:34px;font-size:.75rem;" onclick="removeFromCombat(${i})" aria-label="Rimuovi">✕</button>
     </div>
   </div>`;
 }
 function uniqueCombatName(base){
-  const count = state.combat.list.filter(c => c.name === base || (c.name||'').startsWith(base + ' #')).length;
-  if (count === 0) return base;
-  if (count === 1) {
-    const first = state.combat.list.find(c => c.name === base);
-    if (first) first.name = base + ' #1';
-  }
-  return base + ' #' + (count + 1);
+  base = base || 'Combattente';
+  const same = state.combat.list.filter(c => c.name === base || (c.name||'').startsWith(base + ' #'));
+  if (!same.length) return base;
+  const first = state.combat.list.find(c => c.name === base);
+  if (first) first.name = base + ' #1';
+  return base + ' #' + (same.length + 1);
 }
 function addToCombat(refId, kind){
-  const src = kind==='pc' ? state.characters.find(c=>c.id===refId) : state.npcs.find(n=>n.id===refId);
+  const src = kind==='pc' ? charById(refId) : state.npcs.find(n=>n.id===refId);
   if (!src) return;
   const dexMod = kind==='pc' ? mod(getPath(src,'abilities.dex',10)) : 0;
   const init = rollDie(20) + (kind==='pc' ? (src.initiative ?? dexMod) : dexMod);
@@ -1346,122 +1789,341 @@ function addToCombat(refId, kind){
     hp: kind==='pc' ? getPath(src,'hp.current',0) : (src.hpCurrent ?? src.hpMax ?? 0),
     hpMax: kind==='pc' ? getPath(src,'hp.max',0) : (src.hpMax ?? 0),
   });
-  sortCombat(); render();
+  sortCombat(); saveSession(); render();
+}
+function addAllPartyToCombat(){
+  state.characters.forEach(c => {
+    if (!state.combat.list.some(x => x.refId === c.id)) addToCombat(c.id, 'pc');
+  });
 }
 function addQuickCombatant(){
   const el = document.getElementById('quick-combatant-name');
+  if (!el) return;
   const name = el.value.trim();
-  if (!name) { toast('Dai un nome al combattente'); return; }
+  if (!name){ toast('Scrivi un nome'); el.focus(); return; }
   state.combat.list.push({ refId:null, kind:'quick', name: uniqueCombatName(name), avatar:'❔', init: rollDie(20), hp:null, hpMax:null });
-  sortCombat(); render();
+  el.value = '';
+  sortCombat(); saveSession(); render();
 }
-function sortCombat(){ state.combat.list.sort((a,b)=>b.init-a.init); }
+function editCombatInit(i){
+  const cb = state.combat.list[i]; if (!cb) return;
+  const inner = `
+    <div class="field"><label>Iniziativa di ${escapeHtml(cb.name)}</label><input id="init-val" type="number" inputmode="numeric" value="${cb.init}"></div>
+    ${cb.hp!=null?`<div class="form-row">
+      <div class="field"><label>PF attuali</label><input id="init-hp" type="number" inputmode="numeric" value="${cb.hp}"></div>
+      <div class="field"><label>PF max</label><input id="init-hpmax" type="number" inputmode="numeric" value="${cb.hpMax||0}"></div>
+    </div>`:''}
+    <button class="btn btn-primary btn-block" onclick="saveCombatInit(${i})">Salva</button>`;
+  openModal({ render: () => modalShell('Modifica combattente', inner) });
+}
+function saveCombatInit(i){
+  const cb = state.combat.list[i]; if (!cb) return;
+  cb.init = parseInt((document.getElementById('init-val')||{}).value) || 0;
+  const hpEl = document.getElementById('init-hp');
+  if (hpEl){
+    cb.hpMax = clamp(parseInt((document.getElementById('init-hpmax')||{}).value)||0, 0, 9999);
+    cb.hp = clamp(parseInt(hpEl.value)||0, 0, cb.hpMax || 9999);
+  }
+  sortCombat(); saveSession(); closeModal(); render();
+}
+function sortCombat(){
+  const current = state.combat.list[state.combat.turn];
+  state.combat.list.sort((a,b)=>b.init-a.init);
+  if (current){ const idx = state.combat.list.indexOf(current); if (idx>=0) state.combat.turn = idx; }
+}
 function bumpCombatHP(i, delta){
   const cb = state.combat.list[i]; if (!cb || cb.hp==null) return;
   cb.hp = clamp(cb.hp+delta, 0, cb.hpMax || 9999);
-  render();
+  // Se è un personaggio del party, aggiorna anche la sua scheda.
+  if (cb.kind === 'pc'){
+    const c = charById(cb.refId);
+    if (c){ setPath(c,'hp.current', clamp(cb.hp, 0, getPath(c,'hp.max',9999))); scheduleSave('characters', c); }
+  } else if (cb.kind === 'npc'){
+    const n = state.npcs.find(x=>x.id===cb.refId);
+    if (n){ n.hpCurrent = cb.hp; scheduleSave('npcs', n); }
+  }
+  saveSession(); render();
 }
 function removeFromCombat(i){
   state.combat.list.splice(i,1);
   if (state.combat.turn >= state.combat.list.length) state.combat.turn = 0;
-  render();
+  saveSession(); render();
 }
 function nextTurn(){
+  if (!state.combat.list.length) return;
   state.combat.turn++;
-  if (state.combat.turn >= state.combat.list.length) { state.combat.turn = 0; state.combat.round++; }
-  render();
+  if (state.combat.turn >= state.combat.list.length){ state.combat.turn = 0; state.combat.round++; }
+  saveSession(); render();
+}
+function prevTurn(){
+  if (!state.combat.list.length) return;
+  state.combat.turn--;
+  if (state.combat.turn < 0){ state.combat.turn = state.combat.list.length - 1; state.combat.round = Math.max(1, state.combat.round - 1); }
+  saveSession(); render();
 }
 function confirmResetCombat(){
   confirmDialog('Terminare il combattimento?', 'La lista dei combattenti verrà svuotata.', () => {
     state.combat = { list: [], round: 1, turn: 0 };
-    render();
-  });
+    saveSession(); render();
+  }, 'Termina');
 }
 
-/* ─── 19. IMPOSTAZIONI ─── */
+/* ─── 22. OPZIONI ─── */
 function renderSettings(){
+  const nChars = state.characters.length, nNpcs = state.npcs.length, nSpells = state.customSpells.length;
   return `
-    <div class="screen">
-      <div class="brand-row"><div class="topbar-title brand">Opzioni</div></div>
+    <div class="hero" style="padding:16px;">
+      <h1 style="font-size:1.5rem">Opzioni</h1>
+      <div class="sub">Account, aspetto e backup</div>
+    </div>
 
+    <div class="divider"><span class="flourish">❧</span><span>Account</span></div>
+    ${currentUser ? `
       <div class="card" style="display:flex; align-items:center; gap:12px;">
-        <div class="seal" style="width:46px;height:46px;font-size:1.2rem;">👤</div>
-        <div style="flex:1; min-width:0; overflow:hidden;">
-          <div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(currentUser?currentUser.displayName||'':'')}</div>
-          <div class="muted" style="font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(currentUser?currentUser.email||'':'')}</div>
+        <div class="seal" style="width:48px;height:48px;font-size:1.2rem;">👤</div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(currentUser.displayName||'Avventuriero')}</div>
+          <div class="muted" style="font-size:.76rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(currentUser.email||'')}</div>
         </div>
+        <span class="badge gold">Sync</span>
       </div>
       <button class="btn btn-danger btn-block" style="margin-top:10px;" onclick="confirmSignOut()">Esci dall'account</button>
-
-      <div class="divider"><span class="flourish">❧</span><span>Aspetto</span></div>
-      <button class="theme-switch" style="width:100%;" onclick="toggleTheme()">
-        <div class="track"><div class="knob"></div></div>
-        <div style="flex:1; text-align:left; font-weight:700;">Tema ${state.theme==='dark'?'Notturno 🌙':'Diurno ☀️'}</div>
-      </button>
-
-      <div class="divider"><span class="flourish">❧</span><span>Informazioni</span></div>
-      <div class="card muted" style="font-size:.82rem; line-height:1.7;">
-        Personaggi: ${state.characters.length} · Bestiario: ${state.npcs.length} · Incantesimi personalizzati: ${state.customSpells.length}<br><br>
-        I dati sono legati al tuo account Google e sincronizzati automaticamente su Firebase tra tutti i dispositivi collegati. Gli incantesimi base vengono dal System Reference Document 5.1 di Wizards of the Coast (licenza Open Gaming License 1.0a).
+    ` : `
+      <div class="card">
+        <div class="card-title">📴 Modalità locale</div>
+        <p class="muted" style="margin-bottom:12px">I dati sono salvati solo su questo dispositivo. Accedi con Google per ritrovarli su telefono e computer.</p>
+        ${firebaseReady ? `<button class="btn btn-primary btn-block" onclick="signIn()">Accedi con Google</button>` : `<p class="muted">Connessione ai server non disponibile in questo momento.</p>`}
       </div>
+    `}
+
+    <div class="divider"><span class="flourish">❧</span><span>Aspetto</span></div>
+    <button class="switch-row" onclick="toggleTheme()">
+      <div class="track"><div class="knob"></div></div>
+      <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Tema ${state.theme==='dark'?'Mezzanotte 🌙':'Pergamena ☀️'}</div>
+    </button>
+
+    <div class="divider"><span class="flourish">❧</span><span>Backup</span></div>
+    <div class="card">
+      <p class="muted" style="margin-bottom:12px">Salva una copia di tutto (personaggi, bestiario, incantesimi personalizzati) in un file sul dispositivo, da reimportare quando vuoi.</p>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="exportData()">⤓ Esporta</button>
+        <button class="btn btn-ghost" onclick="triggerImport()">⤒ Importa</button>
+      </div>
+      <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="handleImportFile(this)">
+    </div>
+
+    <div class="divider"><span class="flourish">❧</span><span>Informazioni</span></div>
+    <div class="card muted" style="font-size:.8rem;">
+      <div class="row-between" style="margin-bottom:6px"><span>Personaggi</span><b>${nChars}</b></div>
+      <div class="row-between" style="margin-bottom:6px"><span>Bestiario</span><b>${nNpcs}</b></div>
+      <div class="row-between" style="margin-bottom:6px"><span>Incantesimi personalizzati</span><b>${nSpells}</b></div>
+      <div class="row-between" style="margin-bottom:12px"><span>Versione</span><b>${APP_VERSION}</b></div>
+      Gli incantesimi base provengono dal System Reference Document 5.1 di Wizards of the Coast (licenza Open Gaming License 1.0a), in lingua originale inglese.
     </div>
   `;
 }
 function confirmSignOut(){
-  confirmDialog('Uscire dall\'account?', 'Potrai accedere di nuovo in qualsiasi momento con lo stesso account Google.', () => signOutUser());
+  confirmDialog('Uscire dall\'account?', 'I dati restano al sicuro nel cloud: potrai rientrare quando vuoi con lo stesso account Google.', () => signOutUser(), 'Esci');
 }
 
-/* ─── 20. TIRA DADI (accessibile ovunque) ─── */
-function openDiceRoller(){
-  state.diceHistory = state.diceHistory || [];
-  openModal({ render: () => diceRollerHTML() });
+/* ─── BACKUP ─── */
+function exportData(){
+  try {
+    const payload = {
+      app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
+      characters: state.characters, npcs: state.npcs, customSpells: state.customSpells
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const d = new Date();
+    const stamp = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    a.href = url; a.download = 'grimorio-backup-' + stamp + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast('⤓ Backup esportato');
+  } catch(e){ console.error(e); toast('⚠️ Esportazione non riuscita'); }
 }
+function triggerImport(){ const el = document.getElementById('import-file'); if (el) el.click(); }
+function handleImportFile(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch(e){ toast('⚠️ File non valido'); return; }
+    if (!data || (!Array.isArray(data.characters) && !Array.isArray(data.npcs) && !Array.isArray(data.customSpells))){
+      toast('⚠️ Questo file non è un backup del Grimorio'); return;
+    }
+    const nc = (data.characters||[]).length, nn = (data.npcs||[]).length, ns = (data.customSpells||[]).length;
+    confirmDialog('Importare il backup?',
+      `Contiene ${nc} ${pluralize(nc,'personaggio','personaggi')}, ${nn} PNG e ${ns} ${pluralize(ns,'incantesimo','incantesimi')} personalizzati. Le voci con lo stesso identificativo verranno aggiornate, il resto viene aggiunto.`,
+      () => doImport(data), 'Importa');
+  };
+  reader.onerror = () => toast('⚠️ Impossibile leggere il file');
+  reader.readAsText(file);
+}
+function doImport(data){
+  const mergeIn = (key, arr, mapper) => {
+    if (!Array.isArray(arr)) return 0;
+    let n = 0;
+    arr.forEach(item => {
+      if (!item || !item.id) return;
+      const obj = mapper ? mapper(item) : item;
+      const idx = state[key].findIndex(x => x.id === obj.id);
+      if (idx >= 0) state[key][idx] = obj; else state[key].push(obj);
+      fsSet(key, obj);
+      n++;
+    });
+    return n;
+  };
+  const a = mergeIn('characters', data.characters, migrateCharacter);
+  const b = mergeIn('npcs', data.npcs);
+  const c = mergeIn('customSpells', data.customSpells);
+  saveLocal();
+  state.offlineMode = true;
+  render();
+  toast(`⤒ Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi`);
+}
+
+/* ─── 23. TIRA DADI ─── */
+function openDiceRoller(){ openModal({ render: () => diceRollerHTML() }); }
 function diceRollerHTML(){
   const hist = state.diceHistory || [];
-  return `
-  <div class="overlay" onclick="if(event.target===this) closeModal()">
-    <div class="sheet-modal" style="max-height:82vh;">
-      <div class="sheet-modal-handle"></div>
-      <div class="sheet-modal-head"><div class="sheet-modal-title">🎲 Tira i Dadi</div><button class="btn-icon" onclick="closeModal()">✕</button></div>
+  const inner = `
       <div class="chip-row" style="margin-bottom:16px;">
-        ${DICE_TYPES.map(d=>`<button class="chip" style="font-size:.85rem;padding:10px 16px;" onclick="doRoll(1,${d},0)">d${d}</button>`).join('')}
+        ${DICE_TYPES.map(d=>`<button class="chip" style="font-size:.9rem;padding:11px 17px;" onclick="doRoll(1,${d},0)">d${d}</button>`).join('')}
       </div>
-      <div class="form-row">
-        <div class="field"><label>N. dadi</label><input id="dice-count" type="number" min="1" value="1"></div>
-        <div class="field"><label>Facce</label><input id="dice-sides" type="number" min="2" value="20"></div>
-        <div class="field"><label>Modif.</label><input id="dice-mod" type="number" value="0"></div>
+      <div class="form-row-3">
+        <div class="field"><label>N. dadi</label><input id="dice-count" type="number" inputmode="numeric" min="1" max="100" value="1"></div>
+        <div class="field"><label>Facce</label><input id="dice-sides" type="number" inputmode="numeric" min="2" max="1000" value="20"></div>
+        <div class="field"><label>Modif.</label><input id="dice-mod" type="number" inputmode="numeric" value="0"></div>
       </div>
-      <button class="btn btn-primary btn-block" onclick="doRollCustom()">Tira</button>
+      <button class="btn btn-primary btn-block" onclick="doRollCustom()">🎲 Tira</button>
       ${hist.length ? `
         <div class="divider"><span class="flourish">❧</span><span>Cronologia</span></div>
-        <div class="list-gap">${hist.slice(0,8).map(h=>`<div class="card" style="padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
-          <span class="muted" style="font-size:.8rem;">${escapeHtml(h.label)}</span>
-          <span style="font-family:'Cinzel',serif; font-weight:700; font-size:1.25rem; color:var(--garnet);">${h.total}</span>
+        <div class="list-gap">${hist.slice(0,10).map(h=>`<div class="hist-item">
+          <span class="l">${escapeHtml(h.label)}${h.detail?' · '+escapeHtml(h.detail):''}</span>
+          <span class="t">${h.total}</span>
         </div>`).join('')}</div>
-      ` : ''}
-    </div>
-  </div>`;
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="clearDiceHistory()">Svuota cronologia</button>
+      ` : ''}`;
+  return modalShell('🎲 Tira i dadi', inner);
 }
+function clearDiceHistory(){ state.diceHistory = []; saveSession(); renderModalRoot(); }
 function doRoll(count, sides, bonus){
+  count = clamp(count,1,100); sides = clamp(sides,2,1000); bonus = Number(bonus)||0;
   const rolls = Array.from({length:count}, ()=>rollDie(sides));
-  const total = rolls.reduce((a,b)=>a+b,0) + bonus;
-  state.diceHistory = state.diceHistory || [];
-  state.diceHistory.unshift({ label: `${count}d${sides}${bonus?signStr(bonus):''} → [${rolls.join(', ')}]`, total });
-  renderModalRoot();
+  const sum = rolls.reduce((a,b)=>a+b,0);
+  const total = sum + bonus;
+  const label = `${count}d${sides}${bonus?signStr(bonus):''}`;
+  state.diceHistory.unshift({ label, total, detail: `[${rolls.join(', ')}]` });
+  state.diceHistory = state.diceHistory.slice(0,30);
+  saveSession();
+  if (count === 1 && sides === 20){
+    showRollResult({ label, nat: rolls[0], modifier: bonus, total, mode:'normal', repeat: {t:'plain'} });
+    return;
+  }
+  openModal({ render: () => `
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="text-align:center;">
+        <div class="roll-card">
+          <div class="roll-label">${escapeHtml(label)}</div>
+          <div class="roll-total" style="margin:14px 0 6px">${total}</div>
+          <div class="roll-detail">[${rolls.join(', ')}]${bonus?` ${signStr(bonus)}`:''}</div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-ghost" onclick="doRoll(${count},${sides},${bonus})">↻ Ritira</button>
+          <button class="btn btn-primary" onclick="openDiceRoller()">Chiudi</button>
+        </div>
+      </div>
+    </div>` });
 }
 function doRollCustom(){
-  const count = clamp(parseInt(document.getElementById('dice-count').value)||1, 1, 100);
-  const sides = clamp(parseInt(document.getElementById('dice-sides').value)||20, 2, 1000);
-  const bonus = parseInt(document.getElementById('dice-mod').value)||0;
+  const count = clamp(parseInt((document.getElementById('dice-count')||{}).value)||1, 1, 100);
+  const sides = clamp(parseInt((document.getElementById('dice-sides')||{}).value)||20, 2, 1000);
+  const bonus = parseInt((document.getElementById('dice-mod')||{}).value)||0;
   doRoll(count, sides, bonus);
 }
 
-/* ─── 21. SERVICE WORKER + AVVIO ─── */
-if ('serviceWorker' in navigator) {
+/* ─── 24. EFFETTI AMBIENTE ─── */
+function spawnEmbers(){
+  const box = document.getElementById('embers');
+  if (!box) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const n = window.innerWidth < 700 ? 8 : 14;
+  let html = '';
+  for (let i=0;i<n;i++){
+    const left = Math.random()*100;
+    const dur = 14 + Math.random()*16;
+    const delay = Math.random()*24;
+    const size = 2 + Math.random()*2.4;
+    html += `<i style="left:${left.toFixed(1)}%;width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;animation-duration:${dur.toFixed(1)}s;animation-delay:-${delay.toFixed(1)}s"></i>`;
+  }
+  box.innerHTML = html;
+}
+
+/* ─── 25. SERVICE WORKER + AVVIO ─── */
+function registerSW(){
+  if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service worker non registrato:', err));
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) toast('✨ Aggiornamento pronto: riapri l\'app');
+        });
+      });
+    }).catch(err => console.warn('Service worker non registrato:', err));
   });
 }
 
-loadLocal();
-render();
+// Scorciatoie dell'icona dell'app (tieni premuta l'icona sul telefono).
+function handleLaunchShortcut(){
+  let a = null;
+  try { a = new URLSearchParams(location.search).get('a'); } catch(e){ return; }
+  if (!a) return;
+  if (a === 'dice') openDiceRoller();
+  else if (a === 'grimoire' || a === 'dm' || a === 'settings'){ state.view = a === 'grimoire' ? 'grimoire' : a; replaceNav(); render(); }
+}
+
+function boot(){
+  loadLocal();
+  loadSession();
+  spawnEmbers();
+  if (localStorage.getItem('grimorio-offline') === '1') state.offlineMode = true;
+  replaceNav();
+
+  firebaseReady = initFirebase();
+  if (firebaseReady){
+    auth.getRedirectResult().catch(err => {
+      if (err && err.code !== 'auth/no-auth-event') console.error('Redirect auth error:', err);
+    });
+    auth.onAuthStateChanged(u => {
+      currentUser = u;
+      state.authReady = true;
+      if (u){ state.offlineMode = false; localStorage.removeItem('grimorio-offline'); attachFirestore(u.uid); }
+      else detachFirestore();
+      render();
+    });
+    // Rete di sicurezza: se Firebase non risponde entro 6s si parte comunque in locale.
+    setTimeout(() => { if (!state.authReady){ state.authReady = true; render(); } }, 6000);
+  } else {
+    state.authReady = true;
+    render();
+  }
+  render();
+  registerSW();
+  handleLaunchShortcut();
+
+  // Salvataggio immediato quando l'app va in background (chiusura app da telefono).
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPendingSaves(); });
+  window.addEventListener('pagehide', flushPendingSaves);
+  window.addEventListener('online', () => { if (currentUser) setSaveStatus('saved'); });
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
