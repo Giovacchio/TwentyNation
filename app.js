@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v2.3
+   GRIMORIO — app.js  ·  v2.4
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.3';
+const APP_VERSION = '2.4';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -480,25 +480,174 @@ function flushPendingSaves(){
   saveLocal(); saveSession();
 }
 
-/* ─── 6. AUTENTICAZIONE ─── */
-function isMobileAuth(){ return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent); }
-function signIn(){
+/* ─── 6. AUTENTICAZIONE ──────────────────────────────────────────
+   Nota sul perché di questa complicazione: l'app è servita da un dominio
+   (es. github.io) diverso da quello di Firebase (…firebaseapp.com).
+   Il vecchio flusso "signInWithRedirect" appoggia il passaggio a uno
+   storage di terze parti che Safari e i Chrome recenti bloccano: da
+   telefono il rimbalzo torna indietro senza utente e sembra che il tasto
+   non faccia niente. Quindi: prima si prova la finestra popup (che non
+   dipende da quello storage) e solo se fallisce si ripiega sul redirect.
+*/
+let __lastAuthError = null;
+const AUTH_MSGS = {
+  "auth/unauthorized-domain": () => "Dominio non autorizzato: aggiungi " + location.hostname + " in Firebase Console → Authentication → Settings → Authorized domains.",
+  "auth/operation-not-allowed": () => "Accesso Google non attivo: abilitalo in Firebase Console → Authentication → Sign-in method.",
+  "auth/popup-blocked": () => "Il browser ha bloccato la finestra di accesso: consenti i popup e riprova.",
+  "auth/configuration-not-found": () => "Configurazione Firebase mancante o errata.",
+  "auth/network-request-failed": () => "Nessuna connessione: puoi continuare in locale, la sincronizzazione arriverà dopo.",
+  "auth/web-storage-unsupported": () => "Questo browser blocca l'archiviazione dei dati: disattiva la navigazione privata o il blocco dei cookie.",
+  "auth/too-many-requests": () => "Troppi tentativi: riprova fra qualche minuto.",
+};
+// Errori che indicano "la finestra popup qui non si può usare": si ripiega.
+const POPUP_FALLBACK = [
+  'auth/popup-blocked', 'auth/operation-not-supported-in-this-environment',
+  'auth/web-storage-unsupported', 'auth/internal-error', 'auth/timeout'
+];
+const SILENT_AUTH = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user', 'auth/user-cancelled'];
+
+function isStandalonePWA(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+}
+// I browser dentro altre app (Instagram, Facebook, TikTok…) vengono
+// rifiutati da Google stesso: meglio dirlo subito invece di far fallire.
+function isInAppBrowser(){
+  return /FBAN|FBAV|FB_IAB|Instagram|Line\/|TikTok|Snapchat|Pinterest|Twitter|WhatsApp|MicroMessenger/i.test(navigator.userAgent || '');
+}
+function storageOk(){
+  try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; } catch(e){ return false; }
+}
+function noteAuthError(err){
+  __lastAuthError = { code: (err && err.code) || 'sconosciuto', message: (err && err.message) || String(err), at: new Date().toLocaleTimeString('it-IT') };
+  console.error('Errore accesso:', err);
+  const f = AUTH_MSGS[__lastAuthError.code];
+  toast(f ? f() : ('Accesso non riuscito (' + __lastAuthError.code + ')'));
+}
+
+async function signIn(forceMethod){
   if (!firebaseReady){ toast('Connessione a Firebase non disponibile'); return; }
+  if (isInAppBrowser()){ openInAppBrowserHelp(); return; }
+  if (!storageOk()){ toast('Il browser sta bloccando l\'archiviazione: esci dalla navigazione privata e riprova'); return; }
+
   const provider = new firebase.auth.GoogleAuthProvider();
-  const method = isMobileAuth() ? auth.signInWithRedirect.bind(auth) : auth.signInWithPopup.bind(auth);
-  method(provider).catch(err => {
-    console.error(err);
-    const msgs = {
-      "auth/unauthorized-domain": "Dominio non autorizzato. In Firebase Console → Authentication → Settings → Authorized domains aggiungi: " + location.hostname,
-      "auth/operation-not-allowed": "Accesso Google non attivo. In Firebase Console → Authentication → Sign-in method abilita Google.",
-      "auth/popup-blocked": "Il browser ha bloccato il popup: consenti i popup per questo sito e riprova.",
-      "auth/configuration-not-found": "Configurazione Firebase mancante o errata: controlla FIREBASE_CONFIG in app.js.",
-      "auth/network-request-failed": "Nessuna connessione: puoi continuare in locale, i dati si sincronizzeranno più tardi.",
-      "auth/cancelled-popup-request": null, "auth/popup-closed-by-user": null,
-    };
-    const m = msgs[err.code];
-    if (m !== null) toast(m || ("Errore accesso: " + err.message));
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){ console.warn('Persistenza non impostabile', e); }
+
+  const preferred = forceMethod || localStorage.getItem('grimorio-auth-method') || 'popup';
+  if (preferred === 'redirect') return startRedirect(provider);
+
+  try {
+    await auth.signInWithPopup(provider);
+    localStorage.setItem('grimorio-auth-method', 'popup');
+    toast('✓ Accesso effettuato');
+  } catch(err){
+    const code = err && err.code;
+    if (SILENT_AUTH.includes(code)) return;
+    if (POPUP_FALLBACK.includes(code)){
+      toast('Provo con il reindirizzamento…');
+      return startRedirect(provider);
+    }
+    noteAuthError(err);
+  }
+}
+function startRedirect(provider){
+  try { sessionStorage.setItem('grimorio-auth-pending', String(Date.now())); } catch(e){}
+  localStorage.setItem('grimorio-auth-method', 'redirect');
+  return auth.signInWithRedirect(provider).catch(err => {
+    try { sessionStorage.removeItem('grimorio-auth-pending'); } catch(e){}
+    noteAuthError(err);
   });
+}
+// Al rientro dal reindirizzamento: se torna senza utente il motivo è
+// quasi sempre il blocco dello storage di terze parti.
+function handleRedirectResult(){
+  if (!auth || !auth.getRedirectResult) return;
+  auth.getRedirectResult().then(res => {
+    let pending = null;
+    try { pending = sessionStorage.getItem('grimorio-auth-pending'); sessionStorage.removeItem('grimorio-auth-pending'); } catch(e){}
+    if (res && res.user){ toast('✓ Accesso effettuato'); return; }
+    if (pending){
+      __lastAuthError = { code: 'redirect-senza-utente', message: 'Il reindirizzamento è tornato senza account: di solito è il blocco dei cookie di terze parti.', at: new Date().toLocaleTimeString('it-IT') };
+      localStorage.setItem('grimorio-auth-method', 'popup');
+      setTimeout(() => toast('Accesso non completato: apri Opzioni → Diagnostica accesso'), 900);
+    }
+  }).catch(err => {
+    try { sessionStorage.removeItem('grimorio-auth-pending'); } catch(e){}
+    if (err && err.code !== 'auth/no-auth-event') noteAuthError(err);
+  });
+}
+function openInAppBrowserHelp(){
+  const inner = `
+    <p class="muted" style="margin-bottom:14px">Stai usando il Grimorio dentro il browser interno di un'altra app (Instagram, Facebook, TikTok…). Google non consente l'accesso da qui: è una restrizione loro, non dell'app.</p>
+    <p class="muted" style="margin-bottom:14px"><b>Come fare:</b> tocca il menu <b>⋯</b> in alto e scegli <b>Apri in Chrome</b> (Android) o <b>Apri in Safari</b> (iPhone). Da lì l'accesso funziona, e puoi anche aggiungere il Grimorio alla schermata Home.</p>
+    <button class="btn btn-ghost btn-block" onclick="copyAppLink()">Copia il link dell'app</button>
+    <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal()">Ho capito</button>`;
+  openModal({ render: () => modalShell('Apri nel browser', inner) });
+}
+function copyAppLink(){
+  const url = location.href.split('?')[0];
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(()=>toast('🔗 Link copiato')).catch(()=>toast(url));
+  } else toast(url);
+}
+
+/* Pannello diagnostico: serve a capire in un colpo d'occhio perché
+   l'accesso non va, senza dover indovinare. */
+function openAuthDiagnostics(){
+  openModal({ render: () => authDiagnosticsHTML() });
+}
+function authDiagnosticsHTML(){
+  const rows = [
+    ['Stato', currentUser ? '✓ collegato come ' + (currentUser.email || currentUser.displayName || 'account Google') : '📴 non collegato'],
+    ['Dominio', location.hostname || '(file locale)'],
+    ['Dominio Firebase', FIREBASE_CONFIG.authDomain],
+    ['Modalità', isStandalonePWA() ? 'app installata' : 'browser'],
+    ['Browser dentro un\'altra app', isInAppBrowser() ? '⚠️ sì' : 'no'],
+    ['Cookie', navigator.cookieEnabled ? 'ok' : '⚠️ bloccati'],
+    ['Archiviazione locale', storageOk() ? 'ok' : '⚠️ bloccata'],
+    ['Libreria Firebase', firebaseReady ? 'caricata' : '⚠️ non caricata'],
+    ['Metodo in uso', (localStorage.getItem('grimorio-auth-method') || 'popup') === 'redirect' ? 'reindirizzamento' : 'finestra popup'],
+  ];
+  if (__lastAuthError) rows.push(['Ultimo errore', __lastAuthError.code + ' (' + __lastAuthError.at + ')']);
+  const inner = `
+    <div class="card" style="margin-bottom:14px">
+      ${rows.map(([k,v]) => `<div class="row-between" style="margin-bottom:7px; gap:12px">
+        <span class="muted" style="flex-shrink:0">${escapeHtml(k)}</span>
+        <b style="text-align:right; font-size:.8rem; word-break:break-word">${escapeHtml(String(v))}</b>
+      </div>`).join('')}
+    </div>
+    ${__lastAuthError ? `<div class="card" style="margin-bottom:14px; border-color:var(--warn)">
+      <div class="muted" style="font-size:.78rem">${escapeHtml(__lastAuthError.message)}</div>
+    </div>` : ''}
+    <div class="list-gap">
+      <button class="btn btn-primary btn-block" onclick="closeModal(); signIn('popup')">Accedi con la finestra popup</button>
+      <button class="btn btn-ghost btn-block" onclick="closeModal(); signIn('redirect')">Accedi con il reindirizzamento</button>
+      <button class="btn btn-ghost btn-block" onclick="copyDiagnostics()">Copia questi dati</button>
+    </div>
+    <div class="spell-source-note">
+      Se l'accesso non riesce da telefono: prova prima la finestra popup; se il browser la blocca, usa il reindirizzamento.
+      Se torni indietro senza risultare collegato, disattiva il blocco dei cookie di terze parti per questo sito
+      (iPhone: Impostazioni → Safari → "Impedisci tracciamento tra siti" disattivato) oppure apri il Grimorio nel browser invece che dall'icona installata.
+    </div>`;
+  return modalShell('🔐 Diagnostica accesso', inner);
+}
+function copyDiagnostics(){
+  const txt = [
+    'Grimorio ' + APP_VERSION,
+    'dominio: ' + location.hostname,
+    'authDomain: ' + FIREBASE_CONFIG.authDomain,
+    'standalone: ' + isStandalonePWA(),
+    'in-app: ' + isInAppBrowser(),
+    'cookie: ' + navigator.cookieEnabled,
+    'storage: ' + storageOk(),
+    'firebase: ' + firebaseReady,
+    'metodo: ' + (localStorage.getItem('grimorio-auth-method') || 'popup'),
+    'errore: ' + (__lastAuthError ? __lastAuthError.code + ' — ' + __lastAuthError.message : 'nessuno'),
+    'ua: ' + navigator.userAgent
+  ].join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>toast('📋 Diagnostica copiata')).catch(()=>console.log(txt));
+  } else { console.log(txt); toast('Diagnostica scritta nella console'); }
 }
 function signOutUser(){ if (auth) auth.signOut(); }
 
@@ -646,6 +795,7 @@ function authScreenHTML(){
       Accedi con Google
     </button>
     <button class="btn btn-ghost" onclick="continueOffline()">Continua senza account</button>
+    <button class="btn btn-ghost btn-sm" onclick="openAuthDiagnostics()">L'accesso non funziona?</button>
     <p style="font-size:.72rem; opacity:.75;">Senza account i dati restano solo su questo dispositivo: potrai accedere in seguito e verranno sincronizzati.</p>
   </div>`;
 }
@@ -2519,12 +2669,16 @@ function renderSettings(){
         </div>
         <span class="badge gold">Sync</span>
       </div>
-      <button class="btn btn-danger btn-block" style="margin-top:10px;" onclick="confirmSignOut()">Esci dall'account</button>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-ghost" onclick="openAuthDiagnostics()">🔐 Diagnostica</button>
+        <button class="btn btn-danger" onclick="confirmSignOut()">Esci</button>
+      </div>
     ` : `
       <div class="card">
         <div class="card-title">📴 Modalità locale</div>
         <p class="muted" style="margin-bottom:12px">I dati sono salvati solo su questo dispositivo. Accedi con Google per ritrovarli su telefono e computer.</p>
-        ${firebaseReady ? `<button class="btn btn-primary btn-block" onclick="signIn()">Accedi con Google</button>` : `<p class="muted">Connessione ai server non disponibile in questo momento.</p>`}
+        ${firebaseReady ? `<button class="btn btn-primary btn-block" onclick="signIn()">Accedi con Google</button>
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="openAuthDiagnostics()">L'accesso non funziona?</button>` : `<p class="muted">Connessione ai server non disponibile in questo momento.</p>`}
       </div>
     `}
 
@@ -3037,9 +3191,7 @@ function boot(){
 
   firebaseReady = initFirebase();
   if (firebaseReady){
-    auth.getRedirectResult().catch(err => {
-      if (err && err.code !== 'auth/no-auth-event') console.error('Redirect auth error:', err);
-    });
+    handleRedirectResult();
     auth.onAuthStateChanged(u => {
       currentUser = u;
       state.authReady = true;

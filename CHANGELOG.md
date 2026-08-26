@@ -1,5 +1,24 @@
 # Grimorio — lista dei cambiamenti
 
+## v2.4 — 26 agosto 2026
+Accesso Google riparato sui telefoni.
+
+### 🔐 Perché non funzionava
+L'app è servita da un dominio (GitHub Pages) diverso da quello di Firebase. Il vecchio flusso usava `signInWithRedirect`, che per completare l'accesso ha bisogno di uno storage di terze parti: Safari su iPhone e i Chrome recenti lo bloccano, quindi il rimbalzo tornava indietro **senza account** e sembrava che il tasto non facesse nulla. Su computer funzionava perché lì veniva usata la finestra popup.
+
+### ✅ Come è stato risolto
+- Ora si prova **sempre prima la finestra popup**, che non dipende da quello storage, su telefono come su computer.
+- Se il browser la blocca (o non la supporta), si ripiega **da solo** sul reindirizzamento, avvisando.
+- Il metodo che ha funzionato viene ricordato per le volte successive.
+- La persistenza della sessione viene impostata esplicitamente e viene chiesto quale account usare, così non resta appeso a un account sbagliato.
+- Al rientro da un reindirizzamento andato a vuoto l'app **se ne accorge e lo dice**, invece di restare in silenzio.
+
+### 🧭 Aiuti aggiuntivi
+- **Browser dentro un'altra app** (Instagram, Facebook, TikTok…): Google rifiuta l'accesso da lì per sua politica. L'app lo riconosce e spiega come aprire il Grimorio in Chrome o Safari, con il link pronto da copiare.
+- Se la navigazione privata blocca l'archiviazione, viene detto chiaramente invece di fallire.
+- Nuovo pannello **Opzioni → 🔐 Diagnostica accesso**: stato, dominio, dominio Firebase, modalità (browser o app installata), cookie, archiviazione, libreria Firebase, metodo in uso e ultimo errore. Con i due pulsanti per forzare popup o reindirizzamento e il tasto per copiare tutto.
+- I messaggi di errore dicono cosa fare: per esempio il dominio esatto da aggiungere fra quelli autorizzati in Firebase.
+
 ## v2.3 — 26 agosto 2026
 Ritratti dei personaggi e copertura completa della scheda cartacea.
 
