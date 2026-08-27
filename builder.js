@@ -21,6 +21,7 @@ function openBuilder(){
     rolled: null,
     cantrips: [], spells: [],
     spellFilter: '',
+    gear: {}, gearOn: true,
     name: '', portrait: null, avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)]
   };
   openModal({ render: builderHTML });
@@ -35,6 +36,7 @@ const BUILDER_STEPS = [
   { key:'bg',      title:'Background',      render:()=>stepBackground() },
   { key:'ability', title:'Caratteristiche', render:()=>stepAbilities() },
   { key:'spells',  title:'Incantesimi',     render:()=>stepSpells(),    skip:()=>{ const c = CLASS_BY_ID[bld.classId]; return !c || c.caster === 'none'; } },
+  { key:'gear',    title:'Equipaggiamento', render:()=>stepGear(),      skip:()=>!bld.classId || !CLASS_KITS[bld.classId] },
   { key:'done',    title:'Riepilogo',       render:()=>stepSummary() },
 ];
 function nextVisible(from, dir){
@@ -507,6 +509,15 @@ function buildCharacterFromBuilder(){
   ch.profOther = [c.armor !== 'Nessuna' ? c.armor : '', c.weapons].filter(Boolean).join(' · ');
 
 
+  // Zaino di partenza
+  ch.inventory = gearItems().map(it => ({
+    name: it.name, qty: it.qty,
+    weight: it.weight ? String(it.weight) : '',
+    attuned: false, notes: '', equipped: false
+  }));
+  if (bld.gearOn && bg && bg.equipment)
+    ch.inventory.push({ name: 'Equipaggiamento da ' + bg.name, qty: 1, weight: '', attuned: false, notes: bg.equipment, equipped: false });
+
   ch.builder = { raceId: bld.raceId, subraceId: bld.subraceId, classId: bld.classId, subclassId: bld.subclassId, bgId: bld.bgId };
   return ch;
 }
@@ -563,3 +574,73 @@ function finishBuilder(){
   openSheet(ch.id);
   toast('✦ ' + ch.name + ' è pronto');
 }
+
+/* ─── Passo: equipaggiamento iniziale ───
+   Le classi dell'SRD partono con alcune scelte fisse e altre a bivio.
+   Qui scegli, e il contenuto finisce dritto nello zaino della scheda. */
+function stepGear(){
+  const kit = CLASS_KITS[bld.classId];
+  const cl = CLASS_BY_ID[bld.classId];
+  const bg = allBackgrounds().find(b => b.id === bld.bgId);
+  if (!kit) return '';
+
+  return `
+    <button class="switch-row" onclick="bldToggleGear()">
+      <div class="track"><div class="knob" style="${bld.gearOn?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+        <b>Parti con l'equipaggiamento della classe</b>
+        <div class="muted" style="font-size:.74rem; font-weight:600">Se il tuo master usa l'oro iniziale, spegnilo e compri tu.</div>
+      </div>
+    </button>
+
+    ${bld.gearOn ? `
+      ${kit.fixed && kit.fixed.length ? `
+        <div class="divider"><span class="flourish">❧</span><span>Hai comunque</span></div>
+        <div class="muted" style="font-size:.82rem; line-height:1.6">${kit.fixed.map(it=>escapeHtml(it[0] + (it[1]>1?` ×${it[1]}`:''))).join(' · ')}</div>` : ''}
+
+      ${kit.groups.map((g, gi) => {
+        const chosen = bld.gear[gi] != null ? bld.gear[gi] : 0;
+        return `
+        <div class="divider"><span class="flourish">❧</span><span>${escapeHtml(g.label)}</span></div>
+        <div class="list-gap">
+          ${g.opts.map((o, oi)=>`<button class="attack-row" style="width:100%; text-align:left; ${chosen===oi?'border-color:var(--gold)':''}" onclick="bldPickGear(${gi},${oi})">
+            <span class="attack-main">
+              <span class="attack-name">${escapeHtml(o.n)}${chosen===oi?' ✓':''}</span>
+              ${(()=>{ const d = o.items.map(it=>it[0]+(it[1]>1?` ×${it[1]}`:'')).slice(0,5).join(', ') + (o.items.length>5?'…':'');
+                       return d === o.n ? '' : `<span class="muted" style="font-size:.73rem; display:block">${escapeHtml(d)}</span>`; })()}
+            </span>
+          </button>`).join('')}
+        </div>`;
+      }).join('')}
+
+      ${bg ? `<div class="divider"><span class="flourish">❧</span><span>Dal background</span></div>
+        <div class="muted" style="font-size:.82rem; line-height:1.6">${escapeHtml(bg.equipment)}</div>
+        <div class="muted" style="font-size:.75rem; margin-top:6px">Lo metto come una voce sola nello zaino: dividilo pure a mano dopo.</div>` : ''}
+
+      <div class="card" style="margin-top:14px; border-color:var(--gold-dim)">
+        <div class="row-between"><span>Oggetti nello zaino</span><b>${gearItems().length}</b></div>
+        <div class="row-between" style="margin-top:4px"><span>Peso totale</span><b>${gearWeight().toFixed(1).replace('.0','')} kg</b></div>
+      </div>
+      <div class="muted" style="font-size:.75rem; margin-top:8px">Dove c'è scritto «a scelta», dopo scrivi nello zaino l'arma che vuoi davvero: ${escapeHtml(cl.weapons)}.</div>
+    ` : `<div class="muted" style="text-align:center; padding:22px 10px">Parti con lo zaino vuoto. Il tuo master ti dirà quanto oro hai.</div>`}`;
+}
+function bldToggleGear(){ bld.gearOn = !bld.gearOn; renderModalRoot(); }
+function bldPickGear(gi, oi){ bld.gear[gi] = oi; renderModalRoot(); }
+
+/* Somma tutto: fisso + scelte, accorpando i doppioni */
+function gearItems(){
+  const kit = CLASS_KITS[bld.classId];
+  if (!kit || !bld.gearOn) return [];
+  const rows = (kit.fixed || []).slice();
+  kit.groups.forEach((g, gi) => {
+    const o = g.opts[bld.gear[gi] != null ? bld.gear[gi] : 0];
+    if (o) o.items.forEach(it => rows.push(it));
+  });
+  const map = new Map();
+  rows.forEach(([name, qty, w]) => {
+    const prev = map.get(name);
+    if (prev) prev.qty += qty; else map.set(name, { name, qty, weight: w });
+  });
+  return [...map.values()];
+}
+function gearWeight(){ return gearItems().reduce((t, it) => t + (it.weight||0) * (it.qty||1), 0); }

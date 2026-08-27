@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.0';
+const APP_VERSION = '4.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -209,6 +209,41 @@ const jsStr = (s) => escapeHtml(String(s == null ? '' : s)
   .replace(/'/g, "\\'")
   .replace(/\r?\n/g, '\\n'));
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+/* Vibrazione: un buffetto sul telefono quando succede qualcosa di grosso.
+   Si può spegnere dalle Opzioni, e sui computer non fa nulla. */
+function buzz(pattern){
+  try {
+    if (state.haptics === false) return;
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch(e){}
+}
+
+/* Schermo sempre acceso: durante una sessione il telefono non si spegne
+   mentre guardi la scheda. Si riattiva da solo se torni sull'app. */
+let wakeLock = null;
+async function applyWakeLock(){
+  try {
+    if (state.keepAwake && !wakeLock && navigator.wakeLock){
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!state.keepAwake && wakeLock){
+      await wakeLock.release(); wakeLock = null;
+    }
+  } catch(e){ /* batteria bassa o permesso negato: pazienza */ }
+}
+function toggleKeepAwake(){
+  state.keepAwake = !state.keepAwake;
+  localStorage.setItem('grimorio-awake', state.keepAwake ? '1' : '0');
+  applyWakeLock(); render();
+  toast(state.keepAwake ? '☀️ Lo schermo resta acceso' : '🌙 Lo schermo si spegne come al solito');
+}
+function toggleHaptics(){
+  state.haptics = !state.haptics;
+  localStorage.setItem('grimorio-haptics', state.haptics ? '1' : '0');
+  render(); if (state.haptics) buzz(30);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') applyWakeLock(); });
 function rollDie(sides){
   sides = Math.max(2, Math.floor(sides)||2);
   if (window.crypto && window.crypto.getRandomValues){
@@ -328,6 +363,9 @@ const state = {
   theme: localStorage.getItem('grimorio-theme') || 'dark',
   characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [],
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
+  haptics: localStorage.getItem('grimorio-haptics') !== '0',
+  keepAwake: localStorage.getItem('grimorio-awake') === '1',
+  search: { open: false, q: '' },
   activeCharId: null,
   sheetTab: 'overview',
   dmTab: 'bestiary',
@@ -960,10 +998,23 @@ function closeModal(fromPop){
   if (__modalDepth){ __modalDepth = 0; __ignorePop = true; try { history.back(); } catch(e){} }
 }
 document.addEventListener('keydown', (e)=>{
-  if (e.key === 'Escape' && state.modal) closeModal();
+  if (e.key === 'Escape' && state.modal){ closeModal(); return; }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||'') || (e.target||{}).isContentEditable;
+  if (typing || state.modal) return;
+  if (e.key === '/' || ((e.ctrlKey||e.metaKey) && e.key.toLowerCase() === 'k')){ e.preventDefault(); openGlobalSearch(); }
 });
 
 let __confirmAction = null;
+function infoDialog(title, body){
+  openModal({ render: () => `
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="max-width:420px">
+        <h3 style="font-family:var(--font-head); color:var(--gold); margin-bottom:8px">${escapeHtml(title)}</h3>
+        <p class="muted" style="font-size:.86rem">${escapeHtml(body)}</p>
+        <button class="btn btn-block" style="margin-top:14px" onclick="closeModal()">Chiudi</button>
+      </div>
+    </div>` });
+}
 function confirmDialog(title, body, action, confirmLabel){
   __confirmAction = action;
   openModal({ render: () => `
@@ -999,7 +1050,10 @@ function renderParty(){
   const chars = state.characters.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   return `
     <div class="hero">
-      <div class="hero-actions">${themeToggleBtn()}</div>
+      <div class="hero-actions">
+        <button class="btn-icon" onclick="openGlobalSearch()" aria-label="Cerca ovunque" title="Cerca ovunque">🔍</button>
+        ${themeToggleBtn()}
+      </div>
       <h1>Grimorio</h1>
       <div class="rule">❖</div>
       <div class="sub">La tua compagnia</div>
@@ -1280,11 +1334,12 @@ function renderCharacterSheet(){
     <div class="topbar">
       <button class="topbar-back" onclick="goView('party')" aria-label="Torna al party">←</button>
       <button onclick="choosePortrait(u=>setCharPortrait('${c.id}',u))" title="Tocca per cambiare il ritratto" style="flex-shrink:0">${avatarHTML(c, 42)}</button>
-      <div style="flex:1; min-width:0;">
-        <div class="topbar-title">${escapeHtml(c.name||'Senza nome')}</div>
+      <button style="flex:1; min-width:0; text-align:left; background:none; border:0; padding:0; color:inherit; cursor:pointer" onclick="openCharSwitcher()" title="Cambia personaggio">
+        <div class="topbar-title">${escapeHtml(c.name||'Senza nome')}${state.characters.length>1?' <span style="opacity:.5; font-size:.7em">▾</span>':''}</div>
         <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''} · Comp. ${signStr(profBonus(c.level))}</div>
-      </div>
+      </button>
       <div class="topbar-actions">
+        <button class="btn-icon" onclick="openLevelUp('${c.id}')" aria-label="Sali di livello" title="Sali di livello">📈</button>
         <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">🏕️</button>
         <button class="btn-icon" onclick="openCharacterForm('${c.id}')" aria-label="Modifica" title="Modifica">✎</button>
       </div>
@@ -1752,6 +1807,9 @@ function repeatRoll(mode){
 function showRollResult(r){
   state.lastRoll = r;
   const crit = r.nat === 20, fumble = r.nat === 1;
+  if (crit) buzz([0, 30, 50, 30, 50, 90]);
+  else if (fumble) buzz([0, 140]);
+  else buzz(14);
   state.diceHistory.unshift({ label: r.label, total: r.total, detail: `d20 ${r.nat}${r.modifier ? ' ' + signStr(r.modifier) : ''}` });
   state.diceHistory = state.diceHistory.slice(0,30);
   saveSession();
@@ -2864,6 +2922,22 @@ function renderSettings(){
       <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Tema ${state.theme==='dark'?'Mezzanotte 🌙':'Pergamena ☀️'}</div>
     </button>
 
+    <div class="divider"><span class="flourish">❧</span><span>Durante la sessione</span></div>
+    <button class="switch-row" onclick="toggleKeepAwake()">
+      <div class="track"><div class="knob" style="${state.keepAwake?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+        <b>Schermo sempre acceso</b>
+        <div class="muted" style="font-size:.74rem; font-weight:600">Il telefono non si spegne mentre hai l'app aperta.</div>
+      </div>
+    </button>
+    <button class="switch-row" style="margin-top:8px" onclick="toggleHaptics()">
+      <div class="track"><div class="knob" style="${state.haptics?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+        <b>Vibrazione sui tiri</b>
+        <div class="muted" style="font-size:.74rem; font-weight:600">Un colpetto sui 20 naturali e sui fallimenti critici.</div>
+      </div>
+    </button>
+
     <div class="divider"><span class="flourish">❧</span><span>Incantesimi</span></div>
     <button class="switch-row" onclick="toggleSpellLang()">
       <div class="track"><div class="knob" style="${state.spellLang==='it'?'transform:translateX(21px)':''}"></div></div>
@@ -3370,6 +3444,7 @@ function boot(){
   loadSession();
   spawnEmbers();
   installWheelForwarding();
+  applyWakeLock();
   if (localStorage.getItem('grimorio-offline') === '1') state.offlineMode = true;
   replaceNav();
 
@@ -3405,3 +3480,113 @@ function boot(){
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
+
+/* ══════════════════════════════════════════════════════════════
+   Cambio rapido di personaggio e ricerca globale
+   ══════════════════════════════════════════════════════════════ */
+
+/* Dal nome nella barra della scheda: salti su un altro personaggio
+   senza tornare al party. Comodo quando ne gestisci più di uno. */
+function openCharSwitcher(){
+  if (state.characters.length <= 1){ openCharacterForm(state.activeCharId); return; }
+  openModal({ render: () => modalShell('🎭 Cambia personaggio', `
+    <div class="list-gap">
+      ${state.characters.map(c=>`<button class="attack-row" style="width:100%; text-align:left; ${c.id===state.activeCharId?'border-color:var(--gold)':''}" onclick="switchChar('${c.id}')">
+        <span style="flex-shrink:0; margin-right:10px">${avatarHTML(c, 34)}</span>
+        <span class="attack-main">
+          <span class="attack-name">${escapeHtml(c.name||'Senza nome')}${c.id===state.activeCharId?' ✓':''}</span>
+          <span class="muted" style="font-size:.74rem; display:block">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1} · ${getPath(c,'hp.current',0)}/${getPath(c,'hp.max',0)} PF</span>
+        </span>
+      </button>`).join('')}
+    </div>
+    <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModal(); goView('party')">Torna al party</button>`) });
+}
+function switchChar(id){
+  closeModal();
+  if (id === state.activeCharId) return;
+  state.activeCharId = id; state.sheetTab = 'overview'; state.knownFilter = 'all';
+  render(); scrollTop();
+}
+
+/* Ricerca globale: un solo campo per personaggi, incantesimi,
+   creature, PNG, condizioni e aggiunte personali. */
+function openGlobalSearch(){
+  state.search = { open: true, q: '' };
+  openModal({ render: globalSearchHTML, after: () => {
+    const el = document.getElementById('gs-input');
+    if (el && document.activeElement !== el) el.focus();
+  }});
+}
+function globalSearchResults(q){
+  const n = norm(q);
+  if (n.length < 2) return [];
+  const out = [];
+  const push = (kind, icon, label, sub, action) => out.push({ kind, icon, label, sub, action });
+
+  state.characters.forEach(c => {
+    if (norm(c.name||'').includes(n) || norm(c.classField||'').includes(n) || norm(c.race||'').includes(n))
+      push('Personaggi', '🎭', c.name || 'Senza nome', `${c.classField||'Avventuriero'} · Lv ${c.level||1}`,
+        `closeModal(); openSheet('${c.id}')`);
+  });
+
+  allSpells().forEach(sp => {
+    if (norm(spellName(sp)).includes(n) || norm(sp.name||'').includes(n))
+      push('Incantesimi', '📖', spellName(sp), (sp.level ? sp.level + '° livello' : 'Trucchetto') + ' · ' + (sp.school || ''),
+        `closeModal(); viewSpellDetail('${jsStr(sp.id)}','${sp.source}')`);
+  });
+
+  if (typeof SRD_MONSTERS !== 'undefined') SRD_MONSTERS.forEach(m => {
+    if (norm(monsterName(m)).includes(n) || norm(m.n).includes(n))
+      push('Bestiario SRD', '🐉', monsterName(m), `${m.sz} · ${m.t} · GS ${m.cr}`, `closeModal(); viewMonster('${m.id}')`);
+  });
+
+  state.npcs.forEach(p => {
+    if (norm(p.name||'').includes(n) || norm(p.type||'').includes(n))
+      push('I tuoi PNG', '👤', p.name || 'Senza nome', p.type || '', `closeModal(); openNpcForm('${p.id}')`);
+  });
+
+  if (typeof CONDITIONS !== 'undefined') CONDITIONS.forEach(cd => {
+    if (norm(cd.name).includes(n))
+      push('Condizioni', cd.icon, cd.name, cd.desc, `closeModal(); infoDialog('${jsStr(cd.icon + ' ' + cd.name)}','${jsStr(cd.desc)}')`);
+  });
+
+  (state.homebrew || []).forEach(h => {
+    if (norm(h.name||'').includes(n))
+      push('Aggiunte personali', '✍️', h.name, (HB_KINDS[h.kind] ? HB_KINDS[h.kind].label : ''), `closeModal(); goView('settings')`);
+  });
+
+  return out.slice(0, 60);
+}
+function globalSearchHTML(){
+  const q = state.search.q;
+  const res = globalSearchResults(q);
+  const groups = {};
+  res.forEach(r => { (groups[r.kind] = groups[r.kind] || []).push(r); });
+
+  const inner = `
+    <div class="search-wrap">
+      <span class="search-ic">🔍</span>
+      <input id="gs-input" placeholder="Cerca ovunque: nomi, incantesimi, creature…" value="${attr(q)}" oninput="gsType(this.value)" autocomplete="off">
+    </div>
+    ${norm(q).length < 2
+      ? `<div class="muted" style="text-align:center; padding:22px 10px">Scrivi almeno due lettere. Cerco tra i tuoi personaggi, tutti gli incantesimi, il bestiario, i tuoi PNG, le condizioni e le tue aggiunte.</div>`
+      : (res.length
+        ? Object.keys(groups).map(k => `
+            <div class="divider"><span class="flourish">❧</span><span>${k}</span></div>
+            <div class="list-gap">
+              ${groups[k].map(r=>`<button class="attack-row" style="width:100%; text-align:left" onclick="${r.action}">
+                <span style="flex-shrink:0; margin-right:9px; font-size:1.1rem">${r.icon}</span>
+                <span class="attack-main">
+                  <span class="attack-name">${escapeHtml(r.label)}</span>
+                  ${r.sub ? `<span class="muted" style="font-size:.74rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${escapeHtml(r.sub)}</span>` : ''}
+                </span>
+              </button>`).join('')}
+            </div>`).join('')
+        : emptyState('🔍', 'Niente che somigli a «' + escapeHtml(q) + '».'))}`;
+  return modalShell('🔍 Cerca', inner);
+}
+const gsType = debounce((v) => {
+  state.search.q = v; renderModalRoot();
+  const el = document.getElementById('gs-input');
+  if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}, 200);

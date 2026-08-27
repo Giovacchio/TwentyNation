@@ -499,3 +499,75 @@ const CONDITIONS = [
   { id:'unconscious', name:'Privo di sensi', icon:'💤', desc:'Incapacitato e prono, lasci cadere tutto; i colpi ravvicinati sono critici.' },
 ];
 const CONDITION_BY_ID = Object.fromEntries(CONDITIONS.map(c => [c.id, c]));
+
+/* ─── EQUIPAGGIAMENTO INIZIALE (SRD 5.1) ───
+   Ogni classe parte con alcune scelte. Le scriviamo come gruppi:
+   ogni gruppo è una scelta fra più pacchetti, ognuno con i suoi oggetti.
+   Gli oggetti sono [nome, quantità, peso in kg].
+   `fixed` è quello che hai comunque, senza scegliere. */
+const PACK_EXPLORER   = [['Zaino',1,2.5],['Sacco a pelo',1,3.5],['Razioni (1 giorno)',10,0.9],['Corda di canapa (15 m)',1,4.5],['Torce',10,0.5],['Acciarino ed esca',1,0.5],['Otre',1,2.5]];
+const PACK_DUNGEONEER = [['Zaino',1,2.5],['Piede di porco',1,2.5],['Martello',1,1.5],['Pitoni',10,0.25],['Torce',10,0.5],['Acciarino ed esca',1,0.5],['Razioni (1 giorno)',10,0.9],['Otre',1,2.5],['Corda di canapa (15 m)',1,4.5]];
+const PACK_PRIEST     = [['Zaino',1,2.5],['Coperta',1,1.5],['Candele',10,0],['Acciarino ed esca',1,0.5],['Scatola per elemosine',1,0],['Bastoncini d\'incenso',2,0],['Turibolo',1,0.5],['Vesti cerimoniali',1,2],['Razioni (1 giorno)',2,0.9],['Otre',1,2.5]];
+const PACK_SCHOLAR    = [['Zaino',1,2.5],['Libro di sapienza',1,2.5],['Boccetta d\'inchiostro',1,0],['Penna d\'oca',1,0],['Pergamena',10,0],['Sacchetto di sabbia',1,0],['Coltellino',1,0]];
+const PACK_BURGLAR    = [['Zaino',1,2.5],['Palline di metallo',1000,0.001],['Corda di seta (3 m)',1,0.5],['Campanello',1,0],['Candele',5,0],['Piede di porco',1,2.5],['Martello',1,1.5],['Pitoni',10,0.25],['Lanterna cieca',1,1],['Fiasche d\'olio',2,0.5],['Razioni (1 giorno)',5,0.9],['Acciarino ed esca',1,0.5],['Otre',1,2.5],['Corda di canapa (15 m)',1,4.5]];
+const PACK_DIPLOMAT   = [['Baule',1,12.5],['Custodie per mappe e pergamene',2,0.5],['Abiti raffinati',1,3],['Boccetta d\'inchiostro',1,0],['Penna d\'oca',1,0],['Lampada',1,0.5],['Fiasche d\'olio',2,0.5],['Carta',5,0],['Profumo',1,0],['Cera per sigilli',1,0],['Sapone',1,0]];
+const PACK_ENTERTAINER= [['Zaino',1,2.5],['Sacco a pelo',1,3.5],['Costumi',2,2],['Candele',5,0],['Razioni (1 giorno)',5,0.9],['Otre',1,2.5],['Kit per travestimenti',1,1.5]];
+
+const CLASS_KITS = {
+  barbarian: { fixed:PACK_EXPLORER.concat([['Giavellotti',4,1]]), groups:[
+    { label:'Arma principale', opts:[{n:'Ascia bipenne',items:[['Ascia bipenne',1,3.5]]},{n:'Un\'arma da guerra a scelta',items:[['Arma da guerra a scelta',1,1.5]]}] },
+    { label:'Arma secondaria', opts:[{n:'Due asce',items:[['Ascia',2,1]]},{n:'Un\'arma semplice a scelta',items:[['Arma semplice a scelta',1,1]]}] },
+  ]},
+  bard: { fixed:[['Pugnale',1,0.5],['Armatura di cuoio',1,5],['Strumento musicale a scelta',1,1.5]], groups:[
+    { label:'Arma', opts:[{n:'Spada lunga',items:[['Spada lunga',1,1.5]]},{n:'Stocco',items:[['Stocco',1,1]]},{n:'Un\'arma semplice',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da diplomatico',items:PACK_DIPLOMAT},{n:'Da intrattenitore',items:PACK_ENTERTAINER}] },
+  ]},
+  cleric: { fixed:[['Scudo',1,3],['Simbolo sacro',1,0.5]], groups:[
+    { label:'Arma', opts:[{n:'Mazza',items:[['Mazza',1,2]]},{n:'Martello da guerra (se competente)',items:[['Martello da guerra',1,1]]}] },
+    { label:'Armatura', opts:[{n:'Cotta di maglia',items:[['Cotta di maglia',1,27.5]]},{n:'Armatura di cuoio',items:[['Armatura di cuoio',1,5]]}] },
+    { label:'A distanza', opts:[{n:'Balestra leggera e 20 quadrelli',items:[['Balestra leggera',1,2.5],['Quadrelli',20,0.04]]},{n:'Un\'arma semplice',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da sacerdote',items:PACK_PRIEST},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+  druid: { fixed:PACK_EXPLORER.concat([['Armatura di cuoio',1,5],['Focus druidico',1,1.5]]), groups:[
+    { label:'Scudo o arma', opts:[{n:'Scudo di legno',items:[['Scudo di legno',1,3]]},{n:'Un\'arma semplice',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Arma in mano', opts:[{n:'Scimitarra',items:[['Scimitarra',1,1.5]]},{n:'Un\'arma semplice da mischia',items:[['Arma semplice a scelta',1,1]]}] },
+  ]},
+  fighter: { fixed:[], groups:[
+    { label:'Armatura', opts:[{n:'Cotta di maglia',items:[['Cotta di maglia',1,27.5]]},{n:'Cuoio, arco lungo e 20 frecce',items:[['Armatura di cuoio',1,5],['Arco lungo',1,1],['Frecce',20,0.05]]}] },
+    { label:'Armi', opts:[{n:'Arma da guerra e scudo',items:[['Arma da guerra a scelta',1,1.5],['Scudo',1,3]]},{n:'Due armi da guerra',items:[['Arma da guerra a scelta',2,1.5]]}] },
+    { label:'Secondaria', opts:[{n:'Balestra leggera e 20 quadrelli',items:[['Balestra leggera',1,2.5],['Quadrelli',20,0.04]]},{n:'Due asce',items:[['Ascia',2,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da dungeon',items:PACK_DUNGEONEER},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+  monk: { fixed:[['Dardi',10,0.1]], groups:[
+    { label:'Arma', opts:[{n:'Spada corta',items:[['Spada corta',1,1]]},{n:'Un\'arma semplice',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da dungeon',items:PACK_DUNGEONEER},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+  paladin: { fixed:[['Cotta di maglia',1,27.5],['Simbolo sacro',1,0.5]], groups:[
+    { label:'Armi', opts:[{n:'Arma da guerra e scudo',items:[['Arma da guerra a scelta',1,1.5],['Scudo',1,3]]},{n:'Due armi da guerra',items:[['Arma da guerra a scelta',2,1.5]]}] },
+    { label:'Da lancio', opts:[{n:'Cinque giavellotti',items:[['Giavellotti',5,1]]},{n:'Un\'arma semplice da mischia',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da sacerdote',items:PACK_PRIEST},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+  ranger: { fixed:PACK_EXPLORER.concat([['Arco lungo',1,1],['Frecce',20,0.05]]), groups:[
+    { label:'Armatura', opts:[{n:'Armatura di squame',items:[['Armatura di squame',1,22.5]]},{n:'Armatura di cuoio',items:[['Armatura di cuoio',1,5]]}] },
+    { label:'Armi', opts:[{n:'Due spade corte',items:[['Spada corta',2,1]]},{n:'Due armi semplici da mischia',items:[['Arma semplice a scelta',2,1]]}] },
+  ]},
+  rogue: { fixed:[['Armatura di cuoio',1,5],['Pugnali',2,0.5],['Arnesi da scasso',1,0.5]], groups:[
+    { label:'Arma', opts:[{n:'Stocco',items:[['Stocco',1,1]]},{n:'Spada corta',items:[['Spada corta',1,1]]}] },
+    { label:'Secondaria', opts:[{n:'Arco corto e 20 frecce',items:[['Arco corto',1,1],['Frecce',20,0.05]]},{n:'Spada corta',items:[['Spada corta',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da scassinatore',items:PACK_BURGLAR},{n:'Da dungeon',items:PACK_DUNGEONEER},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+  sorcerer: { fixed:[['Due pugnali',2,0.5],['Focus arcano',1,1]], groups:[
+    { label:'Arma', opts:[{n:'Balestra leggera e 20 quadrelli',items:[['Balestra leggera',1,2.5],['Quadrelli',20,0.04]]},{n:'Un\'arma semplice',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da dungeon',items:PACK_DUNGEONEER},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+  warlock: { fixed:[['Armatura di cuoio',1,5],['Due pugnali',2,0.5],['Un\'arma semplice a scelta',1,1]], groups:[
+    { label:'Arma a distanza', opts:[{n:'Balestra leggera e 20 quadrelli',items:[['Balestra leggera',1,2.5],['Quadrelli',20,0.04]]},{n:'Un\'arma semplice',items:[['Arma semplice a scelta',1,1]]}] },
+    { label:'Focus', opts:[{n:'Sacca di componenti',items:[['Sacca di componenti',1,1]]},{n:'Focus arcano',items:[['Focus arcano',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da studioso',items:PACK_SCHOLAR},{n:'Da dungeon',items:PACK_DUNGEONEER}] },
+  ]},
+  wizard: { fixed:[['Libro degli incantesimi',1,1.5]], groups:[
+    { label:'Arma', opts:[{n:'Bastone ferrato',items:[['Bastone ferrato',1,2]]},{n:'Pugnale',items:[['Pugnale',1,0.5]]}] },
+    { label:'Focus', opts:[{n:'Sacca di componenti',items:[['Sacca di componenti',1,1]]},{n:'Focus arcano',items:[['Focus arcano',1,1]]}] },
+    { label:'Pacchetto', opts:[{n:'Da studioso',items:PACK_SCHOLAR},{n:'Da esploratore',items:PACK_EXPLORER}] },
+  ]},
+};

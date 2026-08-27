@@ -1,5 +1,35 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.1 — 27 agosto 2026
+**Salita di livello guidata, equipaggiamento iniziale, ricerca globale.**
+
+### Salita di livello (`levelup.js`)
+- Nuovo tasto **📈** nella barra della scheda: ti porta dal livello attuale al successivo spiegandoti cosa cambia.
+- Punti ferita: scegli la **media fissa** oppure **tiri il dado vita** (con il modificatore di Costituzione già dentro).
+- I **privilegi nuovi** di quel livello — di classe e di sottoclasse — vengono scritti da soli sulla scheda.
+- Quando tocca la **sottoclasse**, la salita non parte finché non la scegli (comprese quelle che ti sei creato tu).
+- Ti dice anche cosa devi scegliere tu: aumenti di caratteristica, slot nuovi, trucchetti e incantesimi in più — e a fine salita ti porta nella scheda delle magie.
+- Se la scheda è stata scritta a mano o importata da un PDF, ti chiede **una volta sola** a quale classe agganciarla e se la ricorda.
+- Piccola festa di scintille (e vibrazione) a ogni livello.
+
+### Equipaggiamento iniziale nel builder
+- Nuovo passo del creatore guidato: le scelte di equipaggiamento dell'SRD per tutte e 12 le classi, con i pacchetti completi (esploratore, dungeon, sacerdote, studioso, scassinatore, diplomatico, intrattenitore).
+- Vedi in tempo reale quanti oggetti e quanti kg ti porti dietro; l'equipaggiamento del background entra come voce a parte.
+- Si può **spegnere** con un interruttore, se il tuo master preferisce darti l'oro iniziale.
+
+### Ricerca globale
+- Tasto **🔍** in cima al party (o `/` e `Ctrl+K` da computer): un solo campo per personaggi, incantesimi, bestiario SRD, i tuoi PNG, le condizioni e le tue aggiunte personali.
+- I risultati sono divisi per gruppo e portano direttamente alla scheda giusta.
+
+### Comodità in sessione
+- **Cambio rapido di personaggio**: tocchi il nome in cima alla scheda e salti su un altro senza tornare al party (con PF e livello a colpo d'occhio).
+- **Schermo sempre acceso**: nuova opzione, il telefono non si spegne durante la partita.
+- **Vibrazione sui tiri**: colpetto discreto sui tiri normali, festa sui 20 naturali, tonfo sui fallimenti critici. Si spegne dalle Opzioni.
+
+### Note tecniche
+- Nuovo file: `levelup.js`. Nuove tabelle `CLASS_KITS` e pacchetti in `rules-data.js`. Cache del service worker a `grimorio-v4-1`.
+- Test automatici: 18 controlli su bestiario e compagni + 16 sulle novità, telefono e desktop, 0 errori.
+
 ## v4.0 — 27 agosto 2026
 **Bestiario SRD, compagni animali e condizioni.**
 
