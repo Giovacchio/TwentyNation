@@ -1,5 +1,28 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.5 — 27 agosto 2026
+**202 oggetti magici dell'SRD, con la sintonizzazione tracciata.**
+
+### Archivio degli oggetti magici
+- Nuovo `magic-items-data.js`: 202 oggetti magici dell'SRD 5.1 con nome italiano e inglese, tipo, rarità, cariche e cosa fanno. Pozioni, pergamene, armi e armature magiche, anelli, bacchette, bastoni, verghe e oggetti meravigliosi.
+- Si sfogliano dal **Tavolo → 💍 Oggetti magici SRD** o dallo **Zaino** di ogni personaggio.
+- Filtri per tipo e per rarità, più un filtro per i soli oggetti che richiedono sintonizzazione. Ricerca in italiano e in inglese, anche dentro le descrizioni.
+- Il pallino a sinistra è colorato per rarità: verde per i non comuni, blu per i rari, viola per i molto rari, oro per i leggendari.
+
+### Sintonizzazione, quella vera
+- Gli oggetti che la richiedono mostrano il fulmine ⚡ nello zaino: un tocco e ti ci sintonizzi.
+- Il limite è **3 oggetti per personaggio**, come da regole, e l'app te lo fa rispettare: al quarto ti dice con cosa sei già sintonizzato invece di lasciartelo sbagliare.
+- In cima allo zaino compare il contatore con l'elenco di quello a cui sei legato.
+
+### Dettagli
+- Mettendo un oggetto nello zaino, rarità, sintonizzazione e cariche finiscono da sole nelle sue note; il **?** accanto all'oggetto riapre la scheda con cosa fa.
+- Con più personaggi in gioco, l'app ti chiede a chi darlo mostrando quanti oggetti ha già sintonizzato.
+- Gli oggetti magici entrano nella ricerca globale e nell'export PDF della scheda.
+
+### Note tecniche
+- Nuovi file: `magic-items-data.js`, `magic-items.js`. Cache del service worker a `grimorio-v4-5`.
+- Test automatici: 14 controlli nuovi più le regressioni di 4.0 → 4.4. 0 errori.
+
 ## v4.4 — 27 agosto 2026
 **Background completi, sesso del personaggio, barra dell'esperienza. E una revisione a tappeto di come la scheda entra nell'app.**
 

@@ -674,6 +674,21 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 
 
 
+
+/* Oggetti magici */
+.mi-badge { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: .95rem; flex-shrink: 0; background: var(--card-hi); border: 1px solid var(--line); }
+.mi-comune { border-color: var(--line); }
+.mi-non-comune { border-color: #59a87d; box-shadow: 0 0 8px rgba(89,168,125,.3); }
+.mi-raro { border-color: #5b8fd6; box-shadow: 0 0 8px rgba(91,143,214,.32); }
+.mi-molto-raro { border-color: #9179d8; box-shadow: 0 0 9px rgba(145,121,216,.38); }
+.mi-leggendario { border-color: var(--gold); box-shadow: 0 0 11px rgba(214,178,102,.5); }
+.inv-item.magic { border-left: 3px solid var(--gold-dim); }
+.attune-toggle { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; font-size: .8rem;
+  background: var(--card-2); border: 1px solid var(--line); color: var(--ink-soft); opacity: .55; }
+.attune-toggle.on { background: var(--card-hi); border-color: var(--gold); color: var(--gold); opacity: 1;
+  box-shadow: 0 0 8px rgba(214,178,102,.4); }
+
 /* Barra dell'esperienza */
 .xp-block { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-top: 10px; }
 .xp-block.ready { border-color: var(--gold); background: var(--card-hi); }
@@ -741,6 +756,8 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./rules-data.js"></script>
 <script defer src="./monsters-data.js"></script>
 <script defer src="./bestiary.js"></script>
+<script defer src="./magic-items-data.js"></script>
+<script defer src="./magic-items.js"></script>
 <script defer src="./homebrew.js"></script>
 <script defer src="./builder.js"></script>
 <script defer src="./levelup.js"></script>

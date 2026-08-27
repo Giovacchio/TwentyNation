@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.4';
+const APP_VERSION = '4.5';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2098,20 +2098,28 @@ function renderSheetInventory(c){
       <div class="hp-bar-lg" style="height:8px;margin:0"><div class="hp-bar-lg-fill ${w>cap?'low':''}" style="width:${clamp(100*w/cap,0,100)}%; background:${w>cap?'':'linear-gradient(90deg,var(--gold-dim),var(--gold))'}"></div></div>
       ${w>cap?`<div class="muted" style="font-size:.72rem;margin-top:6px;color:var(--warn)">Sei sovraccarico: velocità ridotta.</div>`:''}
     </div>` : ''}
+    ${attunedCount(c) ? attunementRowHTML(c) : ''}
     <div class="list-gap">
       ${items.length ? items.map((it,i)=>invItemHTML(c,it,i)).join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
     </div>
-    <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="addInventoryItem('${c.id}')">✦ Aggiungi oggetto</button>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="addInventoryItem('${c.id}')">✦ Oggetto</button>
+      <button class="btn btn-gold" onclick="openMagicItems({pickFor:'${c.id}'})">💍 Oggetti magici</button>
+    </div>
   `;
 }
 function invItemHTML(c, it, i){
-  const sub = [it.notes, it.weight ? it.weight + ' kg' : '', it.attuned ? '⚡ sintonizzato' : ''].filter(Boolean).join(' · ');
-  return `<div class="inv-item">
+  const magic = it.magicId && typeof MAGIC_ITEM_BY_ID !== 'undefined' ? MAGIC_ITEM_BY_ID[it.magicId] : null;
+  const needsAtt = magic ? miNeedsAttunement(magic) : it.attuned;
+  const sub = [it.notes, it.weight ? it.weight + ' kg' : ''].filter(Boolean).join(' · ');
+  return `<div class="inv-item ${magic?'magic':''}">
     <button class="equip-toggle ${it.equipped?'on':''}" title="Indossato / impugnato" onclick="toggleEquip('${c.id}',${i}, this)">${it.equipped?'✓':'○'}</button>
     <button class="inv-item-main" onclick="editInventoryItem('${c.id}',${i})">
       <div class="inv-item-name ${it.equipped?'equipped':''}">${escapeHtml(it.name)}</div>
       ${sub?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(sub)}</div>`:''}
     </button>
+    ${needsAtt ? `<button class="attune-toggle ${it.attuned?'on':''}" title="${it.attuned?'Sintonizzato':'Sintonizzati'}" onclick="toggleAttune('${c.id}',${i})">⚡</button>` : ''}
+    ${magic ? `<button class="btn-icon" style="width:32px;height:32px;font-size:.8rem;" onclick="viewMagicItem('${magic.id}','${c.id}')" aria-label="Cosa fa">?</button>` : ''}
     <span class="inv-qty">×${it.qty||1}</span>
     <button class="btn-icon" style="width:32px;height:32px;font-size:.8rem;" onclick="removeInventoryItem('${c.id}',${i})" aria-label="Rimuovi">✕</button>
   </div>`;
@@ -2814,6 +2822,7 @@ function renderDM(){
 function renderBestiary(){
   const npcs = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   return `
+    <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">💍 Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
     <button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
     ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
     <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">✦ Nuovo PNG / Mostro</button>
@@ -3735,6 +3744,11 @@ function globalSearchResults(q){
   if (typeof CONDITIONS !== 'undefined') CONDITIONS.forEach(cd => {
     if (norm(cd.name).includes(n))
       push('Condizioni', cd.icon, cd.name, cd.desc, `closeModal(); infoDialog('${jsStr(cd.icon + ' ' + cd.name)}','${jsStr(cd.desc)}')`);
+  });
+
+  if (typeof SRD_MAGIC_ITEMS !== 'undefined') SRD_MAGIC_ITEMS.forEach(m => {
+    if (norm(m.it).includes(n) || norm(m.n).includes(n))
+      push('Oggetti magici', miTypeIcon(m.t), miName(m), m.t + ' · ' + m.r, `closeModal(); viewMagicItem('${m.id}')`);
   });
 
   (state.journal || []).forEach(e => {
