@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v3.0
+   GRIMORIO — app.js  ·  v3.1
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -892,6 +892,16 @@ function bottomNavHTML(){
 }
 function fabHTML(){ return `<button class="fab" onclick="openDiceRoller()" aria-label="Tira i dadi" title="Tira i dadi">🎲</button>`; }
 
+// Le note lunghe (privilegi, tratti, storia) non devono stare in una
+// finestrella da tre righe: l'area di testo si adatta al contenuto.
+function fitTextarea(el){
+  if (!el || el.tagName !== 'TEXTAREA') return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight + 2, 1200) + 'px';
+}
+function fitAllTextareas(){ $$('#app textarea').forEach(fitTextarea); }
+document.addEventListener('input', (e) => { if (e.target && e.target.tagName === 'TEXTAREA') fitTextarea(e.target); });
+
 function render(){
   const app = $('#app');
   if (!app) return;
@@ -916,6 +926,7 @@ function render(){
     + `<div class="screen${changed ? ' anim-in' : ''}">${body}</div>`
     + bottomNavHTML() + fabHTML();
   updateSaveStatusEl();
+  fitAllTextareas();
   if (!changed) window.scrollTo(0, y);
 }
 
@@ -1253,6 +1264,8 @@ function renderCharacterSheet(){
   const c = charById(state.activeCharId);
   if (!c){ state.view = 'party'; return renderParty(); }
   let tab;
+  const showSpells = (c.casterType && c.casterType !== 'none') || (c.knownSpells||[]).length > 0;
+  if (state.sheetTab === 'spells' && !showSpells) state.sheetTab = 'overview';
   if (state.sheetTab === 'inventory') tab = renderSheetInventory(c);
   else if (state.sheetTab === 'spells') tab = renderSheetSpells(c);
   else if (state.sheetTab === 'background') tab = renderSheetBackground(c);
@@ -1275,7 +1288,7 @@ function renderCharacterSheet(){
     <div class="segmented" style="margin:14px 0;">
       <button class="${state.sheetTab==='overview'?'active':''}" onclick="setSheetTab('overview')">Panoramica</button>
       <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
-      <button class="${state.sheetTab==='spells'?'active':''}" onclick="setSheetTab('spells')">Magie</button>
+      ${showSpells?`<button class="${state.sheetTab==='spells'?'active':''}" onclick="setSheetTab('spells')">Magie</button>`:''}
       <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Storia</button>
       <button class="${state.sheetTab==='notes'?'active':''}" onclick="setSheetTab('notes')">Note</button>
     </div>
@@ -1417,6 +1430,14 @@ function editAttack(charId, i){
     <div class="form-row">
       <div class="field"><label>Bonus per colpire</label><input id="atk-bonus" inputmode="numeric" value="${attr(atk.atk)}" placeholder="+5"></div>
       <div class="field"><label>Danni</label><input id="atk-dmg" value="${attr(atk.dmg)}" placeholder="1d4+2"></div>
+    </div>
+    <div class="chip-row" style="margin:-4px 0 12px">
+      <span class="muted" style="font-size:.72rem; align-self:center">Bonus rapido:</span>
+      ${[['str','Forza'],['dex','Destrezza']].map(([k,l])=>{
+        const b = mod(getPath(c,'abilities.'+k,10)) + profBonus(c.level);
+        return `<button class="chip" onclick="document.getElementById('atk-bonus').value='${signStr(b)}'; document.getElementById('atk-dmg').value=document.getElementById('atk-dmg').value||'1d8${signStr(mod(getPath(c,'abilities.'+k,10)))}'">${l} ${signStr(b)}</button>`;
+      }).join('')}
+      ${(c.casterType && c.casterType!=='none') ? `<button class="chip" onclick="document.getElementById('atk-bonus').value='${signStr(spellcastingMod(c))}'">Magia ${signStr(spellcastingMod(c))}</button>` : ''}
     </div>
     <div class="field"><label>Note</label><input id="atk-notes" value="${attr(atk.notes||'')}" placeholder="Tipo di danno, gittata, proprietà…"></div>
     <button class="btn btn-primary btn-block" onclick="saveAttack('${charId}',${i})">${i>=0?'Salva':'Aggiungi'}</button>
@@ -1574,14 +1595,16 @@ function renderSheetNotes(c){
   const f = (label, key, ph, big) => `<div class="field"><label>${label}</label>${big
     ? `<textarea style="min-height:${big}px" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">${escapeHtml(c[key]||'')}</textarea>`
     : `<input value="${attr(c[key]||'')}" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">`}</div>`;
+  // i campi che spesso contengono elenchi lunghi sono aree di testo
+  const fl = (label, key, ph) => f(label, key, ph, 46);
   return `
     <div class="desk-2">
       <div>
         <div class="card-title">Competenze</div>
-        ${f('Linguaggi','languages','Es. Comune, Elfico')}
-        ${f('Strumenti e competenze','tools','Es. Kit da erborista, armi semplici')}
+        ${fl('Linguaggi','languages','Es. Comune, Elfico')}
+        ${fl('Strumenti e competenze','tools','Es. Kit da erborista, armi semplici')}
         ${f('Armatura indossata','armor','Es. Vesti rinforzate')}
-        ${f('Armature e armi','profOther','Es. Armature leggere, armi semplici')}
+        ${fl('Armature e armi','profOther','Es. Armature leggere, armi semplici')}
         ${f('Sensi','senses','Es. Scurovisione 18 m')}
         ${f('Capacità di carico (kg)','carryCapacity','Vuoto = Forza × 7,5')}
         <div class="divider"><span class="flourish">❧</span><span>Talenti</span></div>

@@ -1,5 +1,16 @@
 # Grimorio — lista dei cambiamenti
 
+## v3.1 — 27 agosto 2026
+Rifiniture trovate usando l'app come un giocatore vero.
+
+Ho creato personaggi da zero, li ho feriti, fatti riposare, riempito lo zaino, portati al tavolo e riletto le schede su telefono e su computer. Non è saltato fuori nessun errore, ma cinque cose davano fastidio:
+
+- **Le note non si leggevano.** Privilegi, tratti razziali e storia stavano in finestrelle da tre righe: per leggere il quarto privilegio dovevi scorrere dentro un riquadro alto due centimetri. Ora tutte le aree di testo si allargano da sole fino a contenere quello che c'è scritto.
+- **Elenchi tagliati.** "Armature e armi", "Linguaggi" e "Strumenti" erano campi a riga singola e i valori lunghi finivano fuori vista. Ora vanno a capo.
+- **La scheda "Magie" compariva anche ai non incantatori.** Un guerriero aveva una scheda che diceva solo "questo personaggio non lancia incantesimi". Ora appare solo a chi lancia magie (o a chi ne ha comunque in elenco): se cambi il tipo di incantatore ricompare da sola.
+- **Aggiungere un attacco era un calcolo a mano.** Ora nel modulo ci sono i **bonus rapidi**: tocchi "Forza +5", "Destrezza +7" o "Magia +8" e il bonus viene inserito già calcolato con competenza e modificatore, insieme a un dado dei danni di partenza.
+- **Il builder scriveva la sottoclasse alla rinfusa** in mezzo alle note. Ora è una riga chiara: "Sottoclasse: Campione".
+
 ## v3.0 — 27 agosto 2026
 Creazione guidata del personaggio.
 

@@ -492,12 +492,15 @@ function buildCharacterFromBuilder(){
   if (sub) (sub.traits||[]).forEach(t => traits.push(`${t.name}: ${t.desc}`));
   if (bg) traits.push(`${bg.feature} (${bg.name}): ${bg.desc}`);
   ch.notesRace = traits.join('\n');
-  ch.notesExtra = bg ? ('Equipaggiamento iniziale del background: ' + bg.equipment) : '';
+  ch.notesExtra = [
+    sc ? ('Sottoclasse: ' + sc.name) : '',
+    bg ? ('Equipaggiamento iniziale del background: ' + bg.equipment) : ''
+  ].filter(Boolean).join('\n\n');
 
   ch.languages = race ? race.languages.join(', ') + (bg && bg.languages ? ` · +${bg.languages} dal background` : '') : '';
   ch.tools = [c.tools !== '—' ? c.tools : '', bg && bg.tools !== '—' ? bg.tools : ''].filter(Boolean).join(' · ');
   ch.profOther = [c.armor !== 'Nessuna' ? c.armor : '', c.weapons].filter(Boolean).join(' · ');
-  if (sc) ch.notesExtra = (sc.name + '\n' + ch.notesExtra).trim();
+
 
   ch.builder = { raceId: bld.raceId, subraceId: bld.subraceId, classId: bld.classId, subclassId: bld.subclassId, bgId: bld.bgId };
   return ch;
