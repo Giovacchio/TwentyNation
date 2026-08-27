@@ -217,20 +217,59 @@ function downloadBlob(blob, filename){
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+/* Il ritratto è salvato come data URL: pdf-lib sa leggere PNG e JPEG.
+   Se è un formato che non digerisce, si va avanti senza — meglio una
+   scheda senza faccia che nessuna scheda. */
+async function embedPortrait(c, doc, lib){
+  const src = c.portrait;
+  if (!src || typeof src !== 'string' || !src.startsWith('data:image/')) return null;
+  try {
+    const isPng = /^data:image\/png/i.test(src);
+    const isJpg = /^data:image\/(jpe?g)/i.test(src);
+    if (!isPng && !isJpg) return null;
+    const b64 = src.split(',')[1];
+    if (!b64) return null;
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return isPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+  } catch(e){ console.warn('Ritratto non incorporabile nel PDF', e); return null; }
+}
+
 async function drawSheet(S, c, lib, doc, fonts){
   const rgb = lib.rgb;
   const p = profBonus(c.level || 1);
 
-  /* ── Intestazione ── */
-  S.page.drawText(wa(c.name || 'Senza nome'), { x:S.left, y:S.y-20, size:21, font:fonts.bold, color:rgb(...PDFX.ink) });
+  /* ── Intestazione, col ritratto se ce l'ha ── */
+  let textLeft = S.left;
+  const img = await embedPortrait(c, doc, lib);
+  if (img){
+    const side = 62;
+    S.page.drawRectangle({ x:S.left-1, y:S.y-side-1, width:side+2, height:side+2,
+      borderColor:rgb(...PDFX.gold), borderWidth:1, color:rgb(...PDFX.fill) });
+    // riempie il riquadro senza deformare il ritratto
+    const r = img.width / img.height;
+    const dw = r >= 1 ? side * r : side, dh = r >= 1 ? side : side / r;
+    S.page.drawImage(img, { x:S.left - (dw-side)/2, y:S.y - side - (dh-side)/2, width:dw, height:dh });
+    textLeft = S.left + side + 12;
+  }
+  S.page.drawText(wa(c.name || 'Senza nome'), { x:textLeft, y:S.y-20, size:21, font:fonts.bold, color:rgb(...PDFX.ink) });
   S.y -= 26;
-  const sub = [c.classField || 'Avventuriero', (c.level||1) + '° livello', c.race, c.background].filter(Boolean).join('  ·  ');
-  S.page.drawText(wa(sub), { x:S.left, y:S.y-9, size:9.2, font:fonts.it, color:rgb(...PDFX.soft) });
+  const sub = [c.classField || 'Avventuriero', (c.level||1) + '° livello', c.race, c.background, c.alignment].filter(Boolean).join('  ·  ');
+  S.page.drawText(wa(sub), { x:textLeft, y:S.y-9, size:9.2, font:fonts.it, color:rgb(...PDFX.soft), maxWidth:S.right-textLeft-90 });
   if (c.playerName){
     const t = 'Giocatore: ' + c.playerName;
     S.page.drawText(wa(t), { x:S.right - fonts.it.widthOfTextAtSize(wa(t), 8.6), y:S.y-9, size:8.6, font:fonts.it, color:rgb(...PDFX.soft) });
   }
   S.y -= 18;
+  const xpN = parseInt(String(c.xp||'').replace(/[^\d]/g,''), 10) || 0;
+  if (xpN){
+    const nx = (typeof xpForNextLevel === 'function') ? xpForNextLevel(c.level||1) : null;
+    const t = xpN.toLocaleString('it-IT') + ' px' + (nx ? '  /  ' + nx.toLocaleString('it-IT') + ' per il ' + ((c.level||1)+1) + '°' : '  ·  livello massimo');
+    S.page.drawText(wa(t), { x:textLeft, y:S.y-8.4, size:8.4, font:fonts.it, color:rgb(...PDFX.soft) });
+    S.y -= 14;
+  }
+  if (img) S.y = Math.min(S.y, PDFX.H - PDFX.M - 62 - 8);
   S.page.drawLine({ start:{x:S.left,y:S.y}, end:{x:S.right,y:S.y}, thickness:1.4, color:rgb(...PDFX.gold) });
   S.y -= 14;
 
@@ -299,16 +338,25 @@ async function drawSheet(S, c, lib, doc, fonts){
     S.heading('Attacchi');
     const w = [S.width*0.34, S.width*0.14, S.width*0.20, S.width*0.32];
     S.trow(['Nome','Bonus','Danni','Note'], w, { bold:true, size:7.6 });
-    atks.forEach(a => S.trow([a.name || '—', a.bonus || '', a.dmg || '', a.notes || ''], w));
+    atks.forEach(a => S.trow([
+      a.name || '—',
+      (a.atk !== '' && a.atk != null) ? signStr(parseInt(a.atk) || 0) : '',
+      a.dmg || '',
+      a.notes || ''
+    ], w));
   }
 
   /* ── Risorse e condizioni ── */
   const res = (c.resources || []).filter(r => r.name);
   if (res.length || (c.conditions||[]).length || c.inspiration || c.exhaustion){
     S.heading('Risorse e stato');
-    if (res.length) S.text(res.map(r => r.name + ': ' + (r.current ?? 0) + '/' + (r.max ?? 0)).join('   ·   '), { size:8.6 });
+    const recLabel = { sr:'riposo breve', lr:'riposo lungo', dn:'alba' };
+    if (res.length) S.text(res.map(r =>
+      r.name + ': ' + (r.left ?? r.total ?? 0) + '/' + (r.total ?? 0) + (recLabel[r.recovery] ? ' (' + recLabel[r.recovery] + ')' : '')
+    ).join('   ·   '), { size:8.6 });
     if ((c.conditions||[]).length && typeof CONDITION_BY_ID !== 'undefined')
       S.row('Condizioni', (c.conditions||[]).map(id => CONDITION_BY_ID[id] ? CONDITION_BY_ID[id].name : id).join(', '));
+    if (c.hitDie2) S.row('Secondo dado vita', 'd' + c.hitDie2 + ' · ' + Math.max(0,(c.level||1) - (c.hitDiceUsed2||0)) + ' rimasti');
     if (c.inspiration) S.row('Ispirazione', 'sì');
     if (c.exhaustion) S.row('Indebolimento', 'livello ' + c.exhaustion);
   }
@@ -407,10 +455,11 @@ async function drawSheet(S, c, lib, doc, fonts){
   /* ── Storia ── */
   const story = [
     ['Tratti caratteriali', c.traits], ['Ideali', c.ideals], ['Legami', c.bonds], ['Difetti', c.flaws],
-    ['Alleati', c.allies], ['Nemici', c.enemies], ['Fazione', c.faction],
+    ['Alleati', c.allies], ['Nemici', c.enemies], ['Fazione', c.faction], ['Simbolo', c.symbol],
   ].filter(x => x[1]);
   const app = c.appearance || {};
   const appTxt = [
+    c.sex && (typeof sexLabel === 'function' ? sexLabel(c.sex) : c.sex),
     app.age && ('Età ' + app.age), app.height && ('Altezza ' + app.height), app.weight && ('Peso ' + app.weight),
     app.eyes && ('Occhi ' + app.eyes), app.skin && ('Pelle ' + app.skin), app.hair && ('Capelli ' + app.hair),
   ].filter(Boolean).join('  ·  ');

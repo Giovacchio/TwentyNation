@@ -1,5 +1,38 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.4 — 27 agosto 2026
+**Background completi, sesso del personaggio, barra dell'esperienza. E una revisione a tappeto di come la scheda entra nell'app.**
+
+### Il Monello mancante
+- La causa: nell'app c'erano **due liste di background** che si erano allontanate fra loro. Quella vera ne aveva 13, quella usata dalla scheda e dall'import solo 12 — mancava il Monello, e due nomi erano scritti con maiuscole diverse, così l'import non li riconosceva.
+- Ora la lista è **una sola**, e ci finiscono dentro anche i background che ti sei scritto tu: compaiono nella scheda, nel creatore e nell'import.
+- Nella creazione manuale se ne vedevano solo 6: ora ci sono tutti.
+- L'import riconosce i background scritti **in inglese** (Urchin, Folk Hero, Guild Artisan…), con le maiuscole a caso o troncati, e li riporta al nome italiano giusto.
+
+### Sesso del personaggio
+- Nuovo campo con Maschio / Femmina / Altro: si mette dalla scheda (Storia → Aspetto), dal creatore guidato o dalla creazione manuale, e si toglie ritoccando la stessa voce.
+- L'import lo legge comunque sia scritto sulla scheda: M, F, maschio, female, uomo, donna…
+- Finisce anche nel PDF, insieme al resto dell'aspetto.
+
+### Barra dell'esperienza
+- Sulla panoramica compare quanto manca al livello successivo, con le soglie ufficiali dell'SRD (300, 900, 2.700… fino a 355.000).
+- **＋ Esperienza** apre un pannellino per correggere il totale o aggiungerne al volo (+25, +50, +100, +250, +500, +1000), con l'anteprima di dove arrivi.
+- Quando superi la soglia la barra si accende e compare **«Puoi salire al N° livello»**, che porta dritto alla salita guidata; se l'aggiunta ti fa cambiare livello, la salita si apre da sola.
+- Chi gioca a traguardi non se la ritrova davanti: finché non metti dei punti resta un invito discreto.
+
+### Revisione della corrispondenza scheda → app
+Ho ricontrollato campo per campo, e sono venuti fuori due errori miei nell'export PDF introdotti con la 4.2:
+- Gli **attacchi** stampavano il bonus da un campo che non esiste (`bonus` invece di `atk`): sul PDF la colonna era vuota.
+- Le **risorse** leggevano `current/max` invece di `left/total`: stampavano sempre "0/0". Ora mostrano anche quando si ricaricano (riposo breve, lungo, all'alba).
+Aggiunti al PDF anche: **ritratto del personaggio** in alto (se ce l'hai), allineamento, punti esperienza con la soglia del livello dopo, secondo dado vita per i multiclasse e simbolo della fazione.
+- L'import non importa più valori d'esperienza che numeri non sono (su una scheda vera c'era scritto "NB"), e se la soglia del livello dopo manca la calcola da solo.
+- Verificato su una scheda vera: 549 campi letti, 13 incantesimi su 14 riconosciuti — il quattordicesimo è *Hex*, che non è nell'SRD e quindi giustamente resta da sistemare a mano.
+
+### Note tecniche
+- Nuove tabelle in `rules-data.js`: `XP_THRESHOLDS`, `BACKGROUND_EN`, `SEXES`, con `matchBackground()`, `matchSex()`, `xpForLevel()`, `xpForNextLevel()`, `levelFromXp()`.
+- Test automatici: 18 controlli nuovi (compreso l'import della scheda vera e la generazione del PDF col ritratto) più le regressioni di 4.0, 4.1, 4.2 e 4.3. 0 errori.
+- Cache del service worker a `grimorio-v4-4`.
+
 ## v4.3 — 27 agosto 2026
 **Creazione più fluida, archetipi chiari, compagni con tutto in vista.**
 

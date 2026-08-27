@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.3';
+const APP_VERSION = '4.4';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -177,7 +177,18 @@ function applyClassDefaults(d, force){
   if (force && CLASS_TO_SAVES[d.classField] && !(d.saveProf||[]).length) d.saveProf = CLASS_TO_SAVES[d.classField].slice();
 }
 
-const BACKGROUND_PRESETS = ["Accolito","Ciarlatano","Criminale","Eremita","Eroe del Popolo","Artigiano di Gilda","Intrattenitore","Marinaio","Nobile","Forestiero","Sapiente","Soldato"];
+/* I background stanno in un posto solo: rules-data.js. Prima ce n'era
+   una copia qui e le due liste erano andate per conto loro — mancava
+   il Monello e due nomi erano scritti diversamente, così l'import dal
+   PDF non li riconosceva. Ora si legge sempre l'elenco vero, e ci
+   finiscono dentro anche i background che ti sei scritto tu. */
+function backgroundNames(){
+  if (typeof allBackgrounds === 'function'){
+    try { return allBackgrounds().map(b => b.name); } catch(e){}
+  }
+  if (typeof BACKGROUNDS_FULL !== 'undefined') return BACKGROUNDS_FULL.map(b => b.name);
+  return [];
+}
 const AVATAR_GLYPHS = ["⚔️","🛡️","🏹","🔮","🐉","🦉","🌙","⚜️","🕯️","🪄","🦇","🌿","👑","💀","🔥","❄️","🗡️","🎻","🐺","⚗️"];
 const DICE_TYPES = [4,6,8,10,12,20,100];
 const COINS = [
@@ -754,7 +765,7 @@ function newCharacter(){
   return {
     id: uid(),
     name: '', race: '', classField: '', level: 1, background: '', alignment: '',
-    playerName: '', xp: '', xpNext: '', portrait: null,
+    playerName: '', xp: '', xpNext: '', sex: '', portrait: null,
     avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)],
     abilities: { str:10, dex:10, con:10, int:10, wis:10, cha:10 },
     skillProf: [], skillExpert: [], saveProf: [],
@@ -808,7 +819,7 @@ function migrateCharacter(c){
   c.companions = c.companions || []; c.conditions = c.conditions || [];
   if (c.activeForm === undefined) c.activeForm = null;
   c.appearance = Object.assign({ age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' }, c.appearance || {});
-  ['playerName','xp','xpNext','armor','senses','languages','tools','feats','profOther','faction','symbol','allies','enemies','notesRace','notesExtra','carryCapacity']
+  ['playerName','xp','xpNext','sex','armor','senses','languages','tools','feats','profOther','faction','symbol','allies','enemies','notesRace','notesExtra','carryCapacity']
     .forEach(k => { if (c[k] == null) c[k] = ''; });
   if (c.portrait === undefined) c.portrait = null;
   c.hitDie2 = Number(c.hitDie2) || 0; c.hitDiceUsed2 = Number(c.hitDiceUsed2) || 0;
@@ -1141,9 +1152,15 @@ function characterFormHTML(isEdit){
         <div class="field"><label>Allineamento</label><input value="${attr(d.alignment||'')}" placeholder="Es. Neutrale Buono" oninput="draftChar.alignment=this.value"></div>
       </div>
       <div class="field">
+        <label>Sesso</label>
+        <div class="chip-row">
+          ${SEXES.map(x=>`<button type="button" class="chip ${d.sex===x.id?'active':''}" onclick="draftChar.sex = draftChar.sex==='${x.id}' ? '' : '${x.id}'; renderModalRoot()">${x.label}</button>`).join('')}
+        </div>
+      </div>
+      <div class="field">
         <label>Background</label>
         <div class="chip-row" style="margin-bottom:8px;">
-          ${BACKGROUND_PRESETS.slice(0,6).map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${jsStr(b)}'; renderModalRoot()">${b}</button>`).join('')}
+          ${backgroundNames().map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${jsStr(b)}'; renderModalRoot()">${b}</button>`).join('')}
         </div>
         <input value="${attr(d.background||'')}" placeholder="…oppure scrivi il tuo" oninput="draftChar.background=this.value">
       </div>
@@ -1408,9 +1425,10 @@ function renderSheetOverview(c){
         <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
         <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
       </div>
+      ${xpBarHTML(c)}
       <div class="combat-grid">
         <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
-        <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Costituzione</div></div>
+        <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Cost.</div></div>
         <div class="combat-stat"><div class="v">${10 + (c.casterType && c.casterType!=='none' ? spellcastingMod(c) : mod(getPath(c,'abilities.wis',10)))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percez. attiva'}</div></div>
       </div>
 
@@ -1670,6 +1688,115 @@ function removeResource(charId, i){
   scheduleSave('characters', c);
   closeModal(); render();
 }
+/* ─── Barra dell'esperienza ───
+   Quanto manca al livello dopo, con le soglie dell'SRD. Chi gioca a
+   traguardi non deve vedersela sempre davanti: resta discreta finché
+   non ci metti dei punti. */
+function xpNum(c){ const n = parseInt(String(c.xp||'').replace(/[^\d-]/g,''), 10); return Number.isFinite(n) && n > 0 ? n : 0; }
+function fmtXp(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+
+function xpBarHTML(c){
+  const xp = xpNum(c);
+  const lv = c.level || 1;
+  const next = xpForNextLevel(lv);
+  const floorXp = xpForLevel(lv);
+
+  if (!xp && !c.xpNext){
+    return `<button class="xp-empty" onclick="openXpDialog('${c.id}')">
+      <span>✦ Segna i punti esperienza</span>
+      <span class="muted" style="font-size:.72rem">Se giocate a traguardi, lascia pure stare.</span>
+    </button>`;
+  }
+  if (next == null){
+    return `<div class="xp-block done">
+      <div class="row-between"><b style="font-size:.82rem">👑 20° livello</b>
+        <button class="btn btn-ghost btn-sm" onclick="openXpDialog('${c.id}')">${fmtXp(xp)} px</button></div>
+    </div>`;
+  }
+
+  const span = Math.max(1, next - floorXp);
+  const done = clamp(xp - floorXp, 0, span);
+  const pct = clamp(100 * done / span, 0, 100);
+  const missing = Math.max(0, next - xp);
+  const ready = xp >= next;
+
+  return `<div class="xp-block ${ready?'ready':''}">
+    <div class="row-between" style="align-items:baseline">
+      <div><b style="font-size:.82rem">${fmtXp(xp)}</b><span class="muted" style="font-size:.74rem"> / ${fmtXp(next)} px</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="openXpDialog('${c.id}')">＋ Esperienza</button>
+    </div>
+    <div class="xp-bar"><div class="xp-fill" style="width:${pct}%"></div></div>
+    ${ready
+      ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:8px" onclick="openLevelUp('${c.id}')">📈 Puoi salire al ${lv+1}° livello</button>`
+      : `<div class="muted" style="font-size:.73rem; margin-top:5px">Mancano <b>${fmtXp(missing)}</b> punti al ${lv+1}° livello.</div>`}
+  </div>`;
+}
+
+let xpDraft = 0;
+function openXpDialog(charId){
+  const c = charById(charId); if (!c) return;
+  xpDraft = 0;
+  openModal({ render: () => xpDialogHTML(charId), after: () => {
+    const el = document.getElementById('xp-total'); if (el && !el.value) el.value = xpNum(c) || '';
+  }});
+}
+function xpDialogHTML(charId){
+  const c = charById(charId); if (!c) return '';
+  const xp = xpNum(c);
+  const nuovo = Math.max(0, xp + xpDraft);
+  const lvDovuto = levelFromXp(nuovo);
+  const quick = [25, 50, 100, 250, 500, 1000];
+  return modalShell('✦ Punti esperienza', `
+    <div class="field"><label>Totale attuale</label>
+      <input id="xp-total" type="number" inputmode="numeric" value="${attr(xp || '')}" placeholder="0" oninput="xpSetTotal('${c.id}', this.value)"></div>
+
+    <div class="divider"><span class="flourish">❧</span><span>Aggiungi al volo</span></div>
+    <div class="chip-row" style="justify-content:center">
+      ${quick.map(q=>`<button class="chip" onclick="xpBump(${q})">+${q}</button>`).join('')}
+      ${xpDraft ? `<button class="chip" style="border-color:var(--garnet)" onclick="xpBump(-99999999)">Azzera l'aggiunta</button>` : ''}
+    </div>
+    ${xpDraft ? `<div class="card" style="margin-top:12px; text-align:center; border-color:var(--gold-dim)">
+      <div class="muted" style="font-size:.76rem">In arrivo</div>
+      <div style="font-family:var(--font-head); font-size:1.5rem; color:var(--gold)">+${fmtXp(xpDraft)}</div>
+      <div class="muted" style="font-size:.78rem">Totale: <b>${fmtXp(nuovo)}</b> punti</div>
+    </div>` : ''}
+
+    ${lvDovuto > (c.level||1) ? `<div class="card" style="margin-top:12px; border-color:var(--good)">
+      <div class="muted" style="font-size:.8rem">Con ${fmtXp(nuovo)} punti saresti di <b>${lvDovuto}° livello</b> (ora sei ${c.level}°). Dopo aver salvato ti porto alla salita.</div>
+    </div>` : ''}
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="saveXp('${c.id}')">Salva</button>
+    </div>`);
+}
+function xpBump(n){
+  xpDraft = n === -99999999 ? 0 : Math.max(-99999999, xpDraft + n);
+  renderModalRoot();
+}
+function xpSetTotal(charId, v){
+  const c = charById(charId); if (!c) return;
+  c.xp = String(Math.max(0, parseInt(String(v).replace(/[^\d]/g,''), 10) || 0) || '');
+  scheduleSave('characters', c);
+}
+function saveXp(charId){
+  const c = charById(charId); if (!c) return;
+  const totale = Math.max(0, xpNum(c) + xpDraft);
+  c.xp = String(totale);
+  const next = xpForNextLevel(c.level || 1);
+  c.xpNext = next != null ? String(next) : '';
+  scheduleSave('characters', c);
+  const dovuto = levelFromXp(totale);
+  xpDraft = 0;
+  closeModal(); render();
+  if (dovuto > (c.level||1)){
+    toast('✦ ' + fmtXp(totale) + ' punti — puoi salire di livello');
+    setTimeout(() => openLevelUp(c.id), 600);
+  } else {
+    toast('✦ ' + fmtXp(totale) + ' punti esperienza');
+  }
+}
+
 function conditionsRowHTML(c){
   const active = (c.conditions||[]).map(id => CONDITION_BY_ID[id]).filter(Boolean);
   return `<div class="chip-row" style="margin-top:10px; align-items:center">
@@ -2233,7 +2360,7 @@ function renderSheetBackground(c){
     <div class="field">
       <label>Background</label>
       <div class="chip-row" style="margin-bottom:8px;">
-        ${BACKGROUND_PRESETS.map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${jsStr(b)}')">${b}</button>`).join('')}
+        ${backgroundNames().map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${jsStr(b)}')">${b}</button>`).join('')}
       </div>
       <input value="${attr(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
     </div>
@@ -2247,6 +2374,13 @@ function renderSheetBackground(c){
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Aspetto</span></div>
+    <div class="field">
+      <label>Sesso</label>
+      <div class="chip-row">
+        ${SEXES.map(x=>{ const nv = c.sex === x.id ? '' : x.id;
+          return `<button class="chip ${c.sex===x.id?'active':''}" onclick="updateCharField('${c.id}','sex','${nv}'); render()">${x.label}</button>`; }).join('')}
+      </div>
+    </div>
     <div class="form-row-3">
       <div class="field"><label>Età</label><input value="${attr(getPath(c,'appearance.age',''))}" oninput="updateCharField('${c.id}','appearance.age',this.value)"></div>
       <div class="field"><label>Altezza</label><input value="${attr(getPath(c,'appearance.height',''))}" oninput="updateCharField('${c.id}','appearance.height',this.value)"></div>

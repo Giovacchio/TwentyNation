@@ -22,7 +22,7 @@ function openBuilder(){
     cantrips: [], spells: [],
     spellFilter: '',
     gear: {}, gearOn: true,
-    name: '', portrait: null, avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)]
+    name: '', sex: '', portrait: null, avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)]
   };
   openModal({ render: builderHTML });
 }
@@ -495,6 +495,7 @@ function buildCharacterFromBuilder(){
 
   const ch = newCharacter();
   ch.name = bld.name.trim() || 'Senza nome';
+  ch.sex = bld.sex || '';
   ch.avatar = bld.avatar;
   ch.portrait = bld.portrait;
   ch.race = race ? (sub ? sub.name : race.name) : '';
@@ -558,6 +559,11 @@ function stepSummary(){
   return `
     <div class="field"><label>Nome del personaggio</label>
       <input id="bld-name" value="${attr(bld.name)}" placeholder="Es. Elyndra Sussurronotte" oninput="bld.name=this.value">
+    </div>
+    <div class="field"><label>Sesso</label>
+      <div class="chip-row">
+        ${SEXES.map(x=>`<button class="chip ${bld.sex===x.id?'active':''}" onclick="bldSet({sex: bld.sex==='${x.id}' ? '' : '${x.id}'})">${x.label}</button>`).join('')}
+      </div>
     </div>
     <div class="field"><label>Ritratto</label>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">

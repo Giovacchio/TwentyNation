@@ -227,7 +227,10 @@ function analyzeSheet(fields){
   c.name = pickField(idx, ['CharacterName','CharacterName 2','Nome','Nome personaggio']) || 'Senza nome';
   c.playerName = pickField(idx, ['PlayerName','Giocatore']);
   c.race = pickField(idx, ['Race ','Race','Razza']);
-  c.xp = pickField(idx, ['XP','EXP','Punti esperienza']);
+  // molte schede scrivono "NB", "-" o una nota al posto del numero
+  const xpRaw = pickField(idx, ['XP','EXP','Punti esperienza','Esperienza']);
+  const xpNum = parseInt(String(xpRaw||'').replace(/[.\s]/g,'').replace(/[^\d]/g,''), 10);
+  c.xp = (Number.isFinite(xpNum) && xpNum > 0) ? String(xpNum) : '';
 
   const classLevelRaw = pickField(idx, ['ClassLevel','Class','Classe','Classe e livello']);
   const bgRaw = pickField(idx, ['Background','Backgroud','Retroscena']);
@@ -255,9 +258,16 @@ function analyzeSheet(fields){
   // background / allineamento (alcune schede li invertono)
   let background = /^\s*\d+\s*$/.test(bgRaw) ? '' : bgRaw;
   let alignment = alignRaw;
-  const isKnownBg = (v) => BACKGROUND_PRESETS.some(b => norm(b) === norm(v));
-  if (!background && alignment && isKnownBg(alignment)){ background = alignment; alignment = ''; }
+  // alcune schede invertono i due campi
+  if (!background && alignment && matchBackground(alignment)){ background = alignment; alignment = ''; }
+  // "Urchin", "monello", "Folk hero"… tutti finiscono sul nome giusto
+  const bgHit = matchBackground(background);
+  if (bgHit) background = bgHit;
+  else if (background) warn.push('Background "' + background + '" non è fra quelli noti: resta scritto così com\'è.');
   c.background = background; c.alignment = alignment;
+
+  // sesso: le schede lo scrivono in mille modi
+  c.sex = matchSex(pickField(idx, ['Sesso','Sex','Gender','Genere']));
 
   // ── caratteristiche ──
   ABILITIES.forEach(a => {
@@ -327,7 +337,11 @@ function analyzeSheet(fields){
   c.profOther = profBits.join(', ');
   const capRaw = pickField(idx, ['PesoTrasportabile','PesoMassimo','Capacita']);
   c.carryCapacity = (parseFloat(String(capRaw).replace(',','.')) > 0) ? capRaw : '';
-  c.xpNext = pickField(idx, ['Nex_XP','NextLevel']);
+  // se la soglia scritta non è un numero, la ricaviamo dal livello
+  const nxRaw = pickField(idx, ['Nex_XP','NextLevel','Prossimo livello']);
+  const nxNum = parseInt(String(nxRaw||'').replace(/[.\s]/g,'').replace(/[^\d]/g,''), 10);
+  if (Number.isFinite(nxNum) && nxNum > 0) c.xpNext = String(nxNum);
+  else { const t = (typeof xpForNextLevel === 'function') ? xpForNextLevel(c.level) : null; c.xpNext = t != null ? String(t) : ''; }
   // Secondo dado vita solo se è davvero diverso: molte schede ripetono
   // lo stesso valore nella seconda riga anche senza multiclasse.
   const hd2raw = pickField(idx, ['HD2']);
@@ -614,6 +628,8 @@ function pdfPreviewHTML(){
       ${line('Risorse', c.resources.length || '')}
       ${line('Monete', COINS.map(co=>c.coins[co.key]?c.coins[co.key]+' '+co.label:'').filter(Boolean).join(' · '))}
       ${line('Background', c.background)}
+      ${line('Sesso', sexLabel(c.sex))}
+      ${line('Esperienza', c.xp)}
       ${line('Fazione', c.faction)}
     </div>
 

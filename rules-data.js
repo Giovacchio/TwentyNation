@@ -571,3 +571,72 @@ const CLASS_KITS = {
     { label:'Pacchetto', opts:[{n:'Da studioso',items:PACK_SCHOLAR},{n:'Da esploratore',items:PACK_EXPLORER}] },
   ]},
 };
+
+/* Nomi inglesi dei background: le schede scaricate in rete spesso
+   sono in inglese, e senza questa tabella l'import non li riconosce. */
+const BACKGROUND_EN = {
+  acolyte:'Acolyte', charlatan:'Charlatan', criminal:'Criminal', entertainer:'Entertainer',
+  'folk-hero':'Folk Hero', 'guild-artisan':'Guild Artisan', hermit:'Hermit', noble:'Noble',
+  outlander:'Outlander', sage:'Sage', sailor:'Sailor', soldier:'Soldier', urchin:'Urchin',
+};
+/* Riconosce un background scritto comunque: in italiano, in inglese,
+   con maiuscole a caso o con qualche lettera sbagliata. */
+function matchBackground(text){
+  if (!text) return null;
+  const q = norm(String(text));
+  if (!q) return null;
+  const list = (typeof allBackgrounds === 'function') ? allBackgrounds() : BACKGROUNDS_FULL;
+  let hit = list.find(b => norm(b.name) === q);
+  if (hit) return hit.name;
+  const enId = Object.keys(BACKGROUND_EN).find(k => norm(BACKGROUND_EN[k]) === q);
+  if (enId){
+    const it = list.find(b => b.id === enId);
+    if (it) return it.name;
+  }
+  hit = list.find(b => norm(b.name).startsWith(q) || q.startsWith(norm(b.name)));
+  if (hit) return hit.name;
+  const enId2 = Object.keys(BACKGROUND_EN).find(k => { const e = norm(BACKGROUND_EN[k]); return e.startsWith(q) || q.startsWith(e); });
+  if (enId2){
+    const it = list.find(b => b.id === enId2);
+    if (it) return it.name;
+  }
+  return null;
+}
+
+/* ─── Punti esperienza (SRD 5.1) ───
+   Quanti punti servono per arrivare a ogni livello. */
+const XP_THRESHOLDS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000,
+                       85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+/* Soglia d'ingresso di un livello (il 1° parte da 0). */
+function xpForLevel(level){ return XP_THRESHOLDS[clamp(level,1,20) - 1] || 0; }
+/* Quanto serve per il livello successivo; null se sei al 20°. */
+function xpForNextLevel(level){ return level >= 20 ? null : XP_THRESHOLDS[clamp(level,1,19)]; }
+/* Il livello che ti spetterebbe con quei punti. */
+function levelFromXp(xp){
+  const n = Number(xp) || 0;
+  let lv = 1;
+  for (let i = 0; i < XP_THRESHOLDS.length; i++) if (n >= XP_THRESHOLDS[i]) lv = i + 1;
+  return lv;
+}
+
+/* ─── Sesso del personaggio ───
+   Voce libera con tre scorciatoie: molte schede riportano solo M o F. */
+const SEXES = [
+  { id:'M', label:'Maschio', short:'M' },
+  { id:'F', label:'Femmina', short:'F' },
+  { id:'A', label:'Altro',   short:'—' },
+];
+const SEX_BY_ID = Object.fromEntries(SEXES.map(s=>[s.id,s]));
+function sexLabel(v){
+  if (!v) return '';
+  return SEX_BY_ID[v] ? SEX_BY_ID[v].label : String(v);
+}
+/* Riconosce come è scritto sulla scheda: M, F, maschio, female, ♂… */
+function matchSex(text){
+  const q = norm(String(text||'')).replace(/[^a-z]/g,'');
+  if (!q) return '';
+  if (/^(m|maschio|maschile|male|man|uomo|homme|masculino)$/.test(q)) return 'M';
+  if (/^(f|femmina|femminile|female|woman|donna|femme|femenino)$/.test(q)) return 'F';
+  if (q) return 'A';
+  return '';
+}

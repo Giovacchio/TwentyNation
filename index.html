@@ -673,6 +673,19 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 
 
 
+
+/* Barra dell'esperienza */
+.xp-block { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-top: 10px; }
+.xp-block.ready { border-color: var(--gold); background: var(--card-hi); }
+.xp-block.done { text-align: left; }
+.xp-bar { height: 8px; border-radius: 5px; background: var(--bg-1); border: 1px solid var(--line); overflow: hidden; margin-top: 7px; }
+.xp-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--arcane), var(--gold)); transition: width .35s ease; }
+.xp-block.ready .xp-fill { background: linear-gradient(90deg, var(--gold-dim), var(--gold)); box-shadow: 0 0 10px rgba(214,178,102,.5); }
+.xp-empty { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; margin-top: 10px;
+  padding: 9px 12px; border-radius: var(--radius); background: var(--card); border: 1px dashed var(--line);
+  color: var(--ink-soft); font-family: var(--font-ui); font-weight: 700; font-size: .8rem; cursor: pointer; }
+.xp-empty:hover { border-color: var(--gold-dim); color: var(--ink); }
+
 /* Compagni animali, famigli e forme selvatiche */
 .comp-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
 .comp-card.active { border-color: var(--good); background: rgba(89,168,125,.08); }
