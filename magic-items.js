@@ -118,7 +118,8 @@ function addMagicItemToChar(charId, itemId){
   });
   scheduleSave('characters', c);
   closeModal(); render();
-  toast('💍 ' + miName(m) + ' nello zaino di ' + (c.name || 'lui'));
+  // il nome del personaggio può essere lunghissimo: il messaggio no
+  toast('💍 ' + miName(m) + ' nello zaino');
 }
 
 /* ─── Sintonizzazione ─── */

@@ -1,5 +1,38 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.9 — 27 agosto 2026
+**Revisione completa dell'uso da telefono.**
+
+Ho aperto ogni schermata e ogni finestra dell'app su tre misure di telefono (360, 390 e 430 pixel di larghezza) — 99 schermate in tutto — cercando quello che sul telefono non va: roba che esce dallo schermo, testi tagliati, tasti troppo piccoli per il pollice, comandi coperti da qualcos'altro. Sono uscite **1047 segnalazioni**; dopo le correzioni ne restano 4, tutte cosmetiche.
+
+### La barra di navigazione usciva dallo schermo
+Il difetto peggiore, e c'era da sempre: la barra in basso aveva larghezza «tutto lo schermo» **più** i margini laterali, quindi era 24 pixel più larga della finestra e sbucava a destra su ogni telefono. Ora i margini li fa il contenitore e la barra sta dentro.
+
+### Il dado galleggiante copriva i comandi
+Nelle liste lunghe il dado in basso a destra restava piantato sopra la colonna dei tasti: nello zaino copriva il tasto per eliminare, nella scheda copriva i punteggi, all'iniziativa copriva un pulsante.
+- Ora **scorrendo verso il basso il dado si toglie di mezzo** e torna appena ti fermi o risali.
+- Sotto i 400 pixel di larghezza è anche un po' più piccolo.
+- In fondo a ogni schermata c'è più aria, così l'ultima riga non gli finisce sotto.
+
+### Eliminare un oggetto non è più un bersaglio da 32 pixel
+Il ✕ sulle righe dello zaino era piccolo, distruttivo e proprio sotto il dado. È stato tolto: si elimina dalla finestra dell'oggetto, dove ora c'è **Elimina** accanto a Salva.
+
+### Punti ferita sui telefoni stretti
+La riga −5 / − / campo / + / +5 non ci stava in larghezza e i tasti finivano fuori. Sotto i 400 pixel il campo dei punti ferita prende tutta la riga e i cinque tasti si dispongono sotto, larghi uguali.
+
+### Tasti più facili da centrare col pollice
+Ingranditi: i pallini degli slot incantesimo (27 → 32), l'interruttore «indossato» e i tasti tondi dello zaino (32 → 36), il ✦ per aggiungere nelle liste (34 → 38), le etichette e i filtri (32/34 → 38/40), le linguette delle schede, e i tasti in cima alla scheda sui telefoni stretti (34 → 38).
+
+### Dettagli
+- Un messaggio di conferma lungo diventava un muro di testo in mezzo allo schermo: ora è limitato a due righe e i messaggi più prolissi sono stati accorciati.
+- Nei menù a tendina il testo lungo finiva sotto la freccetta.
+- Nel creatore, l'opzione «Martello da guerra (se competente)» ripeteva sé stessa nel sottotitolo.
+
+### Note tecniche
+- L'audit è ora uno strumento riutilizzabile (`/root/t/audit`): rigenera le 99 schermate e il rapporto a ogni modifica.
+- Cache del service worker a `grimorio-v4-9`.
+- Le nove suite di regressione (4.0 → 4.8) passano tutte, 0 errori.
+
 ## v4.8 — 27 agosto 2026
 **Il PDF si carica da qualsiasi tasto, e l'app si accorge da sola di essere vecchia.**
 

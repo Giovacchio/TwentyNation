@@ -676,7 +676,10 @@ function stepGear(){
             <span class="attack-main">
               <span class="attack-name">${escapeHtml(o.n)}${chosen===oi?' ✓':''}</span>
               ${(()=>{ const d = o.items.map(it=>it[0]+(it[1]>1?` ×${it[1]}`:'')).slice(0,5).join(', ') + (o.items.length>5?'…':'');
-                       return d === o.n ? '' : `<span class="muted" style="font-size:.73rem; display:block">${escapeHtml(d)}</span>`; })()}
+                       // niente sottotitolo se ripete il titolo, anche quando
+                       // questo ha una precisazione fra parentesi
+                       const pulito = (t) => norm(String(t).replace(/\([^)]*\)/g,''));
+                       return pulito(d) === pulito(o.n) ? '' : `<span class="muted" style="font-size:.73rem; display:block">${escapeHtml(d)}</span>`; })()}
             </span>
           </button>`).join('')}
         </div>`;

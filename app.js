@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.8';
+const APP_VERSION = '4.9';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -749,6 +749,29 @@ async function forceAppUpdate(){
 
 /* La rotella del mouse sopra un elemento fisso (barra laterale, sfondo
    della finestra) non muove nulla: la si gira sul contenitore giusto. */
+/* Il dado galleggiante sta comodo finché leggi, ma nelle liste lunghe
+   resta piantato sopra la colonna dei tasti di destra. Quindi: scorri
+   in giù e si toglie, ti fermi o risali e torna. */
+function installFabAutoHide(){
+  let last = window.scrollY, ticking = false, idle = null;
+  const fab = () => document.querySelector('.fab');
+  const set = (hide) => { const f = fab(); if (f) f.classList.toggle('tucked', hide); };
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY;
+      const giu = y > last + 6, su = y < last - 6;
+      if (giu && y > 120) set(true);
+      else if (su) set(false);
+      last = y;
+      clearTimeout(idle);
+      idle = setTimeout(() => set(false), 900); // fermo il pollice, torna
+      ticking = false;
+    });
+  }, { passive: true });
+}
+
 function installWheelForwarding(){
   window.addEventListener('wheel', (e) => {
     const nav = e.target.closest && e.target.closest('.bottomnav');
@@ -2158,9 +2181,8 @@ function invItemHTML(c, it, i){
       ${sub?`<div class="muted" style="font-size:.72rem;margin-top:2px;">${escapeHtml(sub)}</div>`:''}
     </button>
     ${needsAtt ? `<button class="attune-toggle ${it.attuned?'on':''}" title="${it.attuned?'Sintonizzato':'Sintonizzati'}" onclick="toggleAttune('${c.id}',${i})">⚡</button>` : ''}
-    ${magic ? `<button class="btn-icon" style="width:32px;height:32px;font-size:.8rem;" onclick="viewMagicItem('${magic.id}','${c.id}')" aria-label="Cosa fa">?</button>` : ''}
+    ${magic ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.85rem;" onclick="viewMagicItem('${magic.id}','${c.id}')" aria-label="Cosa fa">?</button>` : ''}
     <span class="inv-qty">×${it.qty||1}</span>
-    <button class="btn-icon" style="width:32px;height:32px;font-size:.8rem;" onclick="removeInventoryItem('${c.id}',${i})" aria-label="Rimuovi">✕</button>
   </div>`;
 }
 function addInventoryItem(charId){
@@ -2223,7 +2245,10 @@ function editInventoryItem(charId, i){
       </div>
     </div>
     <div class="field"><label>Note</label><input id="inv-edit-notes" value="${attr(it.notes||'')}"></div>
-    <button class="btn btn-primary btn-block" onclick="confirmEditInventory('${charId}',${i})">Salva modifiche</button>`;
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-danger" onclick="removeInventoryItem('${charId}',${i})">Elimina</button>
+      <button class="btn btn-primary" onclick="confirmEditInventory('${charId}',${i})">Salva</button>
+    </div>`;
   openModal({ render: () => modalShell('Modifica oggetto', inner) });
 }
 function confirmEditInventory(charId, i){
@@ -3704,6 +3729,7 @@ function boot(){
   loadSession();
   spawnEmbers();
   installWheelForwarding();
+  installFabAutoHide();
   applyWakeLock();
   if (localStorage.getItem('grimorio-offline') === '1') state.offlineMode = true;
   replaceNav();
