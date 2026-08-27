@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.1';
+const APP_VERSION = '4.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -361,7 +361,7 @@ function setCharPortrait(charId, url){
 const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
-  characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [],
+  characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [],
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
@@ -416,13 +416,15 @@ function loadLocal(){
     state.customSpells = data.customSpells || [];
     state.spellTags = data.spellTags || [];
     state.homebrew = data.homebrew || [];
+    state.journal = data.journal || [];
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 function saveLocal(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew
+      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
+      journal: state.journal
     }));
   } catch(e){
     console.warn('Impossibile salvare in locale', e);
@@ -483,6 +485,7 @@ function attachFirestore(uidUser){
   wire('customSpells');
   wire('spellTags');
   wire('homebrew');
+  wire('journal');
 }
 function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }); unsubscribers = []; }
 
@@ -1341,6 +1344,7 @@ function renderCharacterSheet(){
       <div class="topbar-actions">
         <button class="btn-icon" onclick="openLevelUp('${c.id}')" aria-label="Sali di livello" title="Sali di livello">📈</button>
         <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">🏕️</button>
+        <button class="btn-icon" onclick="exportCharacterPdf('${c.id}')" aria-label="Esporta in PDF" title="Esporta la scheda in PDF">📄</button>
         <button class="btn-icon" onclick="openCharacterForm('${c.id}')" aria-label="Modifica" title="Modifica">✎</button>
       </div>
     </div>
@@ -2638,13 +2642,14 @@ function renderDM(){
     <div class="hero" style="padding:16px;">
       <div class="hero-actions">${themeToggleBtn()}</div>
       <h1 style="font-size:1.5rem">Tavolo del Master</h1>
-      <div class="sub">Bestiario e iniziativa</div>
+      <div class="sub">Bestiario, iniziativa e diario</div>
     </div>
     <div class="segmented" style="margin-bottom:14px;">
-      <button class="${state.dmTab!=='initiative'?'active':''}" onclick="setDmTab('bestiary')">🐉 Bestiario</button>
+      <button class="${state.dmTab==='bestiary'||!state.dmTab?'active':''}" onclick="setDmTab('bestiary')">🐉 Bestiario</button>
       <button class="${state.dmTab==='initiative'?'active':''}" onclick="setDmTab('initiative')">⚔️ Iniziativa${state.combat.list.length?' ('+state.combat.list.length+')':''}</button>
+      <button class="${state.dmTab==='journal'?'active':''}" onclick="setDmTab('journal')">📓 Diario${(state.journal||[]).length?' ('+(state.journal||[]).length+')':''}</button>
     </div>
-    ${state.dmTab==='initiative' ? renderInitiativeTracker() : renderBestiary()}
+    ${state.dmTab==='initiative' ? renderInitiativeTracker() : (state.dmTab==='journal' ? renderJournal() : renderBestiary())}
   `;
 }
 function renderBestiary(){
@@ -2999,7 +3004,8 @@ function exportData(){
     downloadJSON({
       app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
       characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew
+      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
+      journal: state.journal
     }, 'grimorio-backup');
     toast('⤓ Backup esportato');
   } catch(e){ console.error(e); toast('⚠️ Esportazione non riuscita'); }
@@ -3052,10 +3058,11 @@ function doImport(data){
   const c = mergeIn('customSpells', data.customSpells || data.spells);
   mergeIn('spellTags', data.spellTags);
   mergeIn('homebrew', data.homebrew);
+  const d = mergeIn('journal', data.journal);
   saveLocal();
   state.offlineMode = true;
   render();
-  toast(`⤒ Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi`);
+  toast(`⤒ Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi${d?`, ${d} voci di diario`:''}`);
 }
 
 /* ─── 23. TIRA DADI ─── */
@@ -3548,6 +3555,13 @@ function globalSearchResults(q){
   if (typeof CONDITIONS !== 'undefined') CONDITIONS.forEach(cd => {
     if (norm(cd.name).includes(n))
       push('Condizioni', cd.icon, cd.name, cd.desc, `closeModal(); infoDialog('${jsStr(cd.icon + ' ' + cd.name)}','${jsStr(cd.desc)}')`);
+  });
+
+  (state.journal || []).forEach(e => {
+    if (norm(e.title||'').includes(n) || norm(e.text||'').includes(n))
+      push('Diario', '📓', e.title || ('Sessione ' + (e.session||'?')),
+        (e.session?('Sessione '+e.session+' · '):'') + (typeof prettyDate==='function'?prettyDate(e.date):e.date),
+        `closeModal(); goView('dm'); setDmTab('journal'); openJournalEntry('${e.id}')`);
   });
 
   (state.homebrew || []).forEach(h => {

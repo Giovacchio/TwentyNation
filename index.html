@@ -670,6 +670,11 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   .coin-grid { gap: 5px; }
 }
 
+
+/* Diario di campagna */
+.journal-card { display: block; border-left: 3px solid var(--gold-dim); transition: border-color .18s, transform .18s; }
+.journal-card:hover { border-left-color: var(--gold); transform: translateX(2px); }
+
 /* Scintille della salita di livello */
 .lv-spark {
   position: fixed; top: -14px; width: 7px; height: 7px; border-radius: 50%;
@@ -702,6 +707,8 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./homebrew.js"></script>
 <script defer src="./builder.js"></script>
 <script defer src="./levelup.js"></script>
+<script defer src="./journal.js"></script>
+<script defer src="./pdf-export.js"></script>
 <script defer src="./pdf-import.js"></script>
 </body>
 </html>

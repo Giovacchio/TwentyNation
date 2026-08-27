@@ -1,5 +1,28 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.2 — 27 agosto 2026
+**Scheda esportabile in PDF e diario di campagna.**
+
+### Esporta la scheda in PDF (`pdf-export.js`)
+- Nuovo tasto **📄** nella barra della scheda: genera un PDF A4 pulito, pensato per essere stampato o mandato al master.
+- Ci finisce dentro tutto: caratteristiche e modificatori, tiri salvezza e abilità (con competenza e competenza doppia segnate), CA, iniziativa, velocità, competenza, percezione passiva, punti ferita e dadi vita, attacchi, risorse, condizioni attive, competenze e lingue, incantesimi divisi per livello con preparati e concentrazione, zaino con pesi e monete, compagni e forme, privilegi e tratti, storia e aspetto.
+- Impaginazione che va a capo e cambia pagina da sola: nessun testo esce dal foglio e non restano righe orfane in cima alla pagina.
+- Nomi con emoji o simboli strani non fanno più fallire l'esportazione: vengono convertiti o tolti.
+- Il file si chiama col nome del personaggio e il livello, così l'archivio resta in ordine.
+
+### Diario di campagna (`journal.js`)
+- Nuova scheda **📓 Diario** nel Tavolo: una voce per sessione con numero, data, titolo e il racconto di cosa è successo.
+- Il numero di sessione si incrementa da solo; la data parte da oggi.
+- **Etichette**: trama, PNG, luogo, bottino, missione, scontro, da chiarire — con filtri e contatori in cima.
+- **Chi c'era**: segni i personaggi presenti e li ritrovi sulla voce.
+- Ricerca dentro titoli e testo, ed **esportazione** del diario in un file di testo da incollare dove vuoi.
+- Le voci si sincronizzano come il resto ed entrano nel backup completo e nella ricerca globale.
+
+### Note tecniche
+- Nuovi file: `pdf-export.js`, `journal.js`. Cache del service worker a `grimorio-v4-2`.
+- `pdf-lib` era già presente per leggere le schede: ora serve anche a scriverle, e resta caricato solo quando serve.
+- Test automatici: 14 controlli nuovi (PDF vero generato e riletto, diario completo) più le regressioni delle versioni 4.0 e 4.1. 0 errori.
+
 ## v4.1 — 27 agosto 2026
 **Salita di livello guidata, equipaggiamento iniziale, ricerca globale.**
 
