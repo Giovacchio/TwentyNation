@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '3.2';
+const APP_VERSION = '4.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -724,7 +724,7 @@ function newCharacter(){
     casterType: 'none', spellAbility: 'int',
     slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null, spellNotes: {},
     inventory: [], coins: { pp:0, gp:0, ep:0, sp:0, cp:0 },
-    attacks: [], resources: [],
+    attacks: [], resources: [], companions: [], activeForm: null, conditions: [],
     armor: '', senses: '', languages: '', tools: '', feats: '', profOther: '',
     hitDie2: 0, hitDiceUsed2: 0, carryCapacity: '',
     inspiration: false, exhaustion: 0,
@@ -764,6 +764,8 @@ function migrateCharacter(c){
   c.initiative = toNum(c.initiative, Math.floor((c.abilities.dex - 10)/2), -20, 20);
   c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || []; c.skillExpert = c.skillExpert || [];
   c.attacks = c.attacks || []; c.resources = c.resources || [];
+  c.companions = c.companions || []; c.conditions = c.conditions || [];
+  if (c.activeForm === undefined) c.activeForm = null;
   c.appearance = Object.assign({ age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' }, c.appearance || {});
   ['playerName','xp','xpNext','armor','senses','languages','tools','feats','profOther','faction','symbol','allies','enemies','notesRace','notesExtra','carryCapacity']
     .forEach(k => { if (c[k] == null) c[k] = ''; });
@@ -1287,6 +1289,7 @@ function renderCharacterSheet(){
         <button class="btn-icon" onclick="openCharacterForm('${c.id}')" aria-label="Modifica" title="Modifica">✎</button>
       </div>
     </div>
+    ${activeFormBanner(c)}
     <div class="segmented" style="margin:14px 0;">
       <button class="${state.sheetTab==='overview'?'active':''}" onclick="setSheetTab('overview')">Panoramica</button>
       <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
@@ -1368,6 +1371,7 @@ function renderSheetOverview(c){
         <button class="status-chip ${c.inspiration?'on':''}" onclick="toggleInspiration('${c.id}')" title="Ispirazione">✨ Ispirazione</button>
         <button class="status-chip ${c.exhaustion?'warn':''}" onclick="bumpExhaustion('${c.id}')" title="Tocca per aumentare, tieni a 0 per azzerare">💀 Sfinimento ${c.exhaustion||0}</button>
       </div>
+      ${conditionsRowHTML(c)}
       ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
 
       <div class="divider"><span class="flourish">❧</span><span>Attacchi</span></div>
@@ -1380,6 +1384,7 @@ function renderSheetOverview(c){
       <div class="divider"><span class="flourish">❧</span><span>Risorse</span></div>
       <div class="list-gap">${c.resources.map((r,i)=>resourceRowHTML(c,r,i)).join('')}</div>` : ''}
       <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="editResource('${c.id}',-1)">✦ Aggiungi risorsa</button>
+      ${companionsBlockHTML(c)}
     </div>
 
     <div>
@@ -1580,6 +1585,61 @@ function removeResource(charId, i){
   c.resources.splice(i,1);
   scheduleSave('characters', c);
   closeModal(); render();
+}
+function conditionsRowHTML(c){
+  const active = (c.conditions||[]).map(id => CONDITION_BY_ID[id]).filter(Boolean);
+  return `<div class="chip-row" style="margin-top:10px; align-items:center">
+    ${active.map(cond=>`<button class="chip active" style="background:var(--garnet); border-color:var(--garnet-bright)" onclick="toggleCondition('${c.id}','${cond.id}')" title="${attr(cond.desc)}">${cond.icon} ${cond.name} ✕</button>`).join('')}
+    <button class="chip" onclick="openConditionPicker('${c.id}')">＋ Condizione</button>
+  </div>`;
+}
+function openConditionPicker(charId){
+  const c = charById(charId); if (!c) return;
+  const inner = `
+    <p class="muted" style="margin-bottom:12px">Tocca una condizione per applicarla o toglierla. Tieni premuto il nome per rileggere cosa comporta.</p>
+    <div class="list-gap">
+      ${CONDITIONS.map(cond=>{
+        const on = (c.conditions||[]).includes(cond.id);
+        return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--garnet)':''}" onclick="toggleCondition('${charId}','${cond.id}', true)">
+          <span class="attack-main">
+            <span class="attack-name">${cond.icon} ${cond.name}${on?' ✓':''}</span>
+            <span class="muted" style="font-size:.74rem; display:block">${escapeHtml(cond.desc)}</span>
+          </span>
+        </button>`;
+      }).join('')}
+    </div>
+    ${(c.conditions||[]).length ? `<button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="clearConditions('${charId}')">Togli tutte</button>` : ''}`;
+  openModal({ render: () => modalShell('🎭 Condizioni', inner) });
+}
+function toggleCondition(charId, condId, keepOpen){
+  const c = charById(charId); if (!c) return;
+  if (!CONDITION_BY_ID[condId]) return;
+  c.conditions = (c.conditions || []).filter(id => CONDITION_BY_ID[id]);
+  const i = c.conditions.indexOf(condId);
+  if (i >= 0) c.conditions.splice(i,1); else c.conditions.push(condId);
+  scheduleSave('characters', c);
+  render();
+  if (keepOpen) openConditionPicker(charId);
+}
+function clearConditions(charId){
+  const c = charById(charId); if (!c) return;
+  c.conditions = [];
+  scheduleSave('characters', c);
+  closeModal(); render();
+}
+function activeFormBanner(c){
+  if (!c.activeForm) return '';
+  const comp = (c.companions||[]).find(x => x.cid === c.activeForm);
+  if (!comp) return '';
+  const m = (typeof MONSTER_BY_ID !== 'undefined') ? MONSTER_BY_ID[comp.monsterId] : null;
+  const pct = comp.hp.max ? clamp(100*comp.hp.current/comp.hp.max,0,100) : 0;
+  return `<div class="conc-banner" style="border-color:var(--good); background:rgba(89,168,125,.14); flex-wrap:wrap">
+    <span style="font-size:1.1rem">🐾</span>
+    <span class="t" style="flex:1 1 120px">Forma di ${escapeHtml(comp.name)} · ${m?`CA ${m.ac} · `:''}${comp.hp.current}/${comp.hp.max} PF</span>
+    <button class="btn btn-sm btn-ghost" onclick="openCompanion('${c.id}','${comp.cid}')">Scheda</button>
+    <button class="btn btn-sm btn-ghost" onclick="toggleWildShape('${c.id}','${comp.cid}')">Torna normale</button>
+    <div class="hp-mini" style="width:100%; margin-top:6px"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
+  </div>`;
 }
 function toggleInspiration(charId){
   const c = charById(charId); if (!c) return;
@@ -2532,7 +2592,8 @@ function renderDM(){
 function renderBestiary(){
   const npcs = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   return `
-    ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro. Aggiungi qui nemici e alleati per le tue sessioni.')}
+    <button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
+    ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
     <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">✦ Nuovo PNG / Mostro</button>
   `;
 }

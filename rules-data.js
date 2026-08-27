@@ -480,3 +480,22 @@ const CLASSES_FULL = [
 ];
 const CLASS_BY_ID = Object.fromEntries(CLASSES_FULL.map(c => [c.id, c]));
 const RACE_BY_ID = Object.fromEntries(RACES.map(r => [r.id, r]));
+
+/* ─── CONDIZIONI (SRD) ─── */
+const CONDITIONS = [
+  { id:'blinded', name:'Accecato', icon:'🚫', desc:'Non vedi: fallisci le prove che richiedono la vista, i tuoi attacchi hanno svantaggio e chi ti attacca ha vantaggio.' },
+  { id:'charmed', name:'Affascinato', icon:'💗', desc:'Non puoi attaccare chi ti affascina, che ha vantaggio alle prove sociali con te.' },
+  { id:'deafened', name:'Assordato', icon:'🔇', desc:'Non senti: fallisci le prove che richiedono l\'udito.' },
+  { id:'frightened', name:'Spaventato', icon:'😱', desc:'Svantaggio a prove e attacchi finché vedi la fonte, e non puoi avvicinarti a lei.' },
+  { id:'grappled', name:'Afferrato', icon:'✊', desc:'La tua velocità è 0. Finisce se chi ti afferra è incapacitato o venite separati.' },
+  { id:'incapacitated', name:'Incapacitato', icon:'💫', desc:'Non puoi compiere azioni né reazioni.' },
+  { id:'invisible', name:'Invisibile', icon:'👻', desc:'Non ti si vede: i tuoi attacchi hanno vantaggio, quelli contro di te svantaggio.' },
+  { id:'paralyzed', name:'Paralizzato', icon:'🧊', desc:'Incapacitato, immobile, fallisci i TS su Forza e Destrezza; i colpi ravvicinati sono critici.' },
+  { id:'petrified', name:'Pietrificato', icon:'🗿', desc:'Sei pietra: incapacitato, resistente a tutto, immune a veleno e malattie.' },
+  { id:'poisoned', name:'Avvelenato', icon:'🤢', desc:'Svantaggio ai tiri per colpire e alle prove di caratteristica.' },
+  { id:'prone', name:'Prono', icon:'⬇️', desc:'Ti muovi solo strisciando; svantaggio agli attacchi, e chi ti attacca da vicino ha vantaggio.' },
+  { id:'restrained', name:'Trattenuto', icon:'🕸️', desc:'Velocità 0, svantaggio agli attacchi e ai TS su Destrezza; chi ti attacca ha vantaggio.' },
+  { id:'stunned', name:'Stordito', icon:'😵', desc:'Incapacitato, parli a stento, fallisci i TS su Forza e Destrezza; chi ti attacca ha vantaggio.' },
+  { id:'unconscious', name:'Privo di sensi', icon:'💤', desc:'Incapacitato e prono, lasci cadere tutto; i colpi ravvicinati sono critici.' },
+];
+const CONDITION_BY_ID = Object.fromEntries(CONDITIONS.map(c => [c.id, c]));

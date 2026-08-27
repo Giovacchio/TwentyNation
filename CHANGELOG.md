@@ -1,5 +1,30 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.0 — 27 agosto 2026
+**Bestiario SRD, compagni animali e condizioni.**
+
+### Bestiario SRD (78 creature)
+- Nuovo archivio `monsters-data.js` con 78 creature dell'SRD 5.1, nomi in italiano, statistiche complete, tratti e azioni.
+- Nuovo sfogliatore (`bestiary.js`): si apre dal Tavolo con **🐉 Sfoglia il bestiario SRD**. Ricerca in italiano e in inglese, filtri per tipo (bestia, umanoide, non morto, mostruosità, gigante, drago, folletto, melma) e badge del grado di sfida.
+- Scheda della creatura con **tiri diretti**: punti ferita tirati sui dadi vita, tiro per colpire e tiro dei danni per ogni azione.
+- Da ogni creatura: **✦ nel tuo bestiario** (diventa un PNG modificabile) oppure **all'iniziativa**, dove entra in campo con i PF tirati sul momento e l'iniziativa già calcolata.
+
+### Compagni, famigli e forme selvatiche
+- Nuovo blocco **Compagni e forme** nella panoramica di ogni personaggio.
+- Cinque tipi: **forma selvatica**, **famiglio**, **compagno animale**, **cavalcatura**, **evocazione** — ognuno pescato direttamente dal bestiario.
+- **Druidi**: il tasto Forma selvatica compare solo a loro e il bestiario è già filtrato sul limite del livello (GS 1/4 fino al 3°, GS 1/2 dal 4°, GS 1 dall'8°), con il promemoria delle velocità consentite.
+- **Famigli**: la lista mostra solo le 13 creature ammesse da *trova famiglio*.
+- Ogni compagno ha i suoi punti ferita, con barra e pulsanti di cura/danno, e la sua scheda completa con i tiri.
+- **Trasformazione**: tocchi 🐾 e sopra la scheda compare la fascia verde con la forma attiva, CA e PF della bestia; i PF si azzerano e si ricaricano a ogni trasformazione, come da regole. Torni normale con un tocco.
+
+### Condizioni
+- 14 condizioni dell'SRD (accecato, afferrato, affascinato, assordato, avvelenato, incapacitato, invisibile, paralizzato, pietrificato, privo di sensi, prono, spaventato, stordito, trattenuto).
+- Si applicano dalla panoramica: ogni condizione mostra cosa comporta, resta visibile come etichetta rossa sulla scheda e si toglie con un tocco.
+
+### Note tecniche
+- Nuovi file: `monsters-data.js`, `bestiary.js`. Aggiunti alla cache del service worker (`grimorio-v4-0`).
+- Test automatici su telefono (390×844) e desktop (1440×900): 18 controlli, 0 errori.
+
 ## v3.2 — 27 agosto 2026
 I tuoi contenuti: sottoclassi, razze e background che non sono nell'SRD.
 
