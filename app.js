@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v3.1
+   GRIMORIO — app.js  ·  v3.2
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '3.1';
+const APP_VERSION = '3.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -326,7 +326,7 @@ function setCharPortrait(charId, url){
 const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
-  characters: [], npcs: [], customSpells: [], spellTags: [],
+  characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [],
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   activeCharId: null,
   sheetTab: 'overview',
@@ -377,13 +377,14 @@ function loadLocal(){
     state.npcs = data.npcs || [];
     state.customSpells = data.customSpells || [];
     state.spellTags = data.spellTags || [];
+    state.homebrew = data.homebrew || [];
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 function saveLocal(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, spellTags: state.spellTags
+      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew
     }));
   } catch(e){
     console.warn('Impossibile salvare in locale', e);
@@ -443,6 +444,7 @@ function attachFirestore(uidUser){
   wire('npcs');
   wire('customSpells');
   wire('spellTags');
+  wire('homebrew');
 }
 function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }); unsubscribers = []; }
 
@@ -2815,6 +2817,12 @@ function renderSettings(){
       ${state.customSpells.some(s=>s.imported) ? `<button class="btn btn-danger btn-block btn-sm" style="margin-top:10px" onclick="confirmClearImported()">Rimuovi gli incantesimi importati</button>` : ''}
     </div>
 
+    <div class="divider"><span class="flourish">❧</span><span>Contenuti tuoi</span></div>
+    <div class="card">
+      <p class="muted" style="margin-bottom:12px">Sottoclassi, razze e background che non sono nell'SRD: li aggiungi tu dai manuali che possiedi e compaiono nella creazione guidata.${(state.homebrew||[]).length ? ' Ne hai <b>'+state.homebrew.length+'</b>.' : ''}</p>
+      <button class="btn btn-gold btn-block" onclick="openHomebrew()">📚 Gestisci i tuoi contenuti</button>
+    </div>
+
     <div class="divider"><span class="flourish">❧</span><span>Backup</span></div>
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Salva una copia di tutto (personaggi, bestiario, incantesimi personalizzati) in un file sul dispositivo, da reimportare quando vuoi.</p>
@@ -2856,7 +2864,7 @@ function exportData(){
     downloadJSON({
       app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
       characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, spellTags: state.spellTags
+      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew
     }, 'grimorio-backup');
     toast('⤓ Backup esportato');
   } catch(e){ console.error(e); toast('⚠️ Esportazione non riuscita'); }
@@ -2908,6 +2916,7 @@ function doImport(data){
   const b = mergeIn('npcs', data.npcs);
   const c = mergeIn('customSpells', data.customSpells || data.spells);
   mergeIn('spellTags', data.spellTags);
+  mergeIn('homebrew', data.homebrew);
   saveLocal();
   state.offlineMode = true;
   render();

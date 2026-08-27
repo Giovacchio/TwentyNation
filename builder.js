@@ -67,14 +67,14 @@ function bldNav(canGo, label){
 
 /* ─── 1. RAZZA ─── */
 function stepRace(){
-  const race = RACE_BY_ID[bld.raceId];
+  const race = raceById(bld.raceId);
   const sub = race && race.subraces.find(s => s.id === bld.subraceId);
   const needSub = race && race.subraces.length && !sub;
   const needBonus = race && race.bonusChoice && bld.raceBonusPick.length < race.bonusChoice.count;
   const needSkills = race && race.skillChoice && bld.raceSkills.length < race.skillChoice;
   return `
     <div class="chip-row" style="margin-bottom:14px">
-      ${RACES.map(r=>`<button class="chip ${bld.raceId===r.id?'active':''}" onclick="pickRace('${r.id}')">${r.name}${r.notSrd?' *':''}</button>`).join('')}
+      ${allRaces().map(r=>`<button class="chip ${bld.raceId===r.id?'active':''}" onclick="pickRace('${r.id}')">${escapeHtml(r.name)}${r.notSrd?' *':''}${r.homebrew?' ✦':''}</button>`).join('')}
     </div>
     ${race ? `
       <div class="card" style="margin-bottom:12px">
@@ -110,6 +110,7 @@ function stepRace(){
         </div>` : ''}
       ${race.notSrd ? `<div class="spell-source-note">* Variante non compresa nell'SRD: le meccaniche sono riassunte, il talento va scritto a mano.</div>` : ''}
     ` : `<p class="muted">Scegli una razza per vedere cosa comporta.</p>`}
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">📚 Aggiungi una razza tua</button>
     ${bldNav(!!race && !needSub && !needBonus && !needSkills)}
   `;
 }
@@ -119,19 +120,19 @@ function bonusLine(b){
 }
 function pickRace(id){
   bld.raceId = id; bld.subraceId = null; bld.raceBonusPick = []; bld.raceSkills = [];
-  const r = RACE_BY_ID[id];
+  const r = raceById(id);
   if (r && r.subraces.length === 1) bld.subraceId = r.subraces[0].id;
   renderModalRoot();
 }
 function toggleRaceBonus(key){
-  const r = RACE_BY_ID[bld.raceId];
+  const r = raceById(bld.raceId);
   const i = bld.raceBonusPick.indexOf(key);
   if (i >= 0) bld.raceBonusPick.splice(i,1);
   else if (bld.raceBonusPick.length < r.bonusChoice.count) bld.raceBonusPick.push(key);
   renderModalRoot();
 }
 function toggleRaceSkill(key){
-  const r = RACE_BY_ID[bld.raceId];
+  const r = raceById(bld.raceId);
   const i = bld.raceSkills.indexOf(key);
   if (i >= 0) bld.raceSkills.splice(i,1);
   else if (bld.raceSkills.length < r.skillChoice) bld.raceSkills.push(key);
@@ -197,7 +198,8 @@ function asiNote(c, level){
 function pickClass(id){
   bld.classId = id; bld.classSkills = []; bld.subclassId = null;
   const c = CLASS_BY_ID[id];
-  if (c && c.subclasses.length === 1) bld.subclassId = c.subclasses[0].id;
+  const subs = subclassesFor(id);
+  if (subs.length === 1) bld.subclassId = subs[0].id;
   bld.cantrips = []; bld.spells = [];
   renderModalRoot();
 }
@@ -213,13 +215,15 @@ function toggleClassSkill(key){
 /* ─── 3. SOTTOCLASSE ─── */
 function stepSubclass(){
   const c = CLASS_BY_ID[bld.classId];
-  const sc = c.subclasses.find(s => s.id === bld.subclassId);
+  const subs = subclassesFor(c.id);
+  const sc = subs.find(s => s.id === bld.subclassId);
   return `
-    <p class="muted" style="margin-bottom:12px">${escapeHtml(c.subclassLabel)}: si sceglie al ${c.subclassLevel}° livello. Nell'SRD ce n'è una per classe; se al tuo tavolo ne usi un'altra, scegli comunque questa e poi correggi i privilegi nella scheda Note.</p>
+    <p class="muted" style="margin-bottom:12px">${escapeHtml(c.subclassLabel)}: si sceglie al ${c.subclassLevel}° livello. Di serie c'è quella dell'SRD; le altre le aggiungi tu da <b>Opzioni → Contenuti tuoi</b> e compaiono qui con ✦.</p>
     <div class="chip-row" style="margin-bottom:14px">
-      ${c.subclasses.map(s=>`<button class="chip ${bld.subclassId===s.id?'active':''}" onclick="bldSet({subclassId:'${s.id}'})">${escapeHtml(s.name)}</button>`).join('')}
+      ${subs.map(s=>`<button class="chip ${bld.subclassId===s.id?'active':''}" onclick="bldSet({subclassId:'${s.id}'})">${escapeHtml(s.name)}${s.homebrew?' ✦':''}</button>`).join('')}
       <button class="chip ${bld.subclassId==='none'?'active':''}" onclick="bldSet({subclassId:'none'})">Altra / la scrivo io</button>
     </div>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('subclass','${c.id}')">📚 Aggiungi una sottoclasse tua</button>
     ${sc ? `<div class="list-gap">${featuresUpTo(sc, bld.level).map(f=>`
       <div class="card" style="padding:10px 13px">
         <div class="row-between"><b style="font-size:.85rem">${escapeHtml(f[0])}</b><span class="badge">${f[2]}°</span></div>
@@ -231,11 +235,12 @@ function stepSubclass(){
 
 /* ─── 4. BACKGROUND ─── */
 function stepBackground(){
-  const bg = BACKGROUNDS_FULL.find(b => b.id === bld.bgId);
+  const bg = allBackgrounds().find(b => b.id === bld.bgId);
   return `
     <div class="chip-row" style="margin-bottom:14px">
-      ${BACKGROUNDS_FULL.map(b=>`<button class="chip ${bld.bgId===b.id?'active':''}" onclick="bldSet({bgId:'${b.id}'})">${b.name}</button>`).join('')}
+      ${allBackgrounds().map(b=>`<button class="chip ${bld.bgId===b.id?'active':''}" onclick="bldSet({bgId:'${b.id}'})">${escapeHtml(b.name)}${b.homebrew?' ✦':''}</button>`).join('')}
     </div>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('background')">📚 Aggiungi un background tuo</button>
     ${bg && bg.skills.some(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)) ? `
       <div class="card" style="margin-bottom:12px; border-color:var(--warn)">
         <div class="muted" style="font-size:.8rem">⚠️ ${escapeHtml(bg.skills.filter(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)).map(k=>SKILLS.find(s=>s.key===k).label).join(' e '))} l'hai già presa dalla classe o dalla razza: una competenza doppia non serve a nulla. Torna indietro e cambia la scelta della classe, oppure chiedi al master di sostituirla.</div>
@@ -257,7 +262,7 @@ function stepBackground(){
 /* ─── 5. CARATTERISTICHE ─── */
 function racialBonusMap(){
   const map = { str:0, dex:0, con:0, int:0, wis:0, cha:0 };
-  const r = RACE_BY_ID[bld.raceId];
+  const r = raceById(bld.raceId);
   if (!r) return map;
   Object.keys(r.bonus||{}).forEach(k => map[k] += r.bonus[k]);
   const sub = (r.subraces||[]).find(s => s.id === bld.subraceId);
@@ -443,10 +448,10 @@ const bldFilterSpells = debounce((v)=>{ bld.spellFilter = v; renderModalRoot(); 
 /* ─── 7. RIEPILOGO E CREAZIONE ─── */
 function buildCharacterFromBuilder(){
   const c = CLASS_BY_ID[bld.classId];
-  const race = RACE_BY_ID[bld.raceId];
+  const race = raceById(bld.raceId);
   const sub = race && (race.subraces||[]).find(s => s.id === bld.subraceId);
-  const bg = BACKGROUNDS_FULL.find(b => b.id === bld.bgId);
-  const sc = c.subclasses.find(s => s.id === bld.subclassId);
+  const bg = allBackgrounds().find(b => b.id === bld.bgId);
+  const sc = subclassesFor(c.id).find(s => s.id === bld.subclassId);
   const ab = finalAbilities();
   const conMod = mod(ab.con);
 

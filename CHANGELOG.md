@@ -1,5 +1,22 @@
 # Grimorio — lista dei cambiamenti
 
+## v3.2 — 27 agosto 2026
+I tuoi contenuti: sottoclassi, razze e background che non sono nell'SRD.
+
+### 📚 Come funziona
+Nuova sezione **Opzioni → Contenuti tuoi**. Aggiungi quello che ti serve dai manuali che possiedi, e compare nella creazione guidata accanto ai contenuti di serie, marcato con ✦. Puoi aggiungerlo anche al volo mentre crei un personaggio: nei passi Razza, Sottoclasse e Background c'è il pulsante per crearne uno nuovo, e al salvataggio torni dove eri con la voce già selezionata.
+
+### Tre modi per inserirlo
+- **A mano** — nome, fonte, classe di appartenenza, e le righe dei privilegi con il loro livello. Per le razze: velocità, taglia, bonus alle caratteristiche, lingue, competenze concesse e tratti. Per i background: le due abilità, strumenti, lingue, privilegio ed equipaggiamento.
+- **Incolla il testo** — incolli il blocco e il Grimorio prova a dividerlo in privilegi, riconoscendo il livello da frasi come "Al 6° livello" o "A partire dal 3° livello". Vedi l'anteprima di quello che ha capito prima di accettarla, e correggi quello che serve.
+- **Da PDF** — scegli il file, indichi le pagine e viene estratto il testo (ricostruendo gli a capo dalla posizione delle righe, altrimenti diventa un blocco illeggibile), poi passa allo stesso riconoscimento. Se il PDF è una scansione senza testo te lo dice.
+
+### 🔒 Una precisazione
+Il Grimorio **non contiene** materiale dei manuali non aperti: Xanathar's, Tasha's e il PHB oltre l'SRD non sono e non saranno inclusi, perché non hanno una licenza che lo permetta. Questa funzione è il contrario: sei tu a inserire quello che possiedi, resta sul tuo account, non viene condiviso con nessuno. Puoi esportarlo in un file per passarlo al tuo gruppo.
+
+### 🧰 Tecnico
+Nuovi file `homebrew.js` e `vendor/pdf.min.js` + `vendor/pdf.worker.min.js` (il lettore di testo dei PDF, caricato solo quando lo usi). I contenuti tuoi si sincronizzano su Firebase come tutto il resto e finiscono anche nel backup completo.
+
 ## v3.1 — 27 agosto 2026
 Rifiniture trovate usando l'app come un giocatore vero.
 
