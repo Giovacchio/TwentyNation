@@ -1,5 +1,35 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.3 — 27 agosto 2026
+**Creazione più fluida, archetipi chiari, compagni con tutto in vista.**
+
+### Niente più salti in cima
+- Il difetto peggiore era questo: ogni volta che sceglievi qualcosa dentro una finestra, l'app ridisegnava tutto e ti riportava all'inizio. Ora la posizione resta dov'era, e il cursore resta nel campo in cui stavi scrivendo, lettera dopo lettera.
+- Cambiare passo del creatore, aprire una finestra nuova o filtrare una lista riparte dall'alto — perché lì è giusto così.
+
+### Il tasto «Avanti» mancante
+- Il passo dell'equipaggiamento non aveva i tasti di navigazione: si arrivava lì e la creazione si piantava. Corretto, e ora c'è un test che controlla **tutti** i passi uno per uno perché non ricapiti.
+
+### Archetipi (sottoclassi)
+- Ogni archetipo si vede **già aperto**, con i privilegi che dà fino al tuo livello: scegli sapendo cosa prendi, senza dover cliccare.
+- Detto chiaro perché ce n'è uno solo per classe: è l'unico che la licenza libera (SRD) permette di includere. Gli altri sono materiale dei manuali.
+- Tasto in evidenza per **crearti il tuo** dal libro che hai: lo scrivi una volta e resta lì, e viene selezionato subito.
+- Nuova opzione **«Decido dopo»**: non resti più bloccato: potrai sceglierlo quando sali di livello.
+
+### Compagni e forme selvatiche
+- Ogni compagno mostra ora **tutto senza aprire nulla**: caratteristiche con i modificatori, CA, GS, taglia, velocità, sensi, abilità, tratti e azioni con i tiri di attacco e danno già pronti.
+- Punti ferita con i tasti −5 / − / + / +5 direttamente sulla carta.
+- Chi è **in forma** resta sempre aperto e si riconosce dal bordo verde: durante la trasformazione hai gli attacchi dell'animale sotto il dito.
+- Gli altri si aprono e chiudono con un tocco sul nome.
+
+### Barra della scheda più pulita
+- Su telefono era diventata affollata e il livello finiva tagliato. Ora restano il nome, il riposo e un menù **⋯** con salita di livello, esportazione in PDF, modifica, ritratto e cambio personaggio.
+- Il bonus di competenza si è spostato nella panoramica, insieme a tiro salvezza su Costituzione (quello per la concentrazione) e CD degli incantesimi.
+
+### Note tecniche
+- Test automatici: 14 nuovi controlli su fluidità e navigazione (posizione dello scorrimento al pixel, cursore nei campi, presenza dei tasti in ogni passo) più le regressioni di 4.0, 4.1 e 4.2. 0 errori.
+- Cache del service worker a `grimorio-v4-3`.
+
 ## v4.2 — 27 agosto 2026
 **Scheda esportabile in PDF e diario di campagna.**
 

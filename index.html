@@ -671,6 +671,30 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 }
 
 
+
+
+/* Compagni animali, famigli e forme selvatiche */
+.comp-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.comp-card.active { border-color: var(--good); background: rgba(89,168,125,.08); }
+.comp-head { display: flex; align-items: center; gap: 8px; }
+.comp-title { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
+.comp-hp { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
+.comp-hp-mid { flex: 1; min-width: 0; text-align: center; }
+.stepper-btn.sm { width: 38px; height: 38px; font-size: .92rem; }
+.comp-details { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.comp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+@media (min-width: 560px) { .comp-stats { grid-template-columns: repeat(6, 1fr); } }
+.comp-ab { background: var(--card-hi); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 4px; text-align: center; }
+.comp-ab .k { display: block; font-size: .58rem; letter-spacing: .07em; color: var(--gold); font-weight: 800; }
+.comp-ab .n { font-size: .88rem; font-weight: 700; color: var(--ink); }
+.comp-ab .muted { font-size: .7rem; margin-left: 2px; }
+.comp-sub { font-family: var(--font-head); font-size: .78rem; color: var(--gold); margin: 10px 0 5px; letter-spacing: .04em; text-transform: uppercase; }
+
+/* Carte a scelta singola (archetipi, opzioni del creatore) */
+.sub-card { display: block; cursor: pointer; transition: border-color .16s, background .16s, transform .16s; }
+.sub-card:hover { border-color: var(--gold-dim); transform: translateY(-1px); }
+.sub-card.on { border-color: var(--gold); background: var(--card-hi); }
+
 /* Diario di campagna */
 .journal-card { display: block; border-left: 3px solid var(--gold-dim); transition: border-color .18s, transform .18s; }
 .journal-card:hover { border-left-color: var(--gold); transform: translateX(2px); }

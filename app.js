@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.2';
+const APP_VERSION = '4.3';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -981,17 +981,39 @@ function ensureModalRoot(){
   if (!root){ root = document.createElement('div'); root.id = 'modal-root'; document.body.appendChild(root); }
   return root;
 }
-function renderModalRoot(){
+/* Ridisegnare un modale significa rifare tutto l'HTML: senza
+   accorgimenti la finestra tornerebbe in cima a ogni tocco e il
+   cursore uscirebbe dal campo in cui stai scrivendo. Qui ci
+   segniamo dove eravamo e ci rimettiamo esattamente lì. */
+function modalScrollBox(){ return document.querySelector('#modal-root .sheet-modal'); }
+function renderModalRoot(opts){
   const root = ensureModalRoot();
   if (!state.modal){ root.innerHTML = ''; document.body.style.overflow = ''; return; }
+
+  const box = modalScrollBox();
+  const keepTop = (opts && opts.toTop) ? 0 : (box ? box.scrollTop : 0);
+  const ae = document.activeElement;
+  const keepId = (ae && ae.id && root.contains(ae) && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) ? ae.id : null;
+  const keepSel = keepId ? [ae.selectionStart, ae.selectionEnd] : null;
+
   root.innerHTML = state.modal.render();
   document.body.style.overflow = 'hidden';
+
+  const nb = modalScrollBox();
+  if (nb && keepTop) nb.scrollTop = keepTop;
+  if (keepId){
+    const el = document.getElementById(keepId);
+    if (el){
+      el.focus({ preventScroll: true });
+      try { if (keepSel && keepSel[0] != null) el.setSelectionRange(keepSel[0], keepSel[1]); } catch(e){}
+    }
+  }
   if (state.modal.after) state.modal.after();
 }
 function openModal(descriptor){
   if (__modalDepth === 0){ __modalDepth = 1; try { history.pushState(Object.assign(navSnapshot(), {modal:true}), ''); } catch(e){} }
   state.modal = descriptor;
-  renderModalRoot();
+  renderModalRoot({ toTop:true }); // una finestra nuova parte sempre dall'alto
 }
 function closeModal(fromPop){
   if (!state.modal && !__modalDepth) return;
@@ -1339,13 +1361,11 @@ function renderCharacterSheet(){
       <button onclick="choosePortrait(u=>setCharPortrait('${c.id}',u))" title="Tocca per cambiare il ritratto" style="flex-shrink:0">${avatarHTML(c, 42)}</button>
       <button style="flex:1; min-width:0; text-align:left; background:none; border:0; padding:0; color:inherit; cursor:pointer" onclick="openCharSwitcher()" title="Cambia personaggio">
         <div class="topbar-title">${escapeHtml(c.name||'Senza nome')}${state.characters.length>1?' <span style="opacity:.5; font-size:.7em">▾</span>':''}</div>
-        <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''} · Comp. ${signStr(profBonus(c.level))}</div>
+        <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
       </button>
       <div class="topbar-actions">
-        <button class="btn-icon" onclick="openLevelUp('${c.id}')" aria-label="Sali di livello" title="Sali di livello">📈</button>
         <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">🏕️</button>
-        <button class="btn-icon" onclick="exportCharacterPdf('${c.id}')" aria-label="Esporta in PDF" title="Esporta la scheda in PDF">📄</button>
-        <button class="btn-icon" onclick="openCharacterForm('${c.id}')" aria-label="Modifica" title="Modifica">✎</button>
+        <button class="btn-icon" onclick="openSheetMenu('${c.id}')" aria-label="Altre azioni" title="Altre azioni">⋯</button>
       </div>
     </div>
     ${activeFormBanner(c)}
@@ -1387,6 +1407,11 @@ function renderSheetOverview(c){
         <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
         <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
         <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
+      </div>
+      <div class="combat-grid">
+        <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
+        <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Costituzione</div></div>
+        <div class="combat-stat"><div class="v">${10 + (c.casterType && c.casterType!=='none' ? spellcastingMod(c) : mod(getPath(c,'abilities.wis',10)))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percez. attiva'}</div></div>
       </div>
 
       <div class="hp-block" style="margin-top:10px">
@@ -3494,6 +3519,27 @@ else boot();
 
 /* Dal nome nella barra della scheda: salti su un altro personaggio
    senza tornare al party. Comodo quando ne gestisci più di uno. */
+/* Le azioni che non servono a ogni turno stanno in un menù:
+   così in cima alla scheda restano il nome e il riposo, e su
+   telefono il livello non finisce tagliato. */
+function openSheetMenu(charId){
+  const c = charById(charId); if (!c) return;
+  const item = (icon, label, sub, action) => `<button class="attack-row" style="width:100%; text-align:left" onclick="closeModal(); ${action}">
+    <span style="flex-shrink:0; margin-right:11px; font-size:1.15rem">${icon}</span>
+    <span class="attack-main">
+      <span class="attack-name">${label}</span>
+      <span class="muted" style="font-size:.74rem; display:block">${sub}</span>
+    </span>
+  </button>`;
+  openModal({ render: () => modalShell('⋯ ' + escapeHtml(c.name || 'Scheda'), `
+    <div class="list-gap">
+      ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
+      ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
+      ${item('✎', 'Modifica la scheda', 'Nome, caratteristiche, competenze, tutto il resto', `openCharacterForm('${c.id}')`)}
+      ${item('🖼️', 'Cambia ritratto', 'Una foto o un disegno al posto del simbolo', `choosePortrait(u=>setCharPortrait('${c.id}',u))`)}
+      ${state.characters.length > 1 ? item('🎭', 'Cambia personaggio', 'Salta su un\'altra scheda senza tornare al party', `openCharSwitcher()`) : ''}
+    </div>`) });
+}
 function openCharSwitcher(){
   if (state.characters.length <= 1){ openCharacterForm(state.activeCharId); return; }
   openModal({ render: () => modalShell('🎭 Cambia personaggio', `
@@ -3599,8 +3645,4 @@ function globalSearchHTML(){
         : emptyState('🔍', 'Niente che somigli a «' + escapeHtml(q) + '».'))}`;
   return modalShell('🔍 Cerca', inner);
 }
-const gsType = debounce((v) => {
-  state.search.q = v; renderModalRoot();
-  const el = document.getElementById('gs-input');
-  if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-}, 200);
+const gsType = debounce((v) => { state.search.q = v; renderModalRoot({ toTop:true }); }, 200);

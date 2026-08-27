@@ -47,7 +47,7 @@ function monsterBrowserHTML(){
     ${mbFilter.hint ? `<p class="muted" style="margin-bottom:12px">${escapeHtml(mbFilter.hint)}</p>` : ''}
     <div class="search-wrap">
       <span class="search-ic">🔍</span>
-      <input placeholder="Cerca una creatura…" value="${attr(mbFilter.q)}" oninput="mbSearch(this.value)" autocomplete="off">
+      <input id="mb-search" placeholder="Cerca una creatura…" value="${attr(mbFilter.q)}" oninput="mbSearch(this.value)" autocomplete="off">
     </div>
     ${(!mbFilter.onlyFam && !mbFilter.onlyBeasts) ? `<div class="filter-bar">
       <button class="filter-chip ${mbFilter.type==='all'?'active':''}" onclick="mbSet('type','all')">Tutti</button>
@@ -66,8 +66,8 @@ function monsterBrowserHTML(){
     </div>`;
   return modalShell(mbFilter.title || '🐉 Bestiario SRD', inner);
 }
-const mbSearch = debounce((v)=>{ mbFilter.q = v; renderModalRoot(); const el = document.querySelector('.search-wrap input'); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 220);
-function mbSet(k,v){ mbFilter[k] = v; renderModalRoot(); }
+const mbSearch = debounce((v)=>{ mbFilter.q = v; renderModalRoot({ toTop:true }); }, 220);
+function mbSet(k,v){ mbFilter[k] = v; renderModalRoot({ toTop:true }); }
 
 /* ─── Blocco delle statistiche ─── */
 function viewMonster(id, pickKind, companionRef){
@@ -254,6 +254,48 @@ function toggleWildShape(charId, cid){
   scheduleSave('characters', c); render();
   toast('🐾 Ti trasformi in ' + comp.name);
 }
+/* Le statistiche che servono al tavolo, senza aprire nulla:
+   CA, PF, velocità, caratteristiche, sensi, tratti e attacchi
+   già tirabili. Chi è in forma resta sempre aperto. */
+let expandedComp = {};
+function toggleCompanionDetails(cid){
+  expandedComp[cid] = !expandedComp[cid];
+  render();
+}
+function compStatLine(m){
+  if (!m) return '';
+  return ABILITIES.map((a,i)=>`<div class="comp-ab">
+    <span class="k">${a.abbr}</span>
+    <span class="n">${m.ab[i]}</span>
+    <span class="muted">${modStr(m.ab[i])}</span>
+  </div>`).join('');
+}
+function companionDetailHTML(c, comp, m){
+  if (!m) return '<div class="muted" style="font-size:.76rem; padding:8px 2px">Creatura non trovata nel bestiario.</div>';
+  return `
+    <div class="comp-details">
+      <div class="comp-stats">${compStatLine(m)}</div>
+      <div class="muted" style="font-size:.74rem; margin-top:6px">
+        Velocità ${escapeHtml(m.sp)}${m.sen?' · '+escapeHtml(m.sen):''}${m.sk?' · '+Object.keys(m.sk).map(k=>{const sk=SKILLS.find(x=>x.key===k); return (sk?sk.label:k)+' '+signStr(m.sk[k]);}).join(', '):''}
+      </div>
+      ${(m.tr||[]).length ? `<div class="comp-sub">Tratti</div>
+        ${m.tr.map(t=>`<div style="margin-bottom:5px"><b style="font-size:.78rem">${escapeHtml(t[0])}</b><span class="muted" style="font-size:.75rem"> — ${escapeHtml(t[1])}</span></div>`).join('')}` : ''}
+      ${(m.act||[]).length ? `<div class="comp-sub">Azioni</div>
+        <div class="list-gap">${m.act.map((a,i)=>`<div class="attack-row" style="padding:7px 9px">
+          <div class="attack-main" style="pointer-events:none">
+            <div class="attack-name" style="font-size:.82rem">${escapeHtml(a[0])}</div>
+            ${a[3]?`<div class="muted" style="font-size:.7rem">${escapeHtml(a[3])}</div>`:''}
+          </div>
+          ${a[1] && a[1]!=='—' ? `<button class="attack-btn" style="min-width:46px" onclick="event.stopPropagation(); rollMonsterAttack('${m.id}',${i})">${escapeHtml(a[1])}</button>` : ''}
+          ${a[2] && a[2]!=='—' ? `<button class="attack-btn dmg" style="min-width:52px" onclick="event.stopPropagation(); rollMonsterDamage('${m.id}',${i})">${escapeHtml(a[2].split(' ')[0])}</button>` : ''}
+        </div>`).join('')}</div>` : ''}
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="openCompanion('${c.id}','${comp.cid}')">Scheda intera</button>
+        <button class="btn btn-ghost btn-sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',999)">Cura tutto</button>
+      </div>
+    </div>`;
+}
+
 function companionsBlockHTML(c){
   const list = c.companions || [];
   const isDruid = /druido/i.test(c.classField||'');
@@ -264,15 +306,29 @@ function companionsBlockHTML(c){
       const m = MONSTER_BY_ID[comp.monsterId];
       const pct = comp.hp && comp.hp.max ? clamp(100*comp.hp.current/comp.hp.max,0,100) : 0;
       const active = c.activeForm === comp.cid;
-      return `<div class="attack-row ${active?'current-turn':''}">
-        <button class="attack-main" onclick="openCompanion('${c.id}','${comp.cid}')">
-          <div class="attack-name">${COMPANION_KINDS[comp.kind]?COMPANION_KINDS[comp.kind].icon:'🐾'} ${escapeHtml(comp.name)}${active?' · in forma':''}</div>
-          <div class="muted" style="font-size:.72rem">${m?('CA '+m.ac+' · GS '+m.cr):''} · PF ${comp.hp.current}/${comp.hp.max}</div>
-          <div class="hp-mini" style="margin-top:5px"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
-        </button>
-        ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:44px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
+      const open = active || !!expandedComp[comp.cid];
+      const kind = COMPANION_KINDS[comp.kind];
+      return `<div class="comp-card ${active?'active':''}">
+        <div class="comp-head">
+          <button class="comp-title" onclick="toggleCompanionDetails('${comp.cid}')">
+            <div class="attack-name">${kind?kind.icon:'🐾'} ${escapeHtml(comp.name)}${active?' · in forma':''} <span class="muted" style="font-size:.72rem">${open?'▴':'▾'}</span></div>
+            <div class="muted" style="font-size:.72rem; margin-top:2px">${kind?kind.label:''}${m?(' · CA '+m.ac+' · GS '+m.cr+' · '+m.sz+' '+m.t):''}</div>
+          </button>
+          ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:46px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
+        </div>
+        <div class="comp-hp">
+          <button class="stepper-btn sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',-5)">−5</button>
+          <button class="stepper-btn sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',-1)">−</button>
+          <div class="comp-hp-mid">
+            <div style="font-size:.8rem"><b>${comp.hp.current}</b><span class="muted"> / ${comp.hp.max} PF</span></div>
+            <div class="hp-mini" style="margin-top:4px"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
+          </div>
+          <button class="stepper-btn sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',1)">+</button>
+          <button class="stepper-btn sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',5)">+5</button>
+        </div>
+        ${open ? companionDetailHTML(c, comp, m) : ''}
       </div>`;
-    }).join('')}</div>` : `<div class="muted" style="text-align:center;padding:8px 10px">Famigli, compagni animali e forme selvatiche: li prendi dal bestiario e li tieni qui, con i loro punti ferita e i loro attacchi.</div>`}
+    }).join('')}</div>` : `<div class="muted" style="text-align:center;padding:8px 10px">Famigli, compagni animali e forme selvatiche: li prendi dal bestiario e li tieni qui, con statistiche, attacchi e punti ferita sotto mano.</div>`}
     <div class="chip-row" style="margin-top:10px; justify-content:center">
       ${kinds.map(k=>`<button class="chip" onclick="addCompanion('${c.id}','${k}')">${COMPANION_KINDS[k].icon} ${COMPANION_KINDS[k].label}</button>`).join('')}
     </div>`;

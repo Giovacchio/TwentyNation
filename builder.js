@@ -27,7 +27,7 @@ function openBuilder(){
   openModal({ render: builderHTML });
 }
 function bldSet(patch){ Object.assign(bld, patch); renderModalRoot(); }
-function bldGoto(step){ bld.step = clamp(step, 0, BUILDER_STEPS.length-1); renderModalRoot(); const m = document.querySelector('.sheet-modal'); if (m) m.scrollTop = 0; }
+function bldGoto(step){ bld.step = clamp(step, 0, BUILDER_STEPS.length-1); renderModalRoot({ toTop:true }); }
 
 const BUILDER_STEPS = [
   { key:'race',    title:'Razza',           render:()=>stepRace() },
@@ -219,18 +219,48 @@ function stepSubclass(){
   const c = CLASS_BY_ID[bld.classId];
   const subs = subclassesFor(c.id);
   const sc = subs.find(s => s.id === bld.subclassId);
+  const srd = subs.filter(x => !x.homebrew);
+  const mine = subs.filter(x => x.homebrew);
+
+  /* Ogni archetipo si vede già aperto, con i privilegi che dà fino
+     al tuo livello: scegli sapendo cosa prendi, senza aprire nulla. */
+  const cardFor = (x) => {
+    const on = bld.subclassId === x.id;
+    const feats = featuresUpTo(x, bld.level);
+    return `<button class="card sub-card ${on?'on':''}" style="width:100%; text-align:left" onclick="bldSet({subclassId:'${x.id}'})">
+      <div class="row-between" style="align-items:center">
+        <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.homebrew?' ✦':''}</b>
+        <span class="badge">${on ? 'scelto' : 'scegli'}</span>
+      </div>
+      ${feats.length ? `<div class="list-gap" style="margin-top:9px">${feats.map(f=>`
+        <div>
+          <div class="row-between"><b style="font-size:.83rem">${escapeHtml(f[0])}</b><span class="muted" style="font-size:.72rem">${f[2]}° liv.</span></div>
+          <div class="muted" style="font-size:.77rem; margin-top:2px">${escapeHtml(f[1])}</div>
+        </div>`).join('')}</div>`
+        : `<div class="muted" style="font-size:.77rem; margin-top:6px">I suoi privilegi arrivano dopo il ${bld.level}° livello.</div>`}
+    </button>`;
+  };
+
   return `
-    <p class="muted" style="margin-bottom:12px">${escapeHtml(c.subclassLabel)}: si sceglie al ${c.subclassLevel}° livello. Di serie c'è quella dell'SRD; le altre le aggiungi tu da <b>Opzioni → Contenuti tuoi</b> e compaiono qui con ✦.</p>
-    <div class="chip-row" style="margin-bottom:14px">
-      ${subs.map(s=>`<button class="chip ${bld.subclassId===s.id?'active':''}" onclick="bldSet({subclassId:'${s.id}'})">${escapeHtml(s.name)}${s.homebrew?' ✦':''}</button>`).join('')}
-      <button class="chip ${bld.subclassId==='none'?'active':''}" onclick="bldSet({subclassId:'none'})">Altra / la scrivo io</button>
+    <p class="muted" style="margin-bottom:6px"><b>${escapeHtml(c.subclassLabel)}</b> — si sceglie al ${c.subclassLevel}° livello.</p>
+    <div class="card" style="margin-bottom:14px; border-color:var(--gold-dim); padding:11px 13px">
+      <div class="muted" style="font-size:.78rem; line-height:1.55">Nell'app c'è ${srd.length === 1 ? "l'unico archetipo" : 'solo quello'} che la licenza libera (SRD) permette di includere: uno per classe. Gli altri sono materiale dei manuali, quindi te li aggiungi tu dal tuo libro — bastano un nome e i privilegi per livello, e poi restano lì per sempre.</div>
+      <button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="hbFromBuilder('subclass','${c.id}')">✦ Crea il tuo ${escapeHtml(c.subclassLabel.toLowerCase())}</button>
     </div>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('subclass','${c.id}')">📚 Aggiungi una sottoclasse tua</button>
-    ${sc ? `<div class="list-gap">${featuresUpTo(sc, bld.level).map(f=>`
-      <div class="card" style="padding:10px 13px">
-        <div class="row-between"><b style="font-size:.85rem">${escapeHtml(f[0])}</b><span class="badge">${f[2]}°</span></div>
-        <div class="muted" style="font-size:.77rem; margin-top:3px">${escapeHtml(f[1])}</div>
-      </div>`).join('')}</div>` : ''}
+
+    <div class="list-gap">
+      ${srd.map(cardFor).join('')}
+      ${mine.length ? `<div class="divider"><span class="flourish">❧</span><span>I tuoi</span></div>${mine.map(cardFor).join('')}` : ''}
+    </div>
+
+    <button class="card sub-card ${bld.subclassId==='none'?'on':''}" style="width:100%; text-align:left; margin-top:10px" onclick="bldSet({subclassId:'none'})">
+      <div class="row-between" style="align-items:center">
+        <b style="font-size:.9rem">Decido dopo</b>
+        <span class="badge">${bld.subclassId==='none' ? 'scelto' : 'scegli'}</span>
+      </div>
+      <div class="muted" style="font-size:.77rem; margin-top:4px">Vai avanti così: potrai sceglierlo quando sali di livello, oppure scriverlo a mano nella scheda.</div>
+    </button>
+
     ${bldNav(!!bld.subclassId)}
   `;
 }
@@ -622,7 +652,8 @@ function stepGear(){
         <div class="row-between" style="margin-top:4px"><span>Peso totale</span><b>${gearWeight().toFixed(1).replace('.0','')} kg</b></div>
       </div>
       <div class="muted" style="font-size:.75rem; margin-top:8px">Dove c'è scritto «a scelta», dopo scrivi nello zaino l'arma che vuoi davvero: ${escapeHtml(cl.weapons)}.</div>
-    ` : `<div class="muted" style="text-align:center; padding:22px 10px">Parti con lo zaino vuoto. Il tuo master ti dirà quanto oro hai.</div>`}`;
+    ` : `<div class="muted" style="text-align:center; padding:22px 10px">Parti con lo zaino vuoto. Il tuo master ti dirà quanto oro hai.</div>`}
+    ${bldNav(true)}`;
 }
 function bldToggleGear(){ bld.gearOn = !bld.gearOn; renderModalRoot(); }
 function bldPickGear(gi, oi){ bld.gear[gi] = oi; renderModalRoot(); }
