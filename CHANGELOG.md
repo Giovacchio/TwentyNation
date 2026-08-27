@@ -1,5 +1,33 @@
 # Grimorio — lista dei cambiamenti
 
+## v5.0 — 27 agosto 2026
+**Controllo dei salvataggi: quello che scrivi non si perde più.**
+
+Ho messo alla prova il salvataggio da due lati: **41 campi** cambiati uno per uno e riletti dopo aver ricaricato la pagina, e **10 prove sulla sincronizzazione** con un finto server, per vedere cosa succede fra dispositivi, quando la rete cade e quando l'app viene chiusa a metà.
+
+Il salvataggio locale era già a posto: 41 campi su 41 sopravvivono alla ricarica — testo, caratteristiche, competenze, punti ferita, condizioni, attacchi, zaino, sintonizzazione, armatura indossata, incantesimi preparati, slot, concentrazione, compagni, PNG, diario, preferenze. Nella sincronizzazione invece è saltato fuori un buco vero.
+
+### Quello che creavi da scollegato non risaliva mai
+Se aggiungevi un personaggio, importavi incantesimi o scrivevi sul diario **senza aver fatto il login** (o con la rete giù), quella roba restava solo su quel dispositivo. Facevi il login dopo e non risaliva: sull'account non arrivava mai, e cancellando i dati del browser spariva.
+- Ora al primo collegamento **tutto quello che non è mai arrivato sul server viene spedito**, e l'app te lo dice.
+- Sale **solo** ciò che non ha mai raggiunto il server: quello che hai cancellato da un altro telefono non risorge.
+- Se anche quella spedizione fallisce, resta in attesa e riparte al collegamento dopo.
+
+### Un salvataggio fallito non si spaccia più per riuscito
+Correggendo il punto sopra ci avevo messo io un difetto peggiore: il dato veniva marcato «arrivato sul server» **prima** di sapere se la scrittura era andata a buon fine. Con la rete giù risultava sincronizzato senza esserlo, e non sarebbe più risalito. L'ha trovato la prova che avevo appena scritto. Ora il bollo si mette solo dopo la conferma del server.
+
+### Quello che invece era già a posto
+- Le modifiche in coda partono subito quando l'app va in secondo piano o viene chiusa: non si perde l'ultimo ritocco.
+- Un aggiornamento che arriva da un altro dispositivo **non sovrascrive** quello che stai scrivendo in quel momento.
+- Tre modifiche di fila allo stesso campo mandano al server solo l'ultimo valore.
+- Dopo la risalita l'app non rispedisce tutto a ogni aggiornamento.
+
+### Note tecniche
+- Ogni dato porta ora un bollo `syncedAt`, messo solo dopo conferma del server, che distingue «mai arrivato» da «cancellato altrove».
+- Due nuove suite: `test-persist.mjs` (41 campi con ricarica) e `test-sync.mjs` (10 prove con finto Firestore).
+- Cache del service worker a `grimorio-v5-0`.
+- Le nove suite precedenti e l'audit telefono passano tutti, 0 errori.
+
 ## v4.9 — 27 agosto 2026
 **Revisione completa dell'uso da telefono.**
 

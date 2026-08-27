@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.9';
+const APP_VERSION = '5.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -485,11 +485,13 @@ let unsubscribers = [];
 function attachFirestore(uidUser){
   detachFirestore();
   const base = db.collection('users').doc(uidUser);
+  const primaVolta = {};
   const wire = (name, mapper) => {
     unsubscribers.push(base.collection(name).onSnapshot(snap => {
       const remote = snap.docs.map(d => ({...d.data(), id: d.id}));
       state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name);
       saveLocal(); setSaveStatus('saved'); renderIfSafe();
+      if (!primaVolta[name]){ primaVolta[name] = true; uploadUnsynced(name, remote); }
     }, err => { console.error('Errore sync ' + name, err); }));
   };
   wire('characters', safeMigrate);
@@ -498,6 +500,39 @@ function attachFirestore(uidUser){
   wire('spellTags');
   wire('homebrew');
   wire('journal');
+}
+/* Quello che hai creato mentre non eri collegato (o mentre la rete era
+   giù) vive solo su questo dispositivo: al primo collegamento lo
+   spediamo. Sale SOLO ciò che non è mai arrivato sul server — cioè
+   senza `syncedAt` — altrimenti faremmo resuscitare quello che hai
+   cancellato da un altro telefono. */
+async function uploadUnsynced(name, remote){
+  if (!currentUser || !firebaseReady) return;
+  const suServer = new Set((remote||[]).map(r => r.id));
+  const orfani = (state[name] || []).filter(x => x && x.id && !x.syncedAt && !suServer.has(x.id));
+  if (!orfani.length) return;
+  setSaveStatus('saving');
+  try {
+    for (let i = 0; i < orfani.length; i += 400){
+      const lotto = orfani.slice(i, i + 400);
+      const batch = db.batch();
+      const bollo = Date.now();
+      lotto.forEach(o => {
+        o.updatedAt = o.updatedAt || bollo;
+        const payload = JSON.parse(JSON.stringify(o));
+        payload.syncedAt = bollo;
+        batch.set(userCol(name).doc(o.id), payload, { merge: true });
+      });
+      await batch.commit();
+      lotto.forEach(o => { o.syncedAt = bollo; }); // marcati solo ora
+    }
+    saveLocal(); setSaveStatus('saved');
+    const n = orfani.length;
+    toast('☁️ ' + n + (n === 1 ? ' cosa creata offline è ora sul tuo account' : ' cose create offline sono ora sul tuo account'));
+  } catch(e){
+    console.error('Risalita non riuscita per ' + name, e);
+    setSaveStatus('offline'); // restano senza bollo: riproveremo al prossimo collegamento
+  }
 }
 function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }); unsubscribers = []; }
 
@@ -509,8 +544,15 @@ async function fsSet(collection, obj){
   saveLocal();
   if (!currentUser || !firebaseReady){ setSaveStatus('offline'); return obj.id; }
   try {
-    await userCol(collection).doc(obj.id).set(JSON.parse(JSON.stringify(obj)), {merge:true});
+    const payload = JSON.parse(JSON.stringify(obj));
+    payload.syncedAt = Date.now();
+    await userCol(collection).doc(obj.id).set(payload, {merge:true});
+    // solo ora sappiamo che è arrivato davvero: marcarlo prima avrebbe
+    // fatto credere sincronizzato un salvataggio fallito, e non sarebbe
+    // più risalito al collegamento successivo
+    obj.syncedAt = payload.syncedAt;
     setSaveStatus('saved');
+    saveLocal();
   } catch(e){
     console.error('Errore salvataggio', e);
     setSaveStatus('offline');
@@ -3620,9 +3662,11 @@ async function bulkSaveSpells(list){
       list.slice(i, i+400).forEach(sp => {
         const payload = JSON.parse(JSON.stringify(sp));
         payload.updatedAt = Date.now();
+        payload.syncedAt = payload.updatedAt;
         batch.set(userCol('customSpells').doc(sp.id), payload, {merge:true});
       });
       await batch.commit();
+      list.slice(i, i+400).forEach(sp => { sp.syncedAt = Date.now(); });
     }
     setSaveStatus('saved');
   } catch(e){
