@@ -1,5 +1,28 @@
 # Grimorio — lista dei cambiamenti
 
+## v3.0 — 27 agosto 2026
+Creazione guidata del personaggio.
+
+### ✦ Il builder
+Nuovo pulsante **Crea personaggio guidato** nella schermata Party. Sette passi, con la possibilità di tornare indietro in qualsiasi momento:
+
+1. **Razza** — 10 razze con sottorazze, bonus alle caratteristiche applicati da soli, tratti spiegati uno per uno. Le razze con scelte (mezzelfo, umano variante) ti fanno scegliere caratteristiche e abilità con un contatore.
+2. **Classe e livello** — 12 classi: dado vita, tiri salvezza, competenze in armi e armature, e l'elenco di **tutti i privilegi che ottieni fino al livello che hai scelto**, con il livello a cui arrivano. Scegli le abilità della classe dalla lista giusta, col numero giusto.
+3. **Sottoclasse** — compare solo se il livello la prevede, con i suoi privilegi fino al tuo livello. C'è anche "Altra / la scrivo io" per le sottoclassi non SRD.
+4. **Background** — 13 background classici con abilità, strumenti, tratto narrativo ed equipaggiamento iniziale. Se una competenza si sovrappone a quelle già prese, te lo dice invece di lasciartela sprecare.
+5. **Caratteristiche** — quattro metodi: **acquisto punti** (27 punti, con il costo crescente e il contatore), **array standard** (15-14-13-12-10-8, ogni valore assegnabile una volta sola), **tiro dei dadi** (4d6 scarta il più basso, sei volte) e **a mano**. I bonus razziali si sommano sotto i tuoi occhi e il totale con modificatore si aggiorna in tempo reale. Ti ricorda anche quanti aumenti di caratteristica ti spettano al tuo livello.
+6. **Incantesimi** — solo quelli della tua classe, solo fino al livello di slot che possiedi davvero, con il **conteggio esatto** di trucchetti e incantesimi: conosciuti per bardo, stregone, warlock e ranger; preparati per chierico, druido e paladino (modificatore + livello, minimo uno); nel libro per il mago (6 al 1° livello, +2 per livello). Puoi aprire la scheda di ogni incantesimo mentre scegli.
+7. **Riepilogo** — nome, ritratto o simbolo, e l'anteprima completa prima di creare.
+
+### 🧮 Cosa calcola da solo
+Punti ferita (massimo al 1° livello, media agli altri, più il bonus del nano delle colline), classe armatura, iniziativa, velocità, dado vita, tiri salvezza competenti, tutte le competenze di abilità sommate da razza, classe e background, tipo di incantatore e caratteristica da lanciatore. Privilegi, tratti razziali, tratto del background e competenze finiscono già scritti nella scheda **Note**.
+
+### 📚 I dati
+Nuovo file `rules-data.js`: 10 razze, 12 classi con 194 privilegi divisi per livello, le sottoclassi dell'SRD (Berserker, Collegio del Sapere, Dominio della Vita, Circolo della Terra, Campione, Via della Mano Aperta, Giuramento di Devozione, Cacciatore, Ladro, Discendenza Draconica, L'Immondo, Scuola di Evocazione) e 13 background. I testi sono riassunti scritti per il Grimorio: descrivono le meccaniche, che non sono protette, senza riprodurre il testo dei manuali.
+
+### 📄 File
+`index.html` · `app.js` · **`rules-data.js` (nuovo)** · **`builder.js` (nuovo)** · `sw.js`.
+
 ## v2.6 — 26 agosto 2026
 Rotella del mouse e accesso Google da telefono.
 

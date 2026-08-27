@@ -493,6 +493,13 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 [data-theme="light"] .coin input { background: var(--card); }
 .coin.gp input { color: var(--gold); border-color: var(--gold-dim); }
 
+/* ────────────────── CREAZIONE GUIDATA ────────────────── */
+.bld-progress { display: flex; gap: 6px; justify-content: center; margin: 2px 0 10px; }
+.bld-dot { width: 26px; height: 4px; border-radius: 3px; background: var(--line); transition: background .2s; }
+.bld-dot.done { background: var(--gold-dim); }
+.bld-dot.on { background: var(--gold); box-shadow: var(--glow); }
+.bld-steptitle { text-align: center; font-family: var(--font-ui); font-size: .74rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 16px; }
+
 /* ────────────────── ATTACCHI / RISORSE / STATO ────────────────── */
 .attack-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); }
 .attack-main { flex: 1; min-width: 0; text-align: left; }
@@ -669,6 +676,8 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script src="./spells-data.js"></script>
 <script src="./spells-it.js"></script>
 <script defer src="./app.js"></script>
+<script defer src="./rules-data.js"></script>
+<script defer src="./builder.js"></script>
 <script defer src="./pdf-import.js"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
    I font di Google vengono messi in cache a parte, così l'aspetto
    resta corretto anche senza connessione.
 */
-const CACHE_VERSION = 'grimorio-v2-6';
+const CACHE_VERSION = 'grimorio-v3-0';
 const FONT_CACHE = 'grimorio-fonts-v1';
 const CORE_ASSETS = [
   './',
@@ -14,6 +14,8 @@ const CORE_ASSETS = [
   './spells-data.js',
   './spells-it.js',
   './pdf-import.js',
+  './rules-data.js',
+  './builder.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

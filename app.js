@@ -1,11 +1,11 @@
 /* ══════════════════════════════════════════════════════════════
-   GRIMORIO — app.js  ·  v2.6
+   GRIMORIO — app.js  ·  v3.0
    Compagno per D&D: party, incantesimi, inventario, background,
    tiri di dado e strumenti da master. Dati sincronizzati su Firebase
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '2.6';
+const APP_VERSION = '3.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -992,9 +992,10 @@ function renderParty(){
     ${chars.length
       ? `<div class="stagger list-gap party-grid">${chars.map(charCardHTML).join('')}</div>`
       : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
-    <div class="btn-row" style="margin-top:16px">
-      <button class="btn btn-primary" onclick="openCharacterForm()">✦ Nuovo</button>
-      <button class="btn btn-ghost" onclick="openPdfImport()">⇪ Importa PDF</button>
+    <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="openBuilder()">✦ Crea personaggio guidato</button>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">✎ Scheda vuota</button>
+      <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">⇪ Importa PDF</button>
     </div>
   `;
 }
