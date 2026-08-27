@@ -675,6 +675,19 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 
 
 
+
+/* Tabelle dell'equipaggiamento */
+.gear-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 9px 11px; }
+.gear-main { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
+.gear-name { font-weight: 700; font-size: .89rem; color: var(--ink); }
+.gear-meta { font-size: .71rem; color: var(--ink-soft); font-weight: 600; margin-top: 2px; font-family: var(--font-ui); }
+.gear-cost { font-size: .69rem; color: var(--gold-dim); font-weight: 700; margin-top: 3px; font-family: var(--font-ui); }
+.gear-cost-only { font-size: .72rem; color: var(--gold-dim); font-weight: 700; flex-shrink: 0; font-family: var(--font-ui); }
+.gear-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.gear-bonus { min-width: 34px; text-align: center; font-family: var(--font-head); font-weight: 700;
+  font-size: .92rem; color: var(--gold); }
+
 /* Oggetti magici */
 .mi-badge { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   font-size: .95rem; flex-shrink: 0; background: var(--card-hi); border: 1px solid var(--line); }
@@ -756,6 +769,8 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./rules-data.js"></script>
 <script defer src="./monsters-data.js"></script>
 <script defer src="./bestiary.js"></script>
+<script defer src="./gear-data.js"></script>
+<script defer src="./gear.js"></script>
 <script defer src="./magic-items-data.js"></script>
 <script defer src="./magic-items.js"></script>
 <script defer src="./homebrew.js"></script>

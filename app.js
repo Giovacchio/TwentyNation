@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.5';
+const APP_VERSION = '4.6';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -862,13 +862,21 @@ function hitDiceLeft(c){ return clamp((c.level||1) - (c.hitDiceUsed||0), 0, 20);
 function passivePerception(c){ return 10 + skillMod(c, SKILLS.find(s=>s.key==='perception')); }
 
 /* ─── 9. NAVIGAZIONE + RENDER ─── */
-let __modalDepth = 0, __ignorePop = false, __lastRenderKey = '';
+let __modalDepth = 0, __ignorePop = false, __pendingClose = false, __needsRepush = false, __lastRenderKey = '';
 
 function navSnapshot(){
   return { view: state.view, activeCharId: state.activeCharId, sheetTab: state.sheetTab,
            dmTab: state.dmTab, grimoireMode: state.grimoireMode, grimoirePickFor: state.grimoirePickFor };
 }
-function pushNav(){ try { history.pushState(navSnapshot(), ''); } catch(e){} }
+function pushNav(){
+  // Se una chiusura di finestra è ancora in volo, il suo back() sta per
+  // arrivare: aggiungere una voce adesso la farebbe mangiare a lui e la
+  // cronologia resterebbe corta. Meglio sostituire quella corrente.
+  try {
+    if (__pendingClose) history.replaceState(navSnapshot(), '');
+    else history.pushState(navSnapshot(), '');
+  } catch(e){}
+}
 function replaceNav(){ try { history.replaceState(navSnapshot(), ''); } catch(e){} }
 function applyNav(s){
   state.view = s.view || 'party';
@@ -880,7 +888,13 @@ function applyNav(s){
   render();
 }
 window.addEventListener('popstate', (e) => {
-  if (__ignorePop){ __ignorePop = false; return; }
+  if (__ignorePop){
+    __ignorePop = false; __pendingClose = false;
+    if (__needsRepush && state.modal){ __needsRepush = false; pushModalEntry(); }
+    else __needsRepush = false;
+    return;
+  }
+  __pendingClose = false; __needsRepush = false;
   if (state.modal){ closeModal(true); return; }
   if (e.state && e.state.view) applyNav(e.state);
   else { state.view = 'party'; state.activeCharId = null; render(); }
@@ -1021,8 +1035,22 @@ function renderModalRoot(opts){
   }
   if (state.modal.after) state.modal.after();
 }
+/* La chiusura di una finestra fa un history.back(), che arriva un
+   attimo dopo. Se nel frattempo se ne apre un'altra (succede: chiudi
+   e l'app te ne propone subito una) e questa spingesse un'altra voce
+   di cronologia, il back in arrivo la mangerebbe e il tasto Indietro
+   del telefono ti butterebbe fuori dall'app. Quindi: se una chiusura
+   è ancora in volo, la nuova finestra riusa la voce che c'è già. */
+function pushModalEntry(){
+  __modalDepth = 1;
+  try { history.pushState(Object.assign(navSnapshot(), {modal:true}), ''); } catch(e){}
+}
 function openModal(descriptor){
-  if (__modalDepth === 0){ __modalDepth = 1; try { history.pushState(Object.assign(navSnapshot(), {modal:true}), ''); } catch(e){} }
+  // Se la chiusura precedente non è ancora atterrata, la sua voce di
+  // cronologia sta per sparire: ce la riprendiamo appena il back arriva,
+  // altrimenti il tasto Indietro del telefono uscirebbe dall'app.
+  if (__pendingClose) __needsRepush = true;
+  else if (__modalDepth === 0) pushModalEntry();
   state.modal = descriptor;
   renderModalRoot({ toTop:true }); // una finestra nuova parte sempre dall'alto
 }
@@ -1030,8 +1058,11 @@ function closeModal(fromPop){
   if (!state.modal && !__modalDepth) return;
   state.modal = null;
   renderModalRoot();
-  if (fromPop){ __modalDepth = 0; return; }
-  if (__modalDepth){ __modalDepth = 0; __ignorePop = true; try { history.back(); } catch(e){} }
+  if (fromPop){ __modalDepth = 0; __pendingClose = false; __needsRepush = false; return; }
+  if (__modalDepth || __needsRepush){
+    __modalDepth = 0; __needsRepush = false; __ignorePop = true; __pendingClose = true;
+    try { history.back(); } catch(e){}
+  }
 }
 document.addEventListener('keydown', (e)=>{
   if (e.key === 'Escape' && state.modal){ closeModal(); return; }
@@ -1480,6 +1511,7 @@ function renderSheetOverview(c){
       <div class="list-gap">
         ${(c.attacks||[]).length ? c.attacks.map((atk,i)=>attackRowHTML(c,atk,i)).join('') : `<div class="muted" style="text-align:center;padding:10px">Nessun attacco. Aggiungi armi o trucchetti offensivi per tirarli con un tocco.</div>`}
         <button class="btn btn-ghost btn-block btn-sm" onclick="editAttack('${c.id}',-1)">✦ Aggiungi attacco</button>
+        ${weaponPickerButton(c)}
       </div>
 
       ${(c.resources||[]).length ? `
@@ -1797,6 +1829,11 @@ function saveXp(charId){
   }
 }
 
+/* Dalla lista degli attacchi si può pescare direttamente un'arma vera */
+function weaponPickerButton(c){
+  return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openGear('${c.id}','armi')">⚔️ Scegli un'arma dalle tabelle</button>`;
+}
+
 function conditionsRowHTML(c){
   const active = (c.conditions||[]).map(id => CONDITION_BY_ID[id]).filter(Boolean);
   return `<div class="chip-row" style="margin-top:10px; align-items:center">
@@ -2103,9 +2140,10 @@ function renderSheetInventory(c){
       ${items.length ? items.map((it,i)=>invItemHTML(c,it,i)).join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
     </div>
     <div class="btn-row" style="margin-top:14px">
-      <button class="btn btn-primary" onclick="addInventoryItem('${c.id}')">✦ Oggetto</button>
-      <button class="btn btn-gold" onclick="openMagicItems({pickFor:'${c.id}'})">💍 Oggetti magici</button>
+      <button class="btn btn-primary" onclick="addInventoryItem('${c.id}')">✦ A mano</button>
+      <button class="btn btn-gold" onclick="openGear('${c.id}')">🎒 Equipaggiamento</button>
     </div>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="openMagicItems({pickFor:'${c.id}'})">💍 Oggetti magici</button>
   `;
 }
 function invItemHTML(c, it, i){
@@ -2822,6 +2860,7 @@ function renderDM(){
 function renderBestiary(){
   const npcs = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   return `
+    <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">🎒 Armi, armature ed equipaggiamento</button>
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">💍 Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
     <button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
     ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
@@ -3745,6 +3784,15 @@ function globalSearchResults(q){
     if (norm(cd.name).includes(n))
       push('Condizioni', cd.icon, cd.name, cd.desc, `closeModal(); infoDialog('${jsStr(cd.icon + ' ' + cd.name)}','${jsStr(cd.desc)}')`);
   });
+
+  if (typeof SRD_WEAPONS !== 'undefined'){
+    SRD_WEAPONS.forEach(w => { if (norm(gearName(w)).includes(n) || norm(w.n).includes(n))
+      push('Armi', '⚔️', gearName(w), w.d + ' ' + w.dt + ' · ' + w.cat, `closeModal(); viewGear('arma','${w.id}')`); });
+    SRD_ARMORS.forEach(a => { if (norm(gearName(a)).includes(n) || norm(a.n).includes(n))
+      push('Armature', '🛡️', gearName(a), 'CA ' + a.ac + ' · ' + a.cat, `closeModal(); viewGear('armatura','${a.id}')`); });
+    SRD_GEAR.forEach(g => { if (norm(gearName(g)).includes(n))
+      push('Equipaggiamento', '🎒', gearName(g), g.k + ' · ' + costLabel(g.c), `closeModal(); viewGear('roba','${g.id}')`); });
+  }
 
   if (typeof SRD_MAGIC_ITEMS !== 'undefined') SRD_MAGIC_ITEMS.forEach(m => {
     if (norm(m.it).includes(n) || norm(m.n).includes(n))

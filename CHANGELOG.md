@@ -1,5 +1,31 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.6 — 27 agosto 2026
+**Armi, armature ed equipaggiamento veri. E un difetto del tasto Indietro che stava lì da un pezzo.**
+
+### Tabelle dell'SRD (`gear-data.js`, `gear.js`)
+- **37 armi** con dado dei danni, tipo di danno, categoria, proprietà (accurata, pesante, versatile, portata, lancio, ricarica, munizioni…), costo e peso.
+- **13 armature e scudi** con Classe Armatura, tetto di Destrezza, requisito di Forza e svantaggio a Furtività.
+- **131 voci di equipaggiamento**: attrezzatura, attrezzi da lavoro, strumenti musicali, munizioni, focus, cavalcature e veicoli, tutti con costo e peso.
+- Si sfogliano dal **Tavolo** o dallo **Zaino** di ogni personaggio, con tre schede, filtri e ricerca in italiano e in inglese.
+
+### Numeri già fatti, non da copiare
+- Sfogliando le armi con un personaggio aperto, accanto a ognuna c'è **il tuo tiro per colpire**: l'app sceglie da sola fra Forza e Destrezza per le armi accurate e a distanza, e aggiunge il bonus di competenza solo se sei competente.
+- Il tasto **⚔️** trasforma l'arma in una riga d'attacco già calcolata, danni compresi, e la mette nello zaino.
+- Accanto alle armature c'è **la Classe Armatura che ti darebbero**, col tetto di Destrezza già applicato. Il tasto **🛡️** te la fa indossare e aggiorna la CA, sommando lo scudo se lo porti e avvisandoti se non hai la Forza richiesta.
+
+### Creatore guidato
+- Dove prima scriveva «un'arma da guerra a scelta», ora **te la fa scegliere davvero**, con dado dei danni sotto gli occhi.
+- Il personaggio finito arriva con la **CA calcolata dall'armatura del pacchetto** (scudo compreso) e con le **righe d'attacco già pronte** per le armi che ha in mano.
+
+### Un difetto del tasto Indietro
+Cercando questa roba ne è saltato fuori uno vecchio: chiudere una finestra e aprirne subito un'altra faceva perdere una voce di cronologia, e da telefono il tasto Indietro poteva buttarti **fuori dall'app** invece di riportarti indietro di un passo. Succedeva in diversi punti (dopo aver messo un oggetto nello zaino, dopo aver scelto a chi darlo). Ora la voce viene ripresa appena la chiusura atterra.
+
+### Note tecniche
+- Nuovi file: `gear-data.js`, `gear.js`. Cache del service worker a `grimorio-v4-6`.
+- Corretto anche il confronto dei nomi fra i pacchetti di partenza e le tabelle: «Cotta di maglia» e «Cotta di Maglia» non si riconoscevano, e l'armatura iniziale non veniva contata nella CA.
+- Test automatici: 17 controlli nuovi più le regressioni di 4.0 → 4.5. 0 errori.
+
 ## v4.5 — 27 agosto 2026
 **202 oggetti magici dell'SRD, con la sintonizzazione tracciata.**
 

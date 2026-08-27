@@ -21,7 +21,7 @@ function openBuilder(){
     rolled: null,
     cantrips: [], spells: [],
     spellFilter: '',
-    gear: {}, gearOn: true,
+    gear: {}, gearOn: true, weaponPick: {},
     name: '', sex: '', portrait: null, avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)]
   };
   openModal({ render: builderHTML });
@@ -506,6 +506,17 @@ function buildCharacterFromBuilder(){
   ch.hp = { current: hpMax, max: hpMax, temp: 0 };
   ch.hitDie = c.hitDie;
   ch.ac = 10 + mod(ab.dex);
+  // se il pacchetto include un'armatura, la CA la calcoliamo davvero
+  if (bld.gearOn && typeof SRD_ARMORS !== 'undefined'){
+    const names = gearItems().map(x => norm(x.name));
+    const worn = SRD_ARMORS.filter(a => a.cat !== 'scudo').find(a => names.includes(norm(gearName(a))));
+    const shield = SRD_ARMORS.find(a => a.cat === 'scudo' && names.includes(norm(gearName(a))));
+    if (worn){
+      ch.ac = armorAC(worn, mod(ab.dex));
+      ch.armor = gearName(worn) + (worn.stealth ? ' (svantaggio a Furtività)' : '');
+    }
+    if (shield) ch.ac += shield.ac;
+  }
   ch.initiative = mod(ab.dex);
   ch.speed = race ? race.speed : 9;
   ch.saveProf = c.saves.slice();
@@ -539,6 +550,28 @@ function buildCharacterFromBuilder(){
   ch.tools = [c.tools !== '—' ? c.tools : '', bg && bg.tools !== '—' ? bg.tools : ''].filter(Boolean).join(' · ');
   ch.profOther = [c.armor !== 'Nessuna' ? c.armor : '', c.weapons].filter(Boolean).join(' · ');
 
+
+  // Le armi che hai scelto diventano subito righe d'attacco calcolate.
+  // I pacchetti scrivono "Cotta di maglia", le tabelle "Cotta di Maglia":
+  // il confronto va fatto senza badare a maiuscole e accenti.
+  if (bld.gearOn && typeof WEAPON_BY_ID !== 'undefined'){
+    const seen = new Set();
+    gearItems().forEach(it => {
+      const w = SRD_WEAPONS.find(x => norm(gearName(x)) === norm(it.name));
+      if (!w || seen.has(w.id)) return;
+      seen.add(w.id);
+      const abm = (w.r === 'distanza' || (w.p||[]).some(p=>/accurata/.test(p)))
+        ? Math.max(mod(ab.dex), (w.r === 'distanza' ? -99 : mod(ab.str)))
+        : mod(ab.str);
+      const prof = profBonus(bld.level);
+      ch.attacks.push({
+        name: it.name, atk: String(abm + prof),
+        dmg: w.d + (abm ? (abm > 0 ? '+' + abm : String(abm)) : ''),
+        notes: [w.dt, (w.p||[]).join(', ')].filter(Boolean).join(' · '),
+        gearId: w.id,
+      });
+    });
+  }
 
   // Zaino di partenza
   ch.inventory = gearItems().map(it => ({
@@ -657,12 +690,45 @@ function stepGear(){
         <div class="row-between"><span>Oggetti nello zaino</span><b>${gearItems().length}</b></div>
         <div class="row-between" style="margin-top:4px"><span>Peso totale</span><b>${gearWeight().toFixed(1).replace('.0','')} kg</b></div>
       </div>
-      <div class="muted" style="font-size:.75rem; margin-top:8px">Dove c'è scritto «a scelta», dopo scrivi nello zaino l'arma che vuoi davvero: ${escapeHtml(cl.weapons)}.</div>
+      ${(()=>{ const ph = gearPlaceholders(); if (!ph.length) return '';
+        return `<div class="divider"><span class="flourish">❧</span><span>Quali armi?</span></div>
+          ${ph.map(p=>{
+            const list = (typeof SRD_WEAPONS !== 'undefined') ? SRD_WEAPONS.filter(w=>w.cat===p.cat) : [];
+            const sel = pickedWeapon(p.key);
+            return `<div class="field">
+              <label>${escapeHtml(p.label)}${p.qty>1?` ×${p.qty}`:''}</label>
+              <div class="chip-row">
+                ${list.map(w=>`<button class="chip ${sel&&sel.id===w.id?'active':''}" onclick="bldPickWeapon('${p.key}','${w.id}')">${escapeHtml(gearName(w))} <span class="muted">${w.d}</span></button>`).join('')}
+              </div>
+            </div>`;
+          }).join('')}`;
+      })()}
     ` : `<div class="muted" style="text-align:center; padding:22px 10px">Parti con lo zaino vuoto. Il tuo master ti dirà quanto oro hai.</div>`}
     ${bldNav(true)}`;
 }
 function bldToggleGear(){ bld.gearOn = !bld.gearOn; renderModalRoot(); }
 function bldPickGear(gi, oi){ bld.gear[gi] = oi; renderModalRoot(); }
+
+/* I pacchetti dell'SRD dicono "un'arma da guerra a scelta": qui la
+   scegli davvero, e nello zaino ci finisce l'arma vera col suo peso. */
+function gearPlaceholders(){
+  const kit = CLASS_KITS[bld.classId];
+  if (!kit || !bld.gearOn) return [];
+  const rows = (kit.fixed || []).slice();
+  kit.groups.forEach((g, gi) => {
+    const o = g.opts[bld.gear[gi] != null ? bld.gear[gi] : 0];
+    if (o) o.items.forEach(it => rows.push(it));
+  });
+  return rows.filter(r => /a scelta/i.test(r[0])).map((r, i) => ({
+    key: 'p' + i, label: r[0], qty: r[1],
+    cat: /guerra/i.test(r[0]) ? 'guerra' : 'semplice',
+  }));
+}
+function bldPickWeapon(key, id){ bld.weaponPick[key] = id; renderModalRoot(); }
+function pickedWeapon(key){
+  const id = bld.weaponPick[key];
+  return (id && typeof WEAPON_BY_ID !== 'undefined') ? WEAPON_BY_ID[id] : null;
+}
 
 /* Somma tutto: fisso + scelte, accorpando i doppioni */
 function gearItems(){
@@ -673,8 +739,15 @@ function gearItems(){
     const o = g.opts[bld.gear[gi] != null ? bld.gear[gi] : 0];
     if (o) o.items.forEach(it => rows.push(it));
   });
+  // i segnaposto diventano l'arma che hai scelto
+  let pi = 0;
+  const resolved = rows.map(([name, qty, w]) => {
+    if (!/a scelta/i.test(name)) return [name, qty, w];
+    const pick = pickedWeapon('p' + (pi++));
+    return pick ? [gearName(pick), qty, pick.w] : [name, qty, w];
+  });
   const map = new Map();
-  rows.forEach(([name, qty, w]) => {
+  resolved.forEach(([name, qty, w]) => {
     const prev = map.get(name);
     if (prev) prev.qty += qty; else map.set(name, { name, qty, weight: w });
   });
