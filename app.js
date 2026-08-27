@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.6';
+const APP_VERSION = '4.7';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -3462,11 +3462,14 @@ function spellImportHTML(){
   if (pendingImport) return spellImportPreviewHTML();
   const inner = `
     <p class="muted" style="margin-bottom:14px">
-      Carica un file <b>.json</b> con una lista di incantesimi, oppure incolla il testo qui sotto.
+      Carica un file <b>.json</b>, leggi direttamente un <b>PDF</b> di incantesimi, oppure incolla il testo qui sotto.
       Vengono riconosciuti da soli i formati del Grimorio, di Open5e e di 5e-database.
       Gli incantesimi finiscono fra i tuoi personalizzati: restano modificabili e si sincronizzano sull'account.
     </p>
-    <button class="btn btn-gold btn-block" onclick="document.getElementById('spell-import-file').click()">📂 Scegli un file</button>
+    <div class="btn-row">
+      <button class="btn btn-gold" onclick="document.getElementById('spell-import-file').click()">📂 File JSON</button>
+      <button class="btn btn-gold" onclick="openSpellPdfImport()">📄 Da un PDF</button>
+    </div>
     <input type="file" id="spell-import-file" accept="application/json,.json,.txt" style="display:none" onchange="handleSpellImportFile(this)">
     <div class="divider"><span class="flourish">❧</span><span>oppure incolla</span></div>
     <div class="field">

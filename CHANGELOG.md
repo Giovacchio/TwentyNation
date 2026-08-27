@@ -1,5 +1,26 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.7 — 27 agosto 2026
+**Gli incantesimi si caricano direttamente da un PDF.**
+
+### Perché così
+L'app pubblica può contenere solo l'SRD, che è sotto licenza libera. Tutto il resto — i manuali che hai comprato — resta roba tua: va nel **tuo account**, non nel sito. Finora per farlo serviva un file JSON. Ora basta il PDF.
+
+### Lettore di PDF (`spell-pdf.js`)
+- Da **Opzioni → Incantesimi → Importa → 📄 Da un PDF**: scegli il file, eventualmente restringi le pagine, e l'app legge tutto sul tuo dispositivo.
+- Riconosce **nome, livello, scuola, tempo di lancio, gittata, componenti (materiali compresi), durata, testo e «ai livelli superiori»**.
+- **Due colonne**: le pagine impaginate su due colonne venivano lette a zigzag, mescolando il testo di un incantesimo con quello accanto. Ora le colonne vengono separate guardando dove stanno davvero le parole sulla pagina.
+- **Parole spezzate**: certi PDF infilano uno spazio dentro le parole, sempre dopo la stessa lettera («c rac kling» invece di «crackling»). L'app capisce da sola qual è la lettera colpevole e ricuce, usando il documento stesso come vocabolario per non incollare quello che va lasciato staccato: «magic al» diventa «magical», ma «magic item» resta «magic item». Su un file di prova ha ricucito il 90% dei tagli senza rovinare nulla.
+- Le intestazioni di sezione non vengono più scambiate per incantesimi.
+
+### Cosa vedi prima di importare
+- L'anteprima di sempre: quanti ne ha letti, quanti sono **nuovi**, quanti **ci sono già nell'SRD** (saltati in automatico) e quanti aggiornano i tuoi.
+- Scegli tu cosa importare; quello che entra è modificabile come qualsiasi incantesimo tuo, si sincronizza sull'account e compare nel grimorio e nella ricerca globale.
+
+### Note tecniche
+- Nuovo file: `spell-pdf.js`, che usa il lettore PDF già presente. Cache del service worker a `grimorio-v4-7`.
+- Test automatici: 10 controlli nuovi eseguiti su un PDF vero di 135 pagine (colonne non mescolate, campi giusti su un incantesimo noto, parole ricucite senza danni, anteprima corretta) più le regressioni di 4.0 → 4.6. 0 errori.
+
 ## v4.6 — 27 agosto 2026
 **Armi, armature ed equipaggiamento veri. E un difetto del tasto Indietro che stava lì da un pezzo.**
 
