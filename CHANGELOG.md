@@ -1,5 +1,23 @@
 # Grimorio — lista dei cambiamenti
 
+## v4.8 — 27 agosto 2026
+**Il PDF si carica da qualsiasi tasto, e l'app si accorge da sola di essere vecchia.**
+
+### Il PDF non veniva proposto
+Segnalato: premendo «Importa» il selettore mostrava solo i file di testo, il PDF non era selezionabile. Il tasto per i PDF esisteva, ma era quello **accanto**: chi premeva «File JSON» si trovava un selettore che i PDF li scartava. Colpa mia, non di chi lo usa.
+- Ora il selettore accetta **PDF e JSON insieme**, e se scegli un PDF l'app lo passa da sola al lettore apposta. Qualunque tasto premi, funziona.
+- Il tasto dedicato «📄 Da un PDF» resta, per chi lo cerca.
+- Un PDF corrotto o troncato non fa più danni: te lo dice e basta.
+
+### L'app installata restava indietro
+Un'app aggiunta alla schermata del telefono può restare ferma a una versione vecchia per giorni, perché il browser ricontrolla gli aggiornamenti quando gli pare. Era questo il motivo per cui una novità appena messa online poteva non comparire.
+- Ora il controllo lo chiede l'app: all'avvio e ogni volta che torna in primo piano (non più di una volta al minuto).
+- Quando la versione nuova è pronta compare una **striscia dorata in cima** con «Aggiorna ora», che resta lì finché non la tocchi — prima era un messaggio che spariva da solo dopo pochi secondi.
+
+### Note tecniche
+- Cache del service worker a `grimorio-v4-8`.
+- Test automatici: 7 controlli nuovi (instradamento dei PDF da qualsiasi ingresso, file rotti, striscia di aggiornamento, controllo non martellante) più le regressioni di 4.0 → 4.7. 0 errori.
+
 ## v4.7 — 27 agosto 2026
 **Gli incantesimi si caricano direttamente da un PDF.**
 

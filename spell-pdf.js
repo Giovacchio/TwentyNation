@@ -261,7 +261,14 @@ function spellPdfHTML(){
 function spellPdfChoose(input){
   const file = input.files && input.files[0];
   input.value = '';
-  if (!file) return;
+  if (file) spellPdfUseFile(file);
+}
+/* Accetta un PDF da qualsiasi parte arrivi: dal tasto dedicato oppure
+   dal normale «scegli un file», così non serve indovinare quale
+   pulsante premere. */
+function spellPdfUseFile(file){
+  if (!spdf) spdf = { name:'', buffer:null, pages:0, from:1, to:0, busy:false, found:null };
+  if (!state.modal || state.modal.render !== spellPdfHTML) openModal({ render: spellPdfHTML });
   const reader = new FileReader();
   reader.onload = async () => {
     try {

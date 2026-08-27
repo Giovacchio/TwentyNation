@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '4.7';
+const APP_VERSION = '4.8';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -377,6 +377,7 @@ const state = {
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
   search: { open: false, q: '' },
+  updateReady: false,
   activeCharId: null,
   sheetTab: 'overview',
   dmTab: 'bestiary',
@@ -992,7 +993,7 @@ function render(){
   else if (state.view === 'settings') body = renderSettings();
   else { state.view = 'party'; body = renderParty(); }
 
-  app.innerHTML = offlineBannerHTML()
+  app.innerHTML = updateBannerHTML() + offlineBannerHTML()
     + `<div class="screen${changed ? ' anim-in' : ''}">${body}</div>`
     + bottomNavHTML() + fabHTML();
   updateSaveStatusEl();
@@ -3462,15 +3463,15 @@ function spellImportHTML(){
   if (pendingImport) return spellImportPreviewHTML();
   const inner = `
     <p class="muted" style="margin-bottom:14px">
-      Carica un file <b>.json</b>, leggi direttamente un <b>PDF</b> di incantesimi, oppure incolla il testo qui sotto.
+      Scegli un file — va bene sia un <b>PDF</b> di incantesimi sia un <b>.json</b> — oppure incolla il testo qui sotto.
       Vengono riconosciuti da soli i formati del Grimorio, di Open5e e di 5e-database.
       Gli incantesimi finiscono fra i tuoi personalizzati: restano modificabili e si sincronizzano sull'account.
     </p>
     <div class="btn-row">
-      <button class="btn btn-gold" onclick="document.getElementById('spell-import-file').click()">📂 File JSON</button>
+      <button class="btn btn-gold" onclick="document.getElementById('spell-import-file').click()">📂 Scegli un file</button>
       <button class="btn btn-gold" onclick="openSpellPdfImport()">📄 Da un PDF</button>
     </div>
-    <input type="file" id="spell-import-file" accept="application/json,.json,.txt" style="display:none" onchange="handleSpellImportFile(this)">
+    <input type="file" id="spell-import-file" accept="application/json,.json,.txt,application/pdf,.pdf" style="display:none" onchange="handleSpellImportFile(this)">
     <div class="divider"><span class="flourish">❧</span><span>oppure incolla</span></div>
     <div class="field">
       <textarea id="spell-import-text" style="min-height:130px; font-family:var(--font-ui); font-size:.8rem" placeholder='[{"name":"Hex","level":1,"school":"Enchantment","cast":"1 azione bonus","range":"27 metri","comp":"V, S, M","dur":"Concentrazione, 1 ora","classes":["Warlock"],"desc":"..."}]'></textarea>
@@ -3512,6 +3513,14 @@ function handleSpellImportFile(input){
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
+  // Se è un PDF lo passiamo al lettore apposta: chi sceglie il file
+  // non deve preoccuparsi di aver premuto il pulsante giusto.
+  const isPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
+  if (isPdf){
+    if (typeof spellPdfUseFile === 'function') spellPdfUseFile(file);
+    else toast('⚠️ Lettore PDF non disponibile: aggiorna l\'app');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => analyzeSpellImport(reader.result);
   reader.onerror = () => toast('⚠️ Impossibile leggere il file');
@@ -3632,19 +3641,53 @@ function spawnEmbers(){
 }
 
 /* ─── 25. SERVICE WORKER + AVVIO ─── */
+/* Un'app installata sul telefono può restare ferma a una versione
+   vecchia per giorni: il browser ricontrolla il service worker solo
+   quando gli pare. Quindi lo chiediamo noi, all'avvio e ogni volta che
+   l'app torna in primo piano, e quando la versione nuova è pronta lo
+   diciamo con una striscia che resta lì finché non si tocca. */
+let __swReg = null;
 function registerSW(){
   if (!('serviceWorker' in navigator)) return;
+  const watch = (reg) => {
+    const nw = reg.installing || reg.waiting;
+    if (!nw) return;
+    if (nw.state === 'installed' && navigator.serviceWorker.controller) markUpdateReady();
+    nw.addEventListener('statechange', () => {
+      if (nw.state === 'installed' && navigator.serviceWorker.controller) markUpdateReady();
+    });
+  };
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
-      reg.addEventListener('updatefound', () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) toast('✨ Aggiornamento pronto: riapri l\'app');
-        });
-      });
+      __swReg = reg;
+      if (reg.waiting && navigator.serviceWorker.controller) markUpdateReady();
+      reg.addEventListener('updatefound', () => watch(reg));
+      checkForUpdate();
     }).catch(err => console.warn('Service worker non registrato:', err));
   });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+}
+let __lastUpdateCheck = 0;
+function checkForUpdate(){
+  if (!__swReg) return;
+  const now = Date.now();
+  if (now - __lastUpdateCheck < 60000) return; // non più di una volta al minuto
+  __lastUpdateCheck = now;
+  try { __swReg.update(); } catch(e){}
+}
+function markUpdateReady(){
+  if (state.updateReady) return;
+  state.updateReady = true;
+  render();
+}
+function updateBannerHTML(){
+  if (!state.updateReady) return '';
+  return `<div class="update-banner">
+    <span>✨ C'è una versione nuova del Grimorio.</span>
+    <button class="btn btn-sm btn-gold" onclick="forceAppUpdate()">Aggiorna ora</button>
+  </div>`;
 }
 
 // Scorciatoie dell'icona dell'app (tieni premuta l'icona sul telefono).
