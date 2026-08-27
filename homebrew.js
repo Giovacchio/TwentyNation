@@ -20,7 +20,15 @@ const HB_KINDS = {
   background: { label:'Background',  icon:'📜' },
 };
 
-function homebrewOf(kind){ return (state.homebrew||[]).filter(h => h.kind === kind); }
+function homebrewOf(kind){
+  const miei = (state.homebrew||[]).filter(h => h.kind === kind);
+  const nomi = new Set(miei.map(h => norm(h.name||'')));
+  // le aggiunte messe in comune dal tavolo, senza doppiare le tue
+  const dalTavolo = (state.sharedHomebrew||[])
+    .filter(h => h.kind === kind && !nomi.has(norm(h.name||'')))
+    .map(h => ({...h, fromCampaign:true}));
+  return miei.concat(dalTavolo);
+}
 
 /* Elenchi completi = contenuti di serie + i tuoi */
 function allRaces(){
@@ -80,7 +88,13 @@ function homebrewListHTML(){
           <div class="attack-name">${HB_KINDS[h.kind]?HB_KINDS[h.kind].icon:''} ${escapeHtml(h.name)}</div>
           <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}</div>
         </button>
-        <button class="btn-icon" style="width:34px;height:34px;font-size:.8rem" onclick="confirmDeleteHomebrew('${h.id}')" aria-label="Elimina">✕</button>
+        ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
+          const giaSu = (state.sharedHomebrew||[]).some(x => x.id === h.id);
+          return `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem;${giaSu?'border-color:var(--gold); color:var(--gold)':''}"
+            title="${giaSu?'Ritira dalla campagna':'Condividi con la campagna'}"
+            onclick="${giaSu?`unshareFromCampaign('homebrew','${h.id}')`:`shareOneHomebrew('${h.id}')`}">⚔️</button>`;
+        })() : ''}
+        <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" onclick="confirmDeleteHomebrew('${h.id}')" aria-label="Elimina">✕</button>
       </div>`).join('')}</div>`
       : emptyState('📚','Non hai ancora contenuti tuoi. Aggiungine uno con i pulsanti qui sopra.')}
     ${list.length ? `<div class="btn-row" style="margin-top:14px">
@@ -468,4 +482,14 @@ function importHomebrewFile(input){
     toast('⤒ ' + n + ' contenuti importati');
   };
   reader.readAsText(file);
+}
+
+
+/* Condivide una singola aggiunta col tavolo */
+async function shareOneHomebrew(id){
+  const h = (state.homebrew||[]).find(x => x.id === id);
+  if (!h) return;
+  const n = await shareToCampaign('homebrew', [h]);
+  if (n) toast('⚔️ ' + h.name + ' è ora del tavolo');
+  renderModalRoot();
 }

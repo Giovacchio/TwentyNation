@@ -1,0 +1,102 @@
+rules_version = '2';
+
+/* ══════════════════════════════════════════════════════════════
+   Grimorio — regole di sicurezza
+
+   Due sole idee:
+   1. I tuoi dati personali (personaggi, incantesimi, PNG, diario,
+      aggiunte) li legge e li scrive SOLO tu.
+   2. Una campagna la legge SOLO chi ne è membro. Chi non è nella
+      lista non vede niente, nemmeno il nome.
+
+   Senza queste regole l'app funziona lo stesso, ma i dati
+   sarebbero aperti a chiunque abbia un account: è qui che si
+   decide chi vede cosa, non nel codice dell'app.
+
+   Come si applicano: console Firebase → Firestore Database →
+   scheda «Regole» → incolla tutto questo → Pubblica.
+   ══════════════════════════════════════════════════════════════ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ─── I tuoi dati ─── */
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    /* ─── Registro dei codici d'invito ───
+       Il codice è il segreto: chi ce l'ha può leggere QUESTA riga e
+       scoprire di quale campagna si tratta, e nient'altro. Non si
+       può sfogliare l'elenco, quindi i codici non si possono
+       indovinare a tentativi leggendoli tutti. */
+    match /inviteCodes/{codice} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    /* ─── Campagne ─── */
+    match /campaigns/{campaignId} {
+
+      function esiste() {
+        return resource != null && resource.data != null;
+      }
+      function membri() {
+        return esiste() && resource.data.keys().hasAny(['members'])
+          ? resource.data.members : {};
+      }
+      function sonoMembro() {
+        return request.auth != null && membri().keys().hasAny([request.auth.uid]);
+      }
+      function sonoIlMaster() {
+        return request.auth != null && esiste() && resource.data.ownerUid == request.auth.uid;
+      }
+      /* Entrare: puoi aggiungere SOLO te stesso, e solo se non cambi
+         nient'altro del documento. Il codice d'invito lo conosci già,
+         perché è così che sei arrivato fin qui. */
+      function mIscrivoIoStesso() {
+        return request.auth != null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+          && request.resource.data.members.diff(membri()).affectedKeys().hasOnly([request.auth.uid]);
+      }
+
+      allow read: if sonoMembro();
+      /* Creare una campagna: devi metterti come proprietario e come
+         primo membro, così non si creano tavoli intestati ad altri. */
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.members.keys().hasOnly([request.auth.uid]);
+      allow update: if sonoIlMaster() || mIscrivoIoStesso();
+      allow delete: if sonoIlMaster();
+
+      /* Il contenuto messo in comune: lo leggono i membri, lo scrive
+         un membro, e lo toglie chi ce l'ha messo (o il master). */
+      match /{sezione}/{docId} {
+        function membroDelTavolo() {
+          return request.auth != null
+            && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.members
+                 .keys().hasAny([request.auth.uid]);
+        }
+        function masterDelTavolo() {
+          return request.auth != null
+            && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid == request.auth.uid;
+        }
+        allow read: if membroDelTavolo();
+        allow create: if membroDelTavolo() && request.resource.data.sharedBy == request.auth.uid;
+        allow update: if membroDelTavolo()
+          && (resource.data.sharedBy == request.auth.uid || masterDelTavolo());
+        allow delete: if membroDelTavolo()
+          && (resource.data.sharedBy == request.auth.uid || masterDelTavolo());
+      }
+    }
+
+    /* Tutto il resto è chiuso. */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

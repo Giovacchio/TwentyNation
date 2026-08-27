@@ -1,5 +1,35 @@
 # Grimorio — lista dei cambiamenti
 
+## v5.1 — 27 agosto 2026
+**Campagna condivisa: il tuo tavolo vede quello che ci metti dentro.**
+
+Quello che importi resta tuo, ma ora puoi metterlo in comune **con il tuo gruppo di gioco** — non col mondo. Una campagna è il tavolo: tu, i tuoi giocatori, il master. Chi non è nella lista dei membri non vede niente, nemmeno il nome della campagna.
+
+### Come funziona
+- Da **Opzioni → Campagna**: crei un tavolo e ottieni un **codice d'invito** (tipo `CFFK-EYUQ`) da passare ai tuoi, oppure entri in uno esistente col codice che ti hanno dato.
+- Nella schermata della campagna vedi i membri, quanto c'è in comune e il codice da copiare.
+- Si esce quando si vuole: smetti di vedere le cose condivise, ma **i tuoi personaggi e i tuoi contenuti restano intatti**.
+
+### Cosa si condivide
+- **All'importazione**: un interruttore «Condividi con la campagna». Gli incantesimi finiscono sia fra i tuoi sia nel tavolo.
+- **Uno alla volta**: dalla scheda di un tuo incantesimo, o dall'elenco delle tue aggiunte, il tasto ⚔️ lo mette in comune (e lo ritira).
+- Gli incantesimi del tavolo compaiono nel grimorio **col nome di chi li ha messi**; le sottoclassi, razze e background compaiono nella creazione guidata insieme ai tuoi.
+- Se hai già un incantesimo con lo stesso nome, il tuo ha la precedenza: niente doppioni.
+- Ritiri quello che hai messo tu; il master può ritirare qualsiasi cosa.
+
+### I personaggi restano privati
+La campagna condivide **solo** incantesimi e aggiunte. Personaggi, zaini, diario e PNG restano nel tuo ramo personale: nessun membro li vede.
+
+### Le regole di sicurezza sono nel repo
+Nuovo file **`firestore.rules`**, da incollare in *console Firebase → Firestore Database → Regole → Pubblica*. Senza quelle, l'app funziona lo stesso ma i dati sarebbero aperti a chiunque abbia un account: è lì che si decide chi vede cosa, non nel codice dell'app. Le regole chiudono i dati personali al solo proprietario e le campagne ai soli membri.
+
+Il codice d'invito vive in un registro separato (`inviteCodes`) che si può leggere solo conoscendo il codice esatto e non si può sfogliare: serve perché per entrare bisogna trovare la campagna *prima* di esserne membri, senza per questo poter leggere quelle degli altri.
+
+### Note tecniche
+- Nuovo file: `campaign.js`. Cache del service worker a `grimorio-v5-1`.
+- Nuova suite `test-campagna.mjs`: 10 prove con due account simulati — creazione, ingresso col codice, chi vede cosa, chi può ritirare cosa, **un estraneo non legge niente**, e l'uscita che non porta via i tuoi dati.
+- Le altre undici suite e l'audit telefono passano tutti, 0 errori.
+
 ## v5.0 — 27 agosto 2026
 **Controllo dei salvataggi: quello che scrivi non si perde più.**
 

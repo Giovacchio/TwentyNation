@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.0';
+const APP_VERSION = '5.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -373,6 +373,7 @@ const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
   characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [],
+  campaign: null, sharedSpells: [], sharedHomebrew: [],
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
@@ -2310,7 +2311,9 @@ function confirmEditInventory(charId, i){
 function spellByRef(ref){
   if (!ref) return null;
   if (ref.source === 'custom') return state.customSpells.find(s=>s.id===ref.id);
-  return (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).find(s=>s.id===ref.id);
+  if (ref.source === 'shared') return (state.sharedSpells||[]).find(s=>s.id===ref.id);
+  return (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).find(s=>s.id===ref.id)
+      || (state.sharedSpells||[]).find(s=>s.id===ref.id);
 }
 function slotsFor(c){
   if (c.slotsOverride){
@@ -2526,8 +2529,13 @@ function setBackgroundPreset(charId, val){ updateCharField(charId, 'background',
 /* ─── 20. GRIMORIO — compendio incantesimi ─── */
 function allSpells(){
   const custom = state.customSpells.map(s=>({...s, source:'custom'}));
+  // quelli messi in comune dal tavolo, saltando i doppioni coi tuoi
+  const miei = new Set(state.customSpells.map(s=>norm(s.name)));
+  const condivisi = (state.sharedSpells||[])
+    .filter(s => !miei.has(norm(s.name)))
+    .map(s=>({...s, source:'shared'}));
   const srd = (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).map(s=>({...s, source:'srd'}));
-  return custom.concat(srd);
+  return custom.concat(condivisi, srd);
 }
 function renderGrimoire(){
   const picking = state.grimoireMode === 'pick';
@@ -2654,6 +2662,30 @@ function viewSpellDetail(id, source, charId){
   if (!sp) return;
   openModal({ render: () => spellDetailHTML(sp, source, charId) });
 }
+/* Un incantesimo tuo si può mettere in comune col tavolo (e ritirare) */
+function spellShareRow(sp, source){
+  if (typeof campaignReady !== 'function' || !campaignReady()) return '';
+  if (source === 'srd') return '';
+  const su = (state.sharedSpells||[]).some(x => x.id === sp.id);
+  if (source === 'shared'){
+    const puo = typeof canUnshare === 'function' && canUnshare((state.sharedSpells||[]).find(x=>x.id===sp.id));
+    return `<div class="card" style="margin-top:12px; border-color:var(--gold-dim); padding:10px 13px">
+      <div class="muted" style="font-size:.78rem">⚔️ Condiviso nella campagna${sp.sharedByName?' da '+escapeHtml(sp.sharedByName):''}.</div>
+      ${puo ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="unshareFromCampaign('spells','${jsStr(sp.id)}'); closeModal();">Ritira dalla campagna</button>` : ''}
+    </div>`;
+  }
+  return `<button class="btn ${su?'btn-ghost':'btn-gold'} btn-block btn-sm" style="margin-top:10px"
+    onclick="${su ? `unshareFromCampaign('spells','${jsStr(sp.id)}')` : `shareOneSpell('${jsStr(sp.id)}')`}">
+    ⚔️ ${su ? 'Ritira dalla campagna' : 'Condividi con la campagna'}</button>`;
+}
+async function shareOneSpell(id){
+  const sp = state.customSpells.find(x => x.id === id);
+  if (!sp) return;
+  const n = await shareToCampaign('spells', [sp]);
+  if (n) toast('⚔️ ' + sp.name + ' è ora del tavolo');
+  renderModalRoot();
+}
+
 function spellDetailHTML(sp, source, charId){
   const c = charId ? charById(charId) : null;
   const has = c && (c.knownSpells||[]).some(k=>k.id===sp.id && k.source===source);
@@ -2691,6 +2723,7 @@ function spellDetailHTML(sp, source, charId){
           <button class="btn btn-ghost" onclick="editCustomSpell('${sp.id}')">✎ Modifica</button>
           <button class="btn btn-danger" onclick="confirmDeleteCustomSpell('${sp.id}')">Elimina</button>
         </div>` : ''}
+        ${spellShareRow(sp, source)}
       </div>`;
   return modalShell(levelLabel(sp.level), inner);
 }
@@ -3232,6 +3265,15 @@ function renderSettings(){
       ${state.customSpells.some(s=>s.imported) ? `<button class="btn btn-danger btn-block btn-sm" style="margin-top:10px" onclick="confirmClearImported()">Rimuovi gli incantesimi importati</button>` : ''}
     </div>
 
+    <div class="divider"><span class="flourish">❧</span><span>Campagna</span></div>
+    <div class="card">
+      ${state.campaign
+        ? `<div class="row-between" style="margin-bottom:8px"><span class="muted">Sei in</span><b>${escapeHtml(state.campaign.name||'una campagna')}</b></div>
+           <div class="row-between" style="margin-bottom:10px"><span class="muted">In comune</span><b>${(state.sharedSpells||[]).length} incantesimi · ${(state.sharedHomebrew||[]).length} aggiunte</b></div>`
+        : `<p class="muted" style="margin-bottom:10px">Un tavolo condiviso con i tuoi giocatori: quello che ci metti dentro lo vedono solo i membri. I personaggi restano privati.</p>`}
+      <button class="btn ${state.campaign?'btn-ghost':'btn-gold'} btn-block" onclick="openCampaign()">⚔️ ${state.campaign?'Gestisci la campagna':'Crea o entra in una campagna'}</button>
+    </div>
+
     <div class="divider"><span class="flourish">❧</span><span>Contenuti tuoi</span></div>
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Sottoclassi, razze e background che non sono nell'SRD: li aggiungi tu dai manuali che possiedi e compaiono nella creazione guidata.${(state.homebrew||[]).length ? ' Ne hai <b>'+state.homebrew.length+'</b>.' : ''}</p>
@@ -3561,6 +3603,14 @@ function spellImportPreviewHTML(){
       <div class="track"><div class="knob" style="${pendingImport.skipSrd?'transform:translateX(21px)':''}"></div></div>
       <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui); font-size:.84rem">Salta quelli già presenti nell'SRD</div>
     </button>
+    ${(typeof campaignReady === 'function' && campaignReady()) ? `
+      <button class="switch-row" style="margin-bottom:14px" onclick="toggleImportShare()">
+        <div class="track"><div class="knob" style="${pendingImport.shareToCamp?'transform:translateX(21px)':''}"></div></div>
+        <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+          <b style="font-size:.84rem">Condividi con «${escapeHtml(state.campaign.name||'la campagna')}»</b>
+          <div class="muted" style="font-size:.73rem; font-weight:600">Li vedranno i membri del tuo tavolo. Restano comunque anche fra i tuoi.</div>
+        </div>
+      </button>` : ''}
     <div class="muted" style="margin-bottom:8px">Anteprima:</div>
     <div class="list-gap" style="margin-bottom:16px">
       ${p.toImport.slice(0,6).map(s=>`<div class="spell-item">
@@ -3609,12 +3659,18 @@ function analyzeSpellImport(text){
   pendingImport = {
     all,
     skipSrd: true,
+    shareToCamp: false,
     dupSrd: all.filter(s=>srdNames.has(norm(s.name))),
     dupCustom: all.filter(s=>customNames.has(norm(s.name))),
     fresh: all.filter(s=>!srdNames.has(norm(s.name)) && !customNames.has(norm(s.name))),
     toImport: []
   };
   recomputeImport();
+  renderModalRoot();
+}
+function toggleImportShare(){
+  if (!pendingImport) return;
+  pendingImport.shareToCamp = !pendingImport.shareToCamp;
   renderModalRoot();
 }
 function recomputeImport(){
@@ -3650,7 +3706,12 @@ async function confirmSpellImport(){
   state.offlineMode = state.offlineMode || !currentUser;
   render();
   toast(`⤒ ${saved.length} incantesim${saved.length===1?'o':'i'} nel Grimorio`);
+  const condividi = pendingImport && pendingImport.shareToCamp;
   await bulkSaveSpells(saved);
+  if (condividi && typeof shareToCampaign === 'function'){
+    const n = await shareToCampaign('spells', saved);
+    if (n) toast('⚔️ ' + n + ' anche nella campagna');
+  }
   pendingImport = null;
 }
 async function bulkSaveSpells(list){
@@ -3771,6 +3832,7 @@ function handleLaunchShortcut(){
 function boot(){
   loadLocal();
   loadSession();
+  if (typeof loadCampaignLocal === 'function') loadCampaignLocal();
   spawnEmbers();
   installWheelForwarding();
   installFabAutoHide();
@@ -3788,7 +3850,7 @@ function boot(){
     auth.onAuthStateChanged(u => {
       currentUser = u;
       state.authReady = true;
-      if (u){ state.offlineMode = false; localStorage.removeItem('grimorio-offline'); attachFirestore(u.uid); }
+      if (u){ state.offlineMode = false; localStorage.removeItem('grimorio-offline'); attachFirestore(u.uid); if (typeof attachCampaign === 'function') attachCampaign(); }
       else detachFirestore();
       render();
     });
