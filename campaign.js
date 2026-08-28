@@ -193,9 +193,81 @@ async function shareToCampaign(kind, items){
   } catch(e){
     console.error('Condivisione non riuscita', e);
     setSaveStatus('offline');
-    toast('⚠️ Non sono riuscito a condividere');
+    __ultimoErroreTavolo = {
+      quando: new Date().toLocaleTimeString('it-IT'),
+      codice: (e && e.code) || '—',
+      messaggio: (e && e.message) || String(e),
+      cosa: kind, quante: lista.length,
+    };
+    toast('⚠️ Il server ha rifiutato: ' + spiegaErroreTavolo(__ultimoErroreTavolo));
     return 0;
   }
+}
+/* L'errore va detto in italiano, e deve dire cosa fare. */
+let __ultimoErroreTavolo = null;
+function spiegaErroreTavolo(e){
+  const t = ((e && (e.code || '')) + ' ' + (e && e.message || '')).toLowerCase();
+  if (/nested|invalid data|invalid-argument|unsupported field/.test(t))
+    return 'la forma dei dati (aggiorna l\'app: serve la 5.8 o più)';
+  if (/permission|insufficient/.test(t)) return 'permessi negati (regole Firestore)';
+  if (/unauthenticated/.test(t)) return 'non risulti collegato';
+  if (/quota|resource-exhausted/.test(t)) return 'limite del piano Firebase raggiunto';
+  if (/unavailable|network|deadline/.test(t)) return 'connessione assente';
+  if (/too large|maximum/.test(t)) return 'una voce è troppo grande';
+  return (e && e.codice) || (e && e.code) || 'errore sconosciuto';
+}
+
+/* ─── Diagnostica: prova a scrivere UNA cosa e dice esattamente com'è andata ───
+   Serve quando «non è andato niente» e non si capisce perché. */
+async function provaCondivisione(){
+  if (!campaignReady()){ toast('Prima entra in una campagna'); return; }
+  const righe = [];
+  const base = db.collection('campaigns').doc(state.campaign.id).collection('homebrew');
+  const idProva = '__prova-' + Date.now();
+
+  const prova = async (nome, payload) => {
+    try {
+      await base.doc(idProva).set(payload, { merge: true });
+      righe.push(['✅ ' + nome, 'accettata']);
+      try { await base.doc(idProva).delete(); } catch(e){}
+      return true;
+    } catch(e){
+      righe.push(['❌ ' + nome, ((e && e.code) || '') + ' — ' + ((e && e.message) || String(e)).slice(0, 160)]);
+      return false;
+    }
+  };
+
+  const comune = { sharedBy: currentUser.uid, sharedByName: myName(), sharedAt: Date.now() };
+  await prova('voce semplice', Object.assign({ id: idProva, kind: 'subclass', name: 'Prova' }, comune));
+  await prova('con array dentro array (la forma vecchia)',
+    Object.assign({ id: idProva, kind: 'subclass', name: 'Prova',
+      features: { 3: [['Nome', 'testo']] } }, comune));
+  await prova('confezionata come fa ora l\'app',
+    Object.assign(perNuvola({ id: idProva, kind: 'subclass', name: 'Prova',
+      features: { 3: [['Nome', 'testo']] } }), comune));
+
+  const vera = (state.homebrew || []).find(x => x && x.kind !== 'background');
+  if (vera) await prova('una tua aggiunta vera («' + (vera.name || '') + '»)',
+    Object.assign(perNuvola(JSON.parse(JSON.stringify(vera))), comune));
+
+  openModal({ render: () => modalShell('🩺 Prova di condivisione', `
+    <p class="muted" style="margin-bottom:14px">Ho provato a scrivere sul tavolo quattro cose diverse, una per volta. Quella che fallisce dice dov'è il problema.</p>
+    <div class="list-gap">${righe.map(([a, b]) => `<div class="attack-row" style="display:block">
+      <div class="attack-name" style="font-size:.85rem">${escapeHtml(a)}</div>
+      <div class="muted" style="font-size:.72rem; word-break:break-word">${escapeHtml(b)}</div>
+    </div>`).join('')}</div>
+    <div class="card" style="margin-top:12px">
+      <div class="row-between"><span class="muted">Versione dell'app</span><b>${typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?'}</b></div>
+      <div class="row-between" style="margin-top:4px"><span class="muted">Tue aggiunte</span><b>${(state.homebrew||[]).length}</b></div>
+      <div class="row-between" style="margin-top:4px"><span class="muted">Già sul tavolo</span><b>${(state.sharedHomebrew||[]).length}</b></div>
+    </div>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="copiaProvaCondivisione(${JSON.stringify(JSON.stringify(righe)).replace(/"/g,'&quot;')})">📋 Copia il risultato</button>
+    <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="closeModal()">Chiudi</button>`) });
+}
+function copiaProvaCondivisione(json){
+  const txt = 'TwentyNation ' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?') + '\n' +
+    JSON.parse(json).map(r => r.join(': ')).join('\n');
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>toast('Copiato')).catch(()=>toast('Non riesco a copiare'));
 }
 async function unshareFromCampaign(kind, id){
   if (!campaignReady()) return;
@@ -268,6 +340,7 @@ function campaignHTML(){
           <button class="btn btn-ghost btn-sm" onclick="openCondivisione()">Scegli cosa</button>
           <button class="btn btn-ghost btn-sm" onclick="ritiraTutto()">Ritira tutto</button>
         </div>
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="provaCondivisione()">🩺 Non funziona? Provalo</button>
       </div>`; })()}
 
     <div class="divider"><span class="flourish">❧</span><span>Al tavolo</span></div>
@@ -359,7 +432,7 @@ function condividiTutto(){
       if (sp.length) fatti += await shareToCampaign('spells', sp);
       if (hb.length) fatti += await shareToCampaign('homebrew', hb);
       renderModalRoot(); render();
-      toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente');
+      toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
     }, 'Condividi ' + n);
 }
 
@@ -465,5 +538,5 @@ async function condividiScelti(){
   if (hb.length) fatti += await shareToCampaign('homebrew', hb);
   condScelti = null;
   closeModal(); render();
-  toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente');
+  toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
 }

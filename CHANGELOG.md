@@ -1,5 +1,17 @@
 # TwentyNation — lista dei cambiamenti
 
+## v5.9 — 28 agosto 2026
+**Quando la condivisione non va, adesso l'app dice perché.**
+
+«Non è andato niente» non spiegava niente: l'errore vero del server finiva nella console del browser, dove nessuno lo guarda. È il motivo per cui il difetto degli array annidati è rimasto invisibile a lungo.
+
+- **Il messaggio dice la causa**, in italiano: forma dei dati, permessi negati, non risulti collegato, limite del piano Firebase, connessione assente, voce troppo grande.
+- **«🩺 Non funziona? Provalo»** nella schermata della campagna: prova a scrivere sul tavolo quattro cose diverse, una per volta — una voce semplice, una con gli array annidati (la forma vecchia), una confezionata come fa ora l'app, e una tua aggiunta vera. Quella che fallisce dice esattamente dov'è il problema. Mostra anche la versione dell'app, quante aggiunte hai e quante ne vede il tavolo, e si copia tutto con un tasto. Le voci di prova vengono cancellate subito dopo.
+
+> Nota sulle regole di sicurezza: non vanno cambiate. Gli incantesimi passano dalla stessa identica regola (`match /{sezione}/{docId}`) e dallo stesso codice delle aggiunte — se il problema fosse nelle regole non ne sarebbe passato nemmeno uno dei 147.
+
+> Verificato: 6 prove nuove sul messaggio d'errore e sulla diagnostica, più tutta la suite e le regressioni da v40 a v48 — zero errori a runtime.
+
 ## v5.8 — 28 agosto 2026
 **Le sottoclassi e le razze non venivano salvate. Mai. Nemmeno sul tuo account.**
 
