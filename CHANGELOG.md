@@ -12,6 +12,8 @@
 - **Velocità in piedi abbreviati.** `25ft.` diventa 7,5 m; prima restava il valore di riserva.
 
 ### Un solo caricamento e sono dentro tutti
+- **Più file in una volta.** Il selettore accetta più PDF insieme: guida delle razze e guida delle classi si caricano in un colpo solo e finiscono nello stesso elenco (48 razze + 116 sottoclassi = 164 voci, tutte già spuntate). Durante la lettura si legge `File 2 di 2 · pagina 128 di 203`.
+- **Le razze si scelgono come le sottoclassi**: raccolte per stirpe (Elfo 4, Genasi 4, Nano 3, Aasimar 3…) con «scegli tutte» sul gruppo. Le stirpi con una razza sola restano righe normali, senza un clic in più per aprirle.
 - Finita la lettura **è già tutto selezionato**: basta premere «Aggiungi 116» e ci sono. Prima andavano spuntati a mano uno per uno.
 - Le sottoclassi di classi che l'app non ha si assegnano **tutte insieme** con un menù a tendina sul gruppo, invece che aprendo voce per voce.
 - Durante la lettura si vede **a che pagina è arrivata** (`Pagina 128 di 203`): un manuale intero richiede qualche minuto e ora si capisce che sta lavorando.

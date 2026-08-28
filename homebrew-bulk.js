@@ -483,20 +483,36 @@ function openHomebrewBulk(){
   hbBulk = { trovati: null, scelti: new Set(), condividi: false, busy: false };
   openModal({ render: hbBulkHTML });
 }
+/* Le guide elencano le razze già come varianti («Hill Dwarf», «Wood Elf»,
+   «Air Genasi»): la stirpe è l'ultima parola del nome, e serve solo a
+   raccogliere l'elenco in gruppi leggibili. */
+function hbStirpe(nome){
+  let n = String(nome||'').replace(/\[[^\]]*\]/g,' ').replace(/\([^)]*\)/g,' ');
+  n = n.replace(/[^A-Za-zÀ-ÿ' -]/g,' ').replace(/\s+/g,' ').trim();
+  if (!n) return '';
+  const parti = n.split(' ');
+  let ultima = parti[parti.length-1];
+  // «Mezzelfo», «Half-Elf»: il trattino tiene insieme il nome, non è una stirpe
+  if (/-/.test(ultima)) return ultima;
+  return parti.length > 1 ? ultima : n;
+}
+
 function hbBulkHTML(){
   const b = hbBulk || {};
   if (!b.trovati) return modalShell('⤒ Leggi dal tuo manuale', `
     <p class="muted" style="margin-bottom:14px">
-      Carica un file di testo o un PDF preso dal manuale che possiedi: l'app cerca da sola
+      Carica uno o più file di testo o PDF presi dai manuali che possiedi (puoi sceglierli tutti insieme): l'app cerca da sola
       <b>sottoclassi, razze e background</b> e ti fa scegliere quali tenere.
       Quello che entra resta tuo; lo condividi col tavolo solo se lo decidi.
     </p>
     <div class="btn-row">
-      <button class="btn btn-gold" ${b.busy?'disabled':''} onclick="document.getElementById('hb-bulk-file').click()">📂 ${b.busy? (b.tot ? 'Pagina '+b.pag+' di '+b.tot+'…' : 'Leggo…') : 'Scegli il file'}</button>
+      <button class="btn btn-gold" ${b.busy?'disabled':''} onclick="document.getElementById('hb-bulk-file').click()">📂 ${b.busy
+        ? ((b.file_n > 1 ? 'File '+b.file+' di '+b.file_n+' · ' : '') + (b.tot ? 'pagina '+b.pag+' di '+b.tot+'…' : 'leggo…'))
+        : 'Scegli i file'}</button>
       <button class="btn btn-ghost" ${b.busy?'disabled':''} onclick="hbBulkFromBox()">Analizza il testo</button>
     </div>
     ${b.busy ? `<p class="muted" style="font-size:.75rem; margin-top:-6px">Un manuale intero richiede qualche minuto: tieni l'app aperta finché non finisce.</p>` : ''}
-    <input type="file" id="hb-bulk-file" accept=".txt,text/plain,application/pdf,.pdf,.md" style="display:none" onchange="hbBulkFile(this)">
+    <input type="file" id="hb-bulk-file" multiple accept=".txt,text/plain,application/pdf,.pdf,.md" style="display:none" onchange="hbBulkFile(this)">
     <div class="field" style="margin-top:12px">
       <label>…oppure incolla qui</label>
       <textarea id="hb-bulk-text" style="min-height:120px; font-family:var(--font-ui); font-size:.8rem" placeholder="Incolla il testo di una sottoclasse, di una razza o di un background."></textarea>
@@ -525,6 +541,54 @@ function hbBulkHTML(){
       </span>
     </button>`;
   };
+  /* Elenco raccolto in gruppi apribili: serve sia alle sottoclassi (per
+     classe) sia alle razze (per stirpe), che altrimenti sono liste
+     lunghissime da scorrere. */
+  const gruppi = (lista, titolo, chiave, etichetta, azione, extra) => {
+    if (!lista.length) return '';
+    const mappa = new Map();
+    lista.forEach(x => {
+      const k = chiave(x);
+      if (!mappa.has(k)) mappa.set(k, []);
+      mappa.get(k).push(x);
+    });
+    const ordine = [...mappa.keys()].sort((a,c) => {
+      if (!a) return 1; if (!c) return -1;
+      return etichetta(a).localeCompare(etichetta(c));
+    });
+    const unoSolo = ordine.every(k => mappa.get(k).length === 1);
+    const blocchi = ordine.map(k => {
+      const voci = mappa.get(k);
+      // Un gruppo da una voce sola non vale un clic: si mostra la riga e basta.
+      if (voci.length === 1) return `<div style="margin-bottom:8px">${riga(voci[0])}</div>`;
+      // Con poche voci, o con gruppi da uno, non ha senso far aprire.
+      const aperto = (lista.length <= 12 || unoSolo)
+        ? !(hbBulk.chiusi && hbBulk.chiusi.has(titolo+':'+k))
+        : !!(hbBulk.aperti && hbBulk.aperti.has(titolo+':'+k));
+      const scelti = voci.filter(x => b.scelti.has(x.id)).length;
+      return `<div style="margin-bottom:8px">
+        <button class="attack-row" style="width:100%; text-align:left" onclick="hbBulkApri('${titolo}:${k}', ${lista.length}, ${unoSolo})">
+          <span style="flex-shrink:0; margin-right:10px">${aperto?'▾':'▸'}</span>
+          <span class="attack-main">
+            <span class="attack-name">${escapeHtml(etichetta(k))}</span>
+            <span class="muted" style="font-size:.73rem; display:block">${voci.length} voci${scelti?' · '+scelti+(scelti===1?' scelta':' scelte'):''}</span>
+          </span>
+        </button>
+        ${aperto ? `<div class="chip-row" style="margin:8px 0">
+            <button class="chip" onclick="${azione}(true,'${k}')">Scegli tutte</button>
+            <button class="chip" onclick="${azione}(false,'${k}')">Nessuna</button>
+          </div>
+          ${extra ? extra(k) : ''}
+          <div class="list-gap">${voci.map(riga).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="divider"><span class="flourish">❧</span><span>${titolo} (${lista.length})</span></div>
+      <div class="chip-row" style="margin-bottom:8px">
+        <button class="chip" onclick="${azione}(true)">Scegli tutte</button>
+        <button class="chip" onclick="${azione}(false)">Nessuna</button>
+      </div>${blocchi}`;
+  };
+
   const sezione = (kind, titolo) => perTipo[kind].length
     ? `<div class="divider"><span class="flourish">❧</span><span>${titolo} (${perTipo[kind].length})</span></div>
        <div class="chip-row" style="margin-bottom:8px">
@@ -533,60 +597,22 @@ function hbBulkHTML(){
        </div>
        <div class="list-gap">${perTipo[kind].map(riga).join('')}</div>` : '';
 
-  /* Con un manuale intero le sottoclassi sono più di cento: le raccogliamo
-     per classe, così si trova subito quella che interessa. */
-  const sezioneSottoclassi = () => {
-    const lista = perTipo.subclass;
-    if (!lista.length) return '';
-    const gruppi = new Map();
-    lista.forEach(x => {
-      const k = x.classId || '';
-      if (!gruppi.has(k)) gruppi.set(k, []);
-      gruppi.get(k).push(x);
-    });
-    const ordine = [...gruppi.keys()].sort((a,c) => {
-      if (!a) return 1; if (!c) return -1;
-      const na = (typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[a] ? CLASS_BY_ID[a].name : a);
-      const nc = (typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[c] ? CLASS_BY_ID[c].name : c);
-      return na.localeCompare(nc);
-    });
-    const blocchi = ordine.map(k => {
-      const voci = gruppi.get(k);
-      const nome = k
-        ? ((typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[k] ? CLASS_BY_ID[k].name : k))
-        : 'Senza classe riconosciuta';
-      // Con poche voci non ha senso far aprire: si mostrano già tutte.
-      const aperto = lista.length <= 12 ? !(hbBulk.chiusi && hbBulk.chiusi.has(k))
-                                        : !!(hbBulk.aperti && hbBulk.aperti.has(k));
-      const scelti = voci.filter(x => b.scelti.has(x.id)).length;
-      return `<div style="margin-bottom:8px">
-        <button class="attack-row" style="width:100%; text-align:left" onclick="hbBulkApri('${k}')">
-          <span style="flex-shrink:0; margin-right:10px">${aperto?'▾':'▸'}</span>
-          <span class="attack-main">
-            <span class="attack-name">${escapeHtml(nome)}</span>
-            <span class="muted" style="font-size:.73rem; display:block">${voci.length} sottoclassi${scelti?' · '+scelti+' scelte':''}</span>
-          </span>
-        </button>
-        ${aperto ? `<div class="chip-row" style="margin:8px 0">
-            <button class="chip" onclick="hbBulkAll('subclass',true,'${k}')">Scegli tutte</button>
-            <button class="chip" onclick="hbBulkAll('subclass',false,'${k}')">Nessuna</button>
-          </div>
-          ${k ? '' : `<div class="field" style="margin:8px 0">
-            <label>Assegna tutto il gruppo a una classe</label>
-            <select onchange="hbBulkAssegna(this.value)">
-              <option value="">— scegli la classe —</option>
-              ${(typeof CLASSES_FULL!=='undefined'?CLASSES_FULL:[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
-            </select>
-          </div>`}
-          <div class="list-gap">${voci.map(riga).join('')}</div>` : ''}
-      </div>`;
-    }).join('');
-    return `<div class="divider"><span class="flourish">❧</span><span>Sottoclassi (${lista.length})</span></div>
-      <div class="chip-row" style="margin-bottom:8px">
-        <button class="chip" onclick="hbBulkAll('subclass',true)">Scegli tutte</button>
-        <button class="chip" onclick="hbBulkAll('subclass',false)">Nessuna</button>
-      </div>${blocchi}`;
-  };
+  const nomeClasseDi = (k) => k
+    ? ((typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[k]) ? CLASS_BY_ID[k].name : k)
+    : 'Senza classe riconosciuta';
+  /* Con un manuale intero le sottoclassi sono più di cento e le razze
+     quasi cinquanta: si raccolgono per classe e per stirpe. */
+  const sezioneSottoclassi = () => gruppi(
+    perTipo.subclass, 'Sottoclassi', x => x.classId || '', nomeClasseDi, 'hbBulkTutteSub',
+    (k) => k ? '' : `<div class="field" style="margin:8px 0">
+        <label>Assegna tutto il gruppo a una classe</label>
+        <select onchange="hbBulkAssegna(this.value)">
+          <option value="">— scegli la classe —</option>
+          ${(typeof CLASSES_FULL!=='undefined'?CLASSES_FULL:[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+      </div>`);
+  const sezioneRazze = () => gruppi(
+    perTipo.race, 'Razze', x => hbStirpe(x.name), (k) => k || 'Altre', 'hbBulkTutteRazze');
 
   const n = b.scelti.size;
   return modalShell('⤒ Cosa ho trovato', `
@@ -596,7 +622,7 @@ function hbBulkHTML(){
     </div>
     ${b.trovati.length ? '' : emptyState('🤔','Non ho riconosciuto niente. Prova con una porzione più piccola, o incolla il testo di una voce sola.')}
     ${sezioneSottoclassi()}
-    ${sezione('race','Razze')}
+    ${sezioneRazze()}
     ${sezione('background','Background')}
     ${(typeof campaignReady === 'function' && campaignReady()) ? `
       <button class="switch-row" style="margin-top:14px" onclick="hbBulkShare()">
@@ -627,17 +653,28 @@ function hbBulkAssegna(classId){
   if (!classId) return;
   let n = 0;
   hbBulk.trovati.forEach(x => { if (x.kind==='subclass' && !x.classId){ x.classId = classId; n++; } });
-  if (hbBulk.aperti) hbBulk.aperti.add(classId);
-  if (hbBulk.chiusi) hbBulk.chiusi.delete(classId);
+  if (hbBulk.aperti) hbBulk.aperti.add('Sottoclassi:'+classId);
+  if (hbBulk.chiusi) hbBulk.chiusi.delete('Sottoclassi:'+classId);
   renderModalRoot();
   if (n) toast('⚔️ ' + n + ' sottoclassi assegnate a ' + ((CLASS_BY_ID[classId]||{}).name || classId));
 }
 /* Apre o chiude il gruppo di una classe nell'elenco. */
-function hbBulkApri(classId){
-  const pochi = (hbBulk.trovati||[]).filter(x=>x.kind==='subclass').length <= 12;
-  const insieme = pochi ? (hbBulk.chiusi = hbBulk.chiusi || new Set())
-                        : (hbBulk.aperti = hbBulk.aperti || new Set());
-  if (insieme.has(classId)) insieme.delete(classId); else insieme.add(classId);
+function hbBulkApri(chiave, quante, unoSolo){
+  // Se i gruppi partono già aperti si tiene la lista di quelli chiusi.
+  const partonoAperti = (quante <= 12) || unoSolo;
+  const insieme = partonoAperti ? (hbBulk.chiusi = hbBulk.chiusi || new Set())
+                                : (hbBulk.aperti = hbBulk.aperti || new Set());
+  if (insieme.has(chiave)) insieme.delete(chiave); else insieme.add(chiave);
+  renderModalRoot();
+}
+/* Scorciatoie usate dai pulsanti dei gruppi. */
+function hbBulkTutteSub(on, classId){
+  hbBulkAll('subclass', on, classId);
+}
+function hbBulkTutteRazze(on, stirpe){
+  hbBulk.trovati
+    .filter(x => x.kind==='race' && (stirpe === undefined || hbStirpe(x.name) === stirpe))
+    .forEach(x => on ? hbBulk.scelti.add(x.id) : hbBulk.scelti.delete(x.id));
   renderModalRoot();
 }
 function hbBulkShare(){ hbBulk.condividi = !hbBulk.condividi; renderModalRoot(); }
@@ -659,13 +696,36 @@ function hbBulkFromBox(){
   const el = document.getElementById('hb-bulk-text');
   hbBulkAnalizza(el ? el.value : '');
 }
-function hbBulkFile(input){
-  const file = input.files && input.files[0];
+/* Legge uno o più file di fila e mette insieme tutto quello che trova:
+   così razze e sottoclassi entrano con un caricamento solo. */
+async function hbBulkFile(input){
+  const files = Array.from(input.files || []);
   input.value = '';
-  if (!file) return;
-  const isPdf = /pdf/i.test(file.type||'') || /\.pdf$/i.test(file.name||'');
-  hbBulk.busy = true; hbBulk.pag = 0; hbBulk.tot = 0; renderModalRoot();
-  if (isPdf){
+  if (!files.length) return;
+  hbBulk.busy = true; hbBulk.pag = 0; hbBulk.tot = 0;
+  hbBulk.file = 0; hbBulk.file_n = files.length; hbBulk.nome = '';
+  renderModalRoot();
+
+  const testi = [];
+  for (let i = 0; i < files.length; i++){
+    const f = files[i];
+    hbBulk.file = i + 1; hbBulk.nome = f.name || ''; hbBulk.pag = 0; hbBulk.tot = 0;
+    renderModalRoot();
+    try {
+      const testo = /pdf/i.test(f.type||'') || /\.pdf$/i.test(f.name||'')
+        ? await hbLeggiPdf(f)
+        : await hbLeggiTesto(f);
+      if (testo) testi.push(testo);
+    } catch(e){
+      console.error(e);
+      toast('⚠️ Non riesco a leggere «' + (f.name||'il file') + '»');
+    }
+  }
+  if (!testi.length){ hbBulk.busy = false; renderModalRoot(); return; }
+  hbBulkAnalizza(testi.join('\n\n'));
+}
+function hbLeggiPdf(file){
+  return new Promise((risolvi, rifiuta) => {
     const r = new FileReader();
     r.onload = async () => {
       try {
@@ -676,17 +736,20 @@ function hbBulkFile(input){
           const ora = Date.now();
           if (ora - ultimo > 500){ ultimo = ora; renderModalRoot(); }
         });
-        hbBulkAnalizza(text);
-      } catch(e){ console.error(e); hbBulk.busy=false; renderModalRoot(); toast('⚠️ Non riesco a leggere questo PDF'); }
+        risolvi(text);
+      } catch(e){ rifiuta(e); }
     };
-    r.onerror = () => { hbBulk.busy=false; renderModalRoot(); toast('⚠️ File illeggibile'); };
+    r.onerror = () => rifiuta(new Error('file illeggibile'));
     r.readAsArrayBuffer(file);
-    return;
-  }
-  const r = new FileReader();
-  r.onload = () => hbBulkAnalizza(r.result);
-  r.onerror = () => { hbBulk.busy=false; renderModalRoot(); toast('⚠️ File illeggibile'); };
-  r.readAsText(file);
+  });
+}
+function hbLeggiTesto(file){
+  return new Promise((risolvi, rifiuta) => {
+    const r = new FileReader();
+    r.onload = () => risolvi(r.result);
+    r.onerror = () => rifiuta(new Error('file illeggibile'));
+    r.readAsText(file);
+  });
 }
 async function hbBulkConfirm(){
   const scelti = hbBulk.trovati.filter(x => hbBulk.scelti.has(x.id));
