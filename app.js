@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.6';
+const APP_VERSION = '5.7';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -478,27 +478,76 @@ function saveSession(){
   } catch(e){ /* sessione piena: non è un problema bloccante */ }
 }
 
+/* Quello che il server ci ha mostrato l'ultima volta, per collezione.
+   Serve a distinguere «cancellato altrove» da «questo aggiornamento non
+   me l'ha portato»: si toglie solo ciò che c'ERA e adesso non c'è più. */
+const LS_VISTI = 'grimorio-visti';
+let __vistiSulServer = {};
+function caricaVisti(){
+  try {
+    const d = JSON.parse(localStorage.getItem(LS_VISTI) || '{}');
+    Object.keys(d).forEach(k => { if (Array.isArray(d[k])) __vistiSulServer[k] = new Set(d[k]); });
+  } catch(e){ __vistiSulServer = {}; }
+}
+function salvaVisti(){
+  try {
+    const d = {};
+    Object.keys(__vistiSulServer).forEach(k => { d[k] = [...__vistiSulServer[k]]; });
+    localStorage.setItem(LS_VISTI, JSON.stringify(d));
+  } catch(e){ /* non è un problema bloccante */ }
+}
+function dimenticaVisti(){
+  __vistiSulServer = {};
+  try { localStorage.removeItem(LS_VISTI); } catch(e){}
+}
+let __frenoAvvisato = false;
+
 /* `completo` dice che lo snapshot arriva davvero dal server (non dalla
-   cache locale di Firestore): solo in quel caso l'assenza di un documento
-   significa «cancellato», e non «non ancora arrivato». */
+   cache locale di Firestore): solo allora l'assenza può voler dire
+   «cancellato», e comunque solo se prima l'avevamo visto presente. */
 function mergeCollection(localArr, remoteArr, collection, completo){
   const byId = {};
   remoteArr.forEach(r => { byId[r.id] = r; });
+  const visti = __vistiSulServer[collection];
+  const daTogliere = [];
+
   (localArr||[]).forEach(l => {
     const pendingKey = collection + ':' + l.id;
     if (__saveTimers[pendingKey]) { byId[l.id] = l; return; }
     const r = byId[l.id];
     if (!r) {
-      // Era già arrivato sul server (ha syncedAt) e adesso non c'è più:
-      // qualcuno l'ha cancellato da un altro dispositivo. Rimetterlo lo
-      // faceva risorgere per sempre, e al primo tocco tornava pure online.
-      if (completo && l.syncedAt) return;
+      // Si toglie solo ciò che il server ci aveva già mostrato e adesso non
+      // ha più: è stato cancellato da un altro dispositivo. Un aggiornamento
+      // che semplicemente non lo contiene non è una prova di niente.
+      if (completo && l.syncedAt && visti && visti.has(l.id)){ daTogliere.push(l); return; }
       byId[l.id] = l; return;
     }
     const lt = l.updatedAt || l.createdAt || 0;
     const rt = r.updatedAt || r.createdAt || 0;
     byId[l.id] = lt > rt ? l : r;
   });
+
+  /* Freno di sicurezza: nessun aggiornamento può spazzare via mezza
+     collezione. Se lo chiede, non gli si crede e si tiene tutto: un dato
+     che riappare è un fastidio, un dato distrutto è un disastro. */
+  if (daTogliere.length){
+    const totale = (localArr||[]).length;
+    const troppi = daTogliere.length >= Math.max(5, Math.ceil(totale * 0.5));
+    if (troppi){
+      daTogliere.forEach(l => { byId[l.id] = l; });
+      console.warn('Aggiornamento sospetto ignorato su ' + collection + ': voleva togliere ' +
+                   daTogliere.length + ' voci su ' + totale);
+      if (!__frenoAvvisato){
+        __frenoAvvisato = true;
+        setTimeout(() => toast('🛡️ Ho ignorato un aggiornamento che avrebbe cancellato molte cose'), 800);
+      }
+    }
+  }
+
+  if (completo){
+    __vistiSulServer[collection] = new Set(remoteArr.map(r => r.id));
+    salvaVisti();
+  }
   return Object.values(byId);
 }
 
@@ -712,6 +761,7 @@ function cambiaCassetto(uid){
   // niente uid prima d'ora: quello che c'è l'hai creato tu da scollegato,
   // resta dov'è e sale sull'account con il primo collegamento.
   try { localStorage.setItem(LS_UID, uid); } catch(e){}
+  if (precedente) dimenticaVisti();
 }
 
 function signIn(forceMethod){
@@ -1366,7 +1416,31 @@ function renderParty(){
       <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">✎ Scheda vuota</button>
       <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">⇪ Importa PDF</button>
     </div>
+    ${campaignCardHTML()}
   `;
+}
+/* Il tavolo si raggiunge dalla prima schermata: è la cosa che si apre
+   più spesso quando si gioca in gruppo. */
+function campaignCardHTML(){
+  const c = state.campaign;
+  if (c && c.id){
+    const membri = Object.keys(c.members || {}).length;
+    const daMettere = (typeof daCondividere === 'function') ? daCondividere() : 0;
+    return `<div class="card" style="margin-top:16px; border-color:var(--gold-dim)">
+      <button class="attack-row" style="width:100%; text-align:left; background:none; border:0; padding:0"
+              onclick="openCampaign()">
+        <span style="flex-shrink:0; margin-right:11px; font-size:1.2rem">⚔️</span>
+        <span class="attack-main">
+          <span class="attack-name">${escapeHtml(c.name || 'La tua campagna')}</span>
+          <span class="muted" style="font-size:.73rem; display:block">
+            ${c.role === 'master' ? 'sei il master' : 'sei un giocatore'} · ${membri} ${membri===1?'membro':'membri'}${daMettere?' · '+daMettere+' da condividere':''}
+          </span>
+        </span>
+        <span class="muted" style="flex-shrink:0">›</span>
+      </button>
+    </div>`;
+  }
+  return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:16px" onclick="openCampaign()">⚔️ Entra in una campagna</button>`;
 }
 function charCardHTML(c){
   const pct = hpPctFor(c);
@@ -4069,6 +4143,7 @@ function handleLaunchShortcut(){
 
 function boot(){
   loadLocal();
+  caricaVisti();
   loadSession();
   if (typeof loadCampaignLocal === 'function') loadCampaignLocal();
   spawnEmbers();
@@ -4115,8 +4190,17 @@ function boot(){
   window.addEventListener('online', () => { if (currentUser) setSaveStatus('saved'); });
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+/* I file sono caricati con «defer»: quando app.js finisce, quelli dopo
+   (campaign.js, homebrew.js, traduci.js…) NON sono ancora stati eseguiti e
+   le loro funzioni non esistono. Partire subito significava saltare il
+   ripristino della campagna a ogni avvio. Si aspetta che ci siano tutti. */
+let __avviato = false;
+function avvia(){ if (__avviato) return; __avviato = true; boot(); }
+if (document.readyState === 'complete') avvia();
+else {
+  document.addEventListener('DOMContentLoaded', avvia, { once: true });
+  window.addEventListener('load', avvia, { once: true });   // rete di sicurezza
+}
 
 /* ══════════════════════════════════════════════════════════════
    Cambio rapido di personaggio e ricerca globale

@@ -35,23 +35,34 @@ function attachCampaign(){
   if (!id || !currentUser || !firebaseReady) return;
   const base = db.collection('campaigns').doc(id);
 
+  /* Uscire dalla campagna è una cosa seria: non la si fa perché un
+     aggiornamento è arrivato vuoto o dalla cache. Si esce solo se il
+     server lo conferma due volte di fila. */
+  let sospetti = 0;
   campUnsub.push(base.onSnapshot(snap => {
+    const daCache = !!(snap.metadata && snap.metadata.fromCache);
     const d = snap.data ? snap.data() : null;
-    if (!d){ // la campagna non c'è più, o non sei più dei nostri
-      leaveCampaignLocal('La campagna non esiste più.');
+    const fuori = !d || !d.members || !d.members[currentUser.uid];
+    if (fuori){
+      if (daCache) return;                       // la cache non fa testo
+      if (++sospetti < 2) return;                // una volta sola non basta
+      leaveCampaignLocal(!d ? 'La campagna non esiste più.' : 'Non fai più parte di questa campagna.');
       return;
     }
-    if (!d.members || !d.members[currentUser.uid]){
-      leaveCampaignLocal('Non fai più parte di questa campagna.');
-      return;
-    }
+    sospetti = 0;
     state.campaign = Object.assign({}, state.campaign, {
       id, name: d.name || 'Campagna', ownerUid: d.ownerUid,
       code: d.code, members: d.members || {},
       role: d.ownerUid === currentUser.uid ? 'master' : 'giocatore',
     });
     saveCampaignLocal(); renderIfSafe();
-  }, err => console.error('Campagna non leggibile', err)));
+  }, err => {
+    console.error('Campagna non leggibile', err);
+    // «permesso negato» è una prova vera: non sei più dei loro.
+    if (err && /permission|insufficient/i.test(err.code || err.message || '')){
+      leaveCampaignLocal('Non fai più parte di questa campagna.');
+    }
+  }));
 
   const wireShared = (name, key) => {
     campUnsub.push(base.collection(name).onSnapshot(snap => {

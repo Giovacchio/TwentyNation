@@ -1,5 +1,27 @@
 # TwentyNation — lista dei cambiamenti
 
+## v5.7 — 28 agosto 2026
+**Le tue aggiunte non spariscono più, la campagna non ti molla, e il tavolo si apre dalla prima schermata.**
+
+### La perdita delle sottoclassi e delle razze: trovata e chiusa
+Non era la condivisione: era la regola anti-risurrezione che avevo messo nella v5.3. Diceva «se il server non me lo manda, vuol dire che l'hai cancellato altrove» — e quindi **bastava un aggiornamento arrivato vuoto o incompleto per cancellare l'intera collezione**, anche in locale. Riprodotto: 164 aggiunte, uno snapshot vuoto, zero rimaste.
+
+Adesso non si deduce più niente dalle assenze, si ragiona su prove:
+- **Si toglie solo quello che il server ci aveva già mostrato** e adesso non ha più. Un aggiornamento che semplicemente non lo contiene non prova nulla. La memoria di «cosa c'era sul server» sopravvive alla chiusura dell'app, così una cancellazione fatta su un altro dispositivo mentre eri via arriva lo stesso.
+- **Freno di sicurezza**: nessun aggiornamento può portare via metà collezione o più. Se ci prova, viene ignorato e te lo dico. Un dato che riappare è un fastidio; un dato distrutto è un disastro.
+- Le cancellazioni vere fatte da un altro dispositivo continuano ad arrivare, una per una, come prima.
+
+Se hai perso delle voci, sono ancora sul tuo account: rientrando dovrebbero ricomparire. Se non tornano, dimmelo.
+
+### Uscivi dalla campagna a ogni chiusura — ed era colpa mia, in due punti
+- **`boot()` partiva troppo presto.** I file sono caricati con «defer» e quando `app.js` finiva, `campaign.js` non era ancora stato eseguito: la funzione che ripristina la campagna **non esisteva ancora**, e la riga che avrebbe dovuto chiamarla la saltava in silenzio. Risultato: a ogni avvio risultavi fuori dal tavolo. Ora si aspetta che tutti i file ci siano.
+- **Un aggiornamento storto ti buttava fuori.** Se il documento della campagna arrivava vuoto o dalla cache, l'app concludeva «non fai più parte di questa campagna» e cancellava il tavolo dal telefono. Ora serve la conferma del server due volte di fila; un «permesso negato» invece vale subito, perché quello è una prova.
+
+### Il tavolo dalla prima schermata
+Sotto i pulsanti del party: se non sei in nessuna campagna, **«⚔️ Entra in una campagna»**. Se ci sei, un riquadro col nome del tavolo, il tuo ruolo, quanti siete e quante cose tue non sono ancora in comune — si tocca e ci entri.
+
+> Verificato: 11 prove nuove più una che ricostruisce il caso vero (164 aggiunte importate, condivise, ricaricate) e tutta la suite con le regressioni da v40 a v48 — zero errori a runtime. Audit mobile invariato.
+
 ## v5.6 — 28 agosto 2026
 **L'app si chiama TwentyNation, e ha il suo marchio.**
 
