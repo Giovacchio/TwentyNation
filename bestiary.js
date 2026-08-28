@@ -22,15 +22,15 @@ function wildShapeLimit(level){
 }
 
 /* ─── Consultazione del bestiario SRD ─── */
-let mbFilter = { q:'', type:'all', maxCr:null, onlyBeasts:false, onlyFam:false, pick:null };
+let mbFilter = { q:'', type:'all', maxCr:null, onlyBeasts:false, onlyFam:false, famExtra:[], pick:null };
 function openMonsterBrowser(opts){
-  mbFilter = Object.assign({ q:'', type:'all', maxCr:null, onlyBeasts:false, onlyFam:false, pick:null }, opts||{});
+  mbFilter = Object.assign({ q:'', type:'all', maxCr:null, onlyBeasts:false, onlyFam:false, famExtra:[], pick:null }, opts||{});
   openModal({ render: monsterBrowserHTML });
 }
 function filteredMonsters(){
   let list = SRD_MONSTERS.slice();
   if (mbFilter.onlyBeasts) list = list.filter(m => m.t === 'bestia');
-  if (mbFilter.onlyFam) list = list.filter(m => m.fam);
+  if (mbFilter.onlyFam) list = list.filter(m => m.fam || (mbFilter.famExtra || []).includes(m.id));
   if (mbFilter.maxCr != null) list = list.filter(m => crValue(m.cr) <= mbFilter.maxCr);
   if (mbFilter.type !== 'all') list = list.filter(m => m.t === mbFilter.type);
   if (mbFilter.q){
@@ -209,9 +209,15 @@ function addCompanion(charId, kind){
   const opts = { pick: charId + '|' + kind, title: COMPANION_KINDS[kind].icon + ' ' + COMPANION_KINDS[kind].label, hint: COMPANION_KINDS[kind].hint };
   if (kind === 'familiar') opts.onlyFam = true;
   if (kind === 'wildshape'){
-    const lim = wildShapeLimit(c.level);
+    const lim = (typeof limiteForma === 'function') ? limiteForma(c) : wildShapeLimit(c.level);
     opts.onlyBeasts = true; opts.maxCr = lim.cr;
-    opts.hint = 'Druido di ' + c.level + '° livello: ' + lim.note;
+    opts.hint = 'Druido di ' + c.level + '° livello' + (lim.da ? ' · ' + lim.da : '') + ': ' + lim.note;
+  }
+  if (kind === 'familiar' && typeof famigliDi === 'function'){
+    const f = famigliDi(c);
+    if (f.qualsiasiBestia){ opts.onlyFam = false; opts.onlyBeasts = true; opts.maxCr = f.gsMax != null ? f.gsMax : 1; }
+    else if (f.extra.length) opts.famExtra = f.extra;
+    if (f.da) opts.hint = COMPANION_KINDS.familiar.hint + ' Con ' + f.da + ' puoi sceglierne altri.';
   }
   if (kind === 'companion' || kind === 'mount') opts.onlyBeasts = true;
   openMonsterBrowser(opts);

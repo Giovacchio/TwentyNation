@@ -799,11 +799,20 @@ async function hbBulkConfirm(){
   const scelti = hbBulk.trovati.filter(x => hbBulk.scelti.has(x.id));
   if (!scelti.length) return;
   state.homebrew = state.homebrew || [];
-  scelti.forEach(x => { x.updatedAt = Date.now(); state.homebrew.push(x); fsSet('homebrew', x); });
+  let conEffetti = 0;
+  scelti.forEach(x => {
+    // se dal testo si capiscono gli effetti sulle regole, glieli si mette
+    // già addosso: poi si aprono con ⚙️ e si sistemano.
+    if (typeof proponiMeccaniche === 'function'){
+      try { const m = proponiMeccaniche(x); if (m){ x.meccaniche = m; conEffetti++; } } catch(e){}
+    }
+    x.updatedAt = Date.now(); state.homebrew.push(x); fsSet('homebrew', x);
+  });
   saveLocal();
   const condividi = hbBulk.condividi;
   closeModal(); render();
-  toast('📚 ' + scelti.length + ' voci aggiunte ai tuoi contenuti');
+  toast('📚 ' + scelti.length + ' voci aggiunte ai tuoi contenuti' +
+        (conEffetti ? ' · ' + conEffetti + ' con effetti riconosciuti' : ''));
   if (condividi && typeof shareToCampaign === 'function'){
     const n = await shareToCampaign('homebrew', scelti);
     if (n) toast('⚔️ ' + n + ' anche nella campagna');

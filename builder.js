@@ -504,6 +504,8 @@ function buildCharacterFromBuilder(){
   ch.portrait = bld.portrait;
   ch.race = race ? (sub ? sub.name : race.name) : '';
   ch.classField = c.name;
+  ch.classId = c.id;
+  ch.subclassId = (sc && sc.id !== 'none') ? sc.id : '';
   ch.level = bld.level;
   ch.background = bg ? bg.name : '';
   ch.abilities = ab;

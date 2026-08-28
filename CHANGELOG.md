@@ -1,5 +1,26 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.1 — 28 agosto 2026
+**Le sottoclassi che importi ora cambiano davvero le regole, non solo il testo.**
+
+Finora una sottoclasse era una scheda di testo: bella da leggere, invisibile al resto dell'app. Il Druido del Cerchio della Luna vedeva le stesse bestie di un druido qualunque, e il Warlock col Patto della Catena gli stessi famigli.
+
+### La scheda ricorda che sottoclasse ha
+Prima la sottoclasse finiva solo dentro l'elenco dei privilegi, come testo: l'app non aveva modo di sapere che sei un druido della luna. Ora **classe e sottoclasse sono campi veri** della scheda. La creazione guidata li compila da sola; sulle schede già fatte o importate da PDF c'è un menù a tendina in **Storia**, sotto il background. Le schede vecchie risalgono alla classe dal nome che ci avevi scritto.
+
+### ⚙️ Effetti sul gioco
+Ogni tua sottoclasse ha un tasto ⚙️ in *Contenuti tuoi* dove dichiari **cosa cambia nelle regole** — non cosa dice il manuale:
+
+- **Forma selvatica**: il grado sfida massimo per livello (quante righe vuoi), e da che livello arrivano nuoto e volo. Di serie resta GS 1/4 dal 2°, 1/2 dal 4°, 1 dall'8°.
+- **Famigli**: le creature che questa sottoclasse ti lascia scegliere **oltre** a quelle normali.
+
+Quello che dichiari viene applicato: il selettore delle bestie filtra al grado sfida giusto e ti dice da quale sottoclasse arriva il permesso, e l'elenco dei famigli si allarga di conseguenza — senza perdere quelli di sempre.
+
+### L'app prova a compilarli da sola
+Quando importi da un manuale, se nel testo dei privilegi trova numeri accanto a «forma selvatica»/«wild shape» o creature nominate accanto a «famiglio»/«familiar», **propone già gli effetti** e te lo dice («12 voci aggiunte · 3 con effetti riconosciuti»). Legge solo i numeri del testo che hai caricato tu, non inventa nulla: su un privilegio qualunque non propone niente. Resta una bozza da controllare con ⚙️.
+
+> Verificato: 13 prove nuove, più tutta la suite e le regressioni da v40 a v48 — zero errori a runtime, audit mobile invariato.
+
 ## v6.0 — 28 agosto 2026
 **«Il tuo turno»: tutto quello che puoi fare adesso, senza aprire la scheda. E niente si elimina più per sempre.**
 

@@ -53,6 +53,7 @@ function subclassesFor(classId){
   const base = (CLASS_BY_ID[classId] ? CLASS_BY_ID[classId].subclasses : []) || [];
   return base.concat(homebrewOf('subclass').filter(h => h.classId === classId).map(h => ({
     id: h.id, name: h.name, features: h.features || {}, homebrew: true, source: h.source || '',
+    meccaniche: h.meccaniche || null,
     fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
@@ -90,8 +91,9 @@ function homebrewListHTML(){
       <div class="attack-row">
         <button class="attack-main" onclick="editHomebrew('${h.id}')">
           <div class="attack-name">${HB_KINDS[h.kind]?HB_KINDS[h.kind].icon:''} ${escapeHtml(h.name)}</div>
-          <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}</div>
+          <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}${(typeof riassuntoMeccaniche==='function' && riassuntoMeccaniche(h))?' · ⚙️ '+escapeHtml(riassuntoMeccaniche(h)):''}</div>
         </button>
+        ${h.kind==='subclass' ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙️</button>` : ''}
         ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
           const giaSu = (state.sharedHomebrew||[]).some(x => x.id === h.id);
           return `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem;${giaSu?'border-color:var(--gold); color:var(--gold)':''}"

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '6.0';
+const APP_VERSION = '6.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1014,6 +1014,7 @@ function newCharacter(){
     ac: 10, initiative: 0, speed: 9,
     hitDie: 8, hitDiceUsed: 0,
     deathSaves: { win: 0, fail: 0 },
+    classId: '', subclassId: '',
     casterType: 'none', spellAbility: 'int',
     slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null, spellNotes: {},
     inventory: [], coins: { pp:0, gp:0, ep:0, sp:0, cp:0 },
@@ -2788,6 +2789,35 @@ function removeKnownSpell(charId, spellId, source){
   scheduleSave('characters', c); render();
 }
 
+/* La sottoclasse va scelta anche sulle schede fatte a mano o importate:
+   senza, l'app non sa che sei un druido della luna e la forma selvatica
+   resta quella di serie. */
+function sottoclasseSceltaHTML(c){
+  const cl = (typeof classeDi === 'function') ? classeDi(c) : null;
+  if (!cl) return '';
+  const subs = subclassesFor(cl.id) || [];
+  if (!subs.length) return '';
+  const attuale = subs.find(s => s.id === c.subclassId);
+  const m = (typeof meccanicheDi === 'function') ? meccanicheDi(c) : null;
+  return `<div class="field" style="margin-top:12px">
+    <label>${escapeHtml(cl.subclassLabel || 'Sottoclasse')}</label>
+    <select onchange="impostaSottoclasse('${c.id}', this.value)">
+      <option value="">— nessuna —</option>
+      ${subs.map(s=>`<option value="${attr(s.id)}" ${c.subclassId===s.id?'selected':''}>${escapeHtml(s.name)}${s.fromCampaign?' · dal tavolo':''}</option>`).join('')}
+    </select>
+    ${attuale && m ? `<div class="muted" style="font-size:.73rem; margin-top:6px">⚙️ Cambia le regole: ${escapeHtml((typeof riassuntoMeccaniche==='function'?riassuntoMeccaniche({meccaniche:m}):'') || 'sì')}</div>` : ''}
+  </div>`;
+}
+function impostaSottoclasse(charId, id){
+  const c = charById(charId); if (!c) return;
+  c.subclassId = id || '';
+  const cl = (typeof classeDi === 'function') ? classeDi(c) : null;
+  if (cl && !c.classId) c.classId = cl.id;
+  scheduleSave('characters', c); render();
+  const sc = (typeof sottoclasseDi === 'function') ? sottoclasseDi(c) : null;
+  if (sc) toast('⚔️ ' + sc.name);
+}
+
 /* ─── 19. STORIA / BACKGROUND ─── */
 function renderSheetBackground(c){
   return `
@@ -2798,6 +2828,7 @@ function renderSheetBackground(c){
       </div>
       <input value="${attr(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
     </div>
+    ${sottoclasseSceltaHTML(c)}
 
     <div class="divider"><span class="flourish">❧</span><span>Personalità</span></div>
     <div class="trait-grid">
