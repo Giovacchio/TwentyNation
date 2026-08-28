@@ -1,5 +1,41 @@
 # Grimorio — lista dei cambiamenti
 
+## v5.3 — 28 agosto 2026
+**Revisione completa: undici difetti trovati e corretti, due dei quali sbagliavano i numeri in scheda.**
+
+Ho fatto rileggere tutto il codice a revisori indipendenti, area per area, chiedendo per ogni segnalazione uno scenario concreto in cui l'app sbaglia davvero. Quello che segue è ciò che ha superato la verifica.
+
+### Numeri sbagliati in scheda (i più gravi)
+- **La CD degli incantesimi era più alta di 2.** In Panoramica si leggeva `10 + competenza + caratteristica` invece di `8 + …`: un mago di 5° con INT 18 vedeva **17** invece di 15 — e la scheda Magie, due schermate più in là, mostrava il numero giusto. Chi guardava il numero grande faceva fallire tiri salvezza che il mostro avrebbe superato.
+- **La percezione dei non incantatori ignorava la competenza.** Nello stesso riquadro un ladro esperto in Percezione leggeva `12` accanto a una passiva di `17`.
+- **Cambiare la Destrezza cancellava l'iniziativa.** Chi aveva Attento (o qualsiasi bonus scritto a mano) se lo vedeva azzerato al primo punto di DES speso, senza avviso e con il salvataggio già partito. Ora l'iniziativa si sposta della differenza invece di essere riscritta.
+
+### Perdita di dati
+- **Quello che cancellavi su un dispositivo risorgeva sull'altro.** L'altro dispositivo, ricevendo l'aggiornamento, non trovava il personaggio sul server e lo **rimetteva** — e al primo tocco lo ricaricava anche online. Ora si distingue «mai arrivato al server» (si tiene e si carica) da «c'era e non c'è più» (è stato cancellato: se ne prende atto). Vale per personaggi, PNG, incantesimi, contenuti tuoi e diario.
+
+### Sicurezza
+- **Un nome scritto da un altro membro del tavolo finiva in pagina senza filtro.** I nomi dei background arrivano anche da `sharedHomebrew`, cioè da altri utenti: bastava chiamarne uno con del markup dentro per farlo eseguire sul telefono di chi apriva la creazione guidata, con accesso alla cache locale e alla sessione. Ora passano dall'escape come tutto il resto.
+
+### Cose che non funzionavano
+- **Gli incantesimi condivisi dal tavolo non si aprivano.** Comparivano nel grimorio, ma toccarli non faceva niente — né un errore né un avviso: la ricerca guardava solo fra i tuoi e fra quelli SRD. Stesso buco nel cambio classe e nella copia.
+- **Le risorse a riposo breve non si recuperavano** se avevi finito i dadi vita: il ripristino era agganciato alla spesa di un dado, e senza dadi non c'era modo di farlo. Sbagliava anche al contrario: curarsi con un dado fuori dal riposo le ricaricava. Ora c'è un tasto **«Concludi il riposo breve»** sempre presente, che recupera anche gli slot del Patto.
+- **Il livello degli incantesimi non veniva mai letto dalle schede PDF.** L'appaiamento fra casella e intestazione usava fasce arrotondate che non coincidevano mai: ogni incantesimo non riconosciuto entrava come **1° livello**. Su una scheda reale i livelli ora si distribuiscono correttamente da 0 a 4.
+- **Cancellare la ricerca nel grimorio poteva lasciarlo vuoto.** Premendo la ✕ entro un attimo dall'ultima lettera, il valore vecchio arrivava dopo e filtrava la lista mentre la casella era vuota e la ✕ sparita: nessun modo di capire perché non si vedeva più niente.
+
+### Lettore dei manuali
+- **Una riga di prosa sotto un titolo faceva sparire l'intera voce.** Una condizione scritta al contrario attaccava il testo al titolo, che così non veniva più riconosciuto.
+- **Le razze in italiano non venivano mai lette**: il lettore cercava «Aumento dei Punteggi» ma i manuali scrivono «Aumento dei Punteggi **di Caratteristica**». Sottoclassi e background entravano, le razze zero, senza avviso.
+- **Una voce sola incollata veniva scartata** anche se riconosciuta bene — proprio il caso che la schermata suggerisce.
+- **Un apostrofo nel nome rompeva i gruppi** («Genasi dell'Aria»): il gruppo non si apriva più e le razze dentro restavano irraggiungibili.
+- **Il privilegio dei background** finiva tutto nel titolo, descrizione compresa, e «Lingue: una a tua scelta» contava zero lingue.
+- **Un file vuoto lasciava la finestra bloccata** su «leggo…» per sempre.
+- **La scuola degli incantesimi restava in inglese** quando la riga diceva «Evocation cantrip»: veniva presa intera e la traduzione non la trovava.
+
+### Il tasto «Importa» accetta tutto
+Non filtra più i soli JSON: gli dai un file e capisce da solo cos'è. Backup → ripristino; **scheda PDF compilabile** → importazione della scheda; **PDF o testo di un manuale** → lettore dei manuali. Il riconoscimento è automatico (guarda se il PDF ha campi compilabili), non ti chiede niente. Stessa cosa per «Importa file» dentro *Contenuti tuoi*.
+
+> Verificato: 7 prove nuove sulle correzioni, 6 sui percorsi di importazione, più guida, bulk, campagna, sincronizzazione, persistenza e le regressioni da v40 a v48 — tutte verdi, zero errori a runtime. Audit mobile su 99 schermate invariato.
+
 ## v5.2 — 28 agosto 2026
 **Le guide impaginate a due colonne adesso si leggono per intero.**
 

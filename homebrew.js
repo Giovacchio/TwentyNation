@@ -36,7 +36,8 @@ function allRaces(){
     id: h.id, name: h.name, speed: h.speed || 9, size: h.size || 'Media',
     bonus: h.bonus || {}, languages: (h.languages || 'Comune').split(/\s*,\s*/).filter(Boolean),
     traits: (h.traits || []).map(t => ({ name: t[0], desc: t[1] })),
-    grantSkills: h.grantSkills || [], subraces: [], homebrew: true, source: h.source || ''
+    grantSkills: h.grantSkills || [], subraces: [], homebrew: true, source: h.source || '',
+    fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
 function raceById(id){ return allRaces().find(r => r.id === id); }
@@ -44,13 +45,15 @@ function allBackgrounds(){
   return BACKGROUNDS_FULL.concat(homebrewOf('background').map(h => ({
     id: h.id, name: h.name, skills: h.skills || [], languages: h.langCount || 0,
     tools: h.tools || '—', feature: h.feature || '', desc: h.desc || '',
-    equipment: h.equipment || '', homebrew: true, source: h.source || ''
+    equipment: h.equipment || '', homebrew: true, source: h.source || '',
+    fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
 function subclassesFor(classId){
   const base = (CLASS_BY_ID[classId] ? CLASS_BY_ID[classId].subclasses : []) || [];
   return base.concat(homebrewOf('subclass').filter(h => h.classId === classId).map(h => ({
-    id: h.id, name: h.name, features: h.features || {}, homebrew: true, source: h.source || ''
+    id: h.id, name: h.name, features: h.features || {}, homebrew: true, source: h.source || '',
+    fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
 
@@ -97,11 +100,12 @@ function homebrewListHTML(){
         <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" onclick="confirmDeleteHomebrew('${h.id}')" aria-label="Elimina">✕</button>
       </div>`).join('')}</div>`
       : emptyState('📚','Non hai ancora contenuti tuoi. Aggiungine uno con i pulsanti qui sopra.')}
-    ${list.length ? `<div class="btn-row" style="margin-top:14px">
+    <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openHomebrewBulk()">📖 Leggi dal tuo manuale</button>
+    ${list.length ? `<div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" onclick="exportHomebrew()">⤓ Esporta</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-import-file').click()">⤒ Importa</button>
-    </div>` : `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:14px" onclick="document.getElementById('hb-import-file').click()">⤒ Importa da file</button>`}
-    <input type="file" id="hb-import-file" accept="application/json,.json" style="display:none" onchange="importHomebrewFile(this)">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-import-file').click()">⤒ Importa file</button>
+    </div>` : `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="document.getElementById('hb-import-file').click()">⤒ Importa da file</button>`}
+    <input type="file" id="hb-import-file" accept="application/json,.json,application/pdf,.pdf,.txt,text/plain,.md" style="display:none" onchange="importHomebrewFile(this)">
     <div class="spell-source-note">Il Grimorio non contiene materiale dei manuali: quello che scrivi qui resta tuo e non viene condiviso con nessuno.</div>`;
   return modalShell('📚 Contenuti tuoi', inner);
 }
@@ -253,6 +257,8 @@ function saveHomebrewDraft(){
   if (hbDraft.kind === 'background' && (hbDraft.skills||[]).length !== 2){ toast('Scegli due competenze di abilità'); return; }
   saveHomebrew(hbDraft);
   const name = hbDraft.name;
+  const appenaCreato = hbDraft.id;
+  const proponi = (typeof campaignReady === 'function') && campaignReady();
   if (hbReturnToBuilder){
     // preseleziona quello appena creato e torna dov'eri
     if (hbDraft.kind === 'subclass') bld.subclassId = hbDraft.id;
@@ -260,11 +266,13 @@ function saveHomebrewDraft(){
     else if (hbDraft.kind === 'race') pickRace(hbDraft.id);
     hbBackToBuilder();
     toast('📚 ' + name + ' aggiunto e selezionato');
+    if (proponi) chiediSeCondividere(appenaCreato, name);
     return;
   }
   closeModal(); render();
   toast('📚 ' + name + ' salvato');
-  openHomebrew();
+  if (proponi) chiediSeCondividere(appenaCreato, name);
+  else openHomebrew();
 }
 function hbBackToBuilder(){
   hbReturnToBuilder = false;
@@ -463,6 +471,14 @@ function exportHomebrew(){
   toast('⤓ Esportati');
 }
 function importHomebrewFile(input){
+  // Anche qui: se non è un JSON è un manuale, e va al lettore.
+  const f = input.files && input.files[0];
+  if (f && !(/json/i.test(f.type||'') || /\.json$/i.test(f.name||''))){
+    input.value = '';
+    openHomebrewBulk();
+    if (typeof hbBulkUsaFile === 'function') hbBulkUsaFile([f]);
+    return;
+  }
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
@@ -492,4 +508,17 @@ async function shareOneHomebrew(id){
   const n = await shareToCampaign('homebrew', [h]);
   if (n) toast('⚔️ ' + h.name + ' è ora del tavolo');
   renderModalRoot();
+}
+
+
+/* Appena crei un'aggiunta, se sei a un tavolo l'app ti chiede se
+   metterla in comune: è il momento in cui ci pensi davvero. */
+function chiediSeCondividere(id, nome){
+  const camp = state.campaign;
+  if (!camp) return;
+  setTimeout(() => {
+    confirmDialog('Condividere con il tavolo?',
+      '«' + nome + '» resta comunque tuo. Condividendolo lo vedranno anche gli altri membri di «' + (camp.name||'la campagna') + '» nella loro creazione guidata.',
+      () => { shareOneHomebrew(id); closeModal(); }, 'Condividi');
+  }, 700);
 }

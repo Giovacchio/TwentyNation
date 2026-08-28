@@ -147,12 +147,14 @@ function hbNormalizza(raw){
       || /^(.+?)\s*\([A-Z]{2,6}\)\s*:?\s*$/.test(l)   // «Nome (FONTE):»
       || hbIsHeading(l);
     const prec = voci[voci.length-1];
-    if (!apreVoce && prec && prec.testo && !/[.!?:]$/.test(prec.testo) === false){
-      // continuazione: si attacca alla voce prima
+    // Una riga che non apre niente continua quella prima, ma solo se
+    // quella prima è rimasta a metà: un titolo «Nome (FONTE):» è finito,
+    // e non deve mangiarsi la prosa che lo segue.
+    if (!apreVoce && prec && prec.testo && !/[.!?:]$/.test(prec.testo)){
       prec.testo += ' ' + l;
       continue;
     }
-    if (!apreVoce && prec && prec.testo && prec.marker){
+    if (!apreVoce && prec && prec.testo && prec.marker && !/:$/.test(prec.testo)){
       prec.testo += ' ' + l;
       continue;
     }
@@ -179,7 +181,7 @@ function hbCampo(testo){
   const m = /^(.{2,48}?)\s*:\s*(.+)$/s.exec(String(testo||'').trim());
   return m ? { campo: m[1].trim(), valore: m[2].trim() } : null;
 }
-const HB_CAMPI_RAZZA = /^(ability scores?|ability score increase|aumento dei punteggi|punteggi di caratteristica|age|et[àa]|size|taglia|speed|velocit[àa]|languages?|lingue|linguaggi|alignment|allineamento)$/i;
+const HB_CAMPI_RAZZA = /^(ability scores?|ability score increase|aumento dei punteggi(?: di caratteristica)?|punteggi di caratteristica|incremento dei punteggi(?: di caratteristica)?|age|et[àa]|size|taglia|speed|velocit[àa]|languages?|lingue|linguaggi|alignment|allineamento)$/i;
 
 /* Nomi di classe riconosciuti, in italiano e in inglese. Serve a capire
    quando un titolo apre la sezione di una classe invece di essere una
@@ -208,6 +210,30 @@ function hbSembraClasse(corpo){
   const ha = (rx) => campi.some(c => rx.test(c)) || testi.some(t => rx.test(t));
   return (ha(/^hit dice|^dadi vita/) || ha(/^hit points/)) &&
          (ha(/^armor$|^armature$/) || ha(/^saving throws|^tiri salvezza/) || ha(/^proficiencies|^competenze$/));
+}
+
+/* «Scoperta. La solitudine ti ha portato a…» → titolo e corpo separati,
+   come li tiene il lettore a righe: chi li consuma si aspetta due campi. */
+function hbTitoloPrivilegio(testo){
+  const t = String(testo||'').trim();
+  if (!t) return '';
+  const m = /^(.{2,60}?)[.:]\s+(.+)$/s.exec(t);
+  return (m ? m[1] : t).trim().slice(0,80);
+}
+function hbCorpoPrivilegio(testo){
+  const t = String(testo||'').trim();
+  if (!t) return '';
+  const m = /^(.{2,60}?)[.:]\s+(.+)$/s.exec(t);
+  return m ? m[2].trim().slice(0,700) : '';
+}
+/* «una a tua scelta», «due lingue», «two languages», «1». */
+function hbQuanteLingue(testo){
+  const t = norm(testo||'');
+  if (!t) return 0;
+  if (/\b(due|two|2)\b/.test(t)) return 2;
+  if (/\b(tre|three|3)\b/.test(t)) return 3;
+  if (/\b(una|uno|un|one|1)\b/.test(t)) return 1;
+  return t ? 1 : 0;
 }
 
 /* ─── Lettura delle guide («Nome (FONTE):» con elenchi puntati) ─── */
@@ -291,9 +317,9 @@ function hbScanGuida(raw){
       out.push({ kind:'background', name: t.nome, source: t.fonte,
         skills: parseSkillList(kAbil.valore),
         tools: get(/tool proficiencies|strumenti/i),
-        langCount: (()=>{ const v = get(/languages?|lingue/i); const n = /(\d+)|two|due/i.exec(v||''); return n ? (/two|due/i.test(n[0])?2:parseInt(n[0])||1) : 0; })(),
-        feature: get(/^(feature|privilegio)$/i),
-        desc: get(/^(feature|privilegio)$/i) ? '' : '',
+        langCount: hbQuanteLingue(get(/languages?|lingue/i)),
+        feature: hbTitoloPrivilegio(get(/^(feature|privilegio)$/i)),
+        desc: hbCorpoPrivilegio(get(/^(feature|privilegio)$/i)),
         equipment: get(/equipment|equipaggiamento/i) });
       continue;
     }
@@ -350,7 +376,10 @@ function hbScanText(raw){
      se rende, è quello giusto e il resto non serve. */
   try {
     const daGuida = hbScanGuida(raw);
-    if (daGuida.length >= 2) trovati.push(...daGuida);
+    // Due voci bastano a dire che il formato è quello giusto; una sola vale
+  // solo se l'altra lettura non ha trovato niente (è il caso di chi
+  // incolla una voce singola, che la schermata stessa suggerisce).
+  if (daGuida.length >= 2 || (daGuida.length === 1 && !trovati.length)) trovati.push(...daGuida);
   } catch(e){ console.warn('Lettura guida non riuscita', e); }
 
   /* — Background — */
@@ -567,7 +596,7 @@ function hbBulkHTML(){
         : !!(hbBulk.aperti && hbBulk.aperti.has(titolo+':'+k));
       const scelti = voci.filter(x => b.scelti.has(x.id)).length;
       return `<div style="margin-bottom:8px">
-        <button class="attack-row" style="width:100%; text-align:left" onclick="hbBulkApri('${titolo}:${k}', ${lista.length}, ${unoSolo})">
+        <button class="attack-row" style="width:100%; text-align:left" onclick="hbBulkApri('${jsStr(titolo+':'+k)}', ${lista.length}, ${unoSolo})">
           <span style="flex-shrink:0; margin-right:10px">${aperto?'▾':'▸'}</span>
           <span class="attack-main">
             <span class="attack-name">${escapeHtml(etichetta(k))}</span>
@@ -575,8 +604,8 @@ function hbBulkHTML(){
           </span>
         </button>
         ${aperto ? `<div class="chip-row" style="margin:8px 0">
-            <button class="chip" onclick="${azione}(true,'${k}')">Scegli tutte</button>
-            <button class="chip" onclick="${azione}(false,'${k}')">Nessuna</button>
+            <button class="chip" onclick="${azione}(true,'${jsStr(k)}')">Scegli tutte</button>
+            <button class="chip" onclick="${azione}(false,'${jsStr(k)}')">Nessuna</button>
           </div>
           ${extra ? extra(k) : ''}
           <div class="list-gap">${voci.map(riga).join('')}</div>` : ''}
@@ -680,7 +709,10 @@ function hbBulkTutteRazze(on, stirpe){
 function hbBulkShare(){ hbBulk.condividi = !hbBulk.condividi; renderModalRoot(); }
 
 function hbBulkAnalizza(testo){
-  if (!String(testo||'').trim()){ toast('Non c\'è niente da leggere'); return; }
+  if (!String(testo||'').trim()){
+    hbBulk.busy = false; renderModalRoot();
+    toast('Non c\'è niente da leggere'); return;
+  }
   const trovati = hbScanText(testo);
   hbBulk.trovati = trovati;
   hbBulk.busy = false;
@@ -701,6 +733,12 @@ function hbBulkFromBox(){
 async function hbBulkFile(input){
   const files = Array.from(input.files || []);
   input.value = '';
+  return hbBulkUsaFile(files);
+}
+/* Legge file già scelti altrove (per esempio dal tasto «Importa» delle
+   opzioni, che accetta qualsiasi tipo di file). */
+async function hbBulkUsaFile(files){
+  files = Array.from(files || []);
   if (!files.length) return;
   hbBulk.busy = true; hbBulk.pag = 0; hbBulk.tot = 0;
   hbBulk.file = 0; hbBulk.file_n = files.length; hbBulk.nome = '';

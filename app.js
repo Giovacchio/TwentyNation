@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.2';
+const APP_VERSION = '5.3';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -219,7 +219,14 @@ const jsStr = (s) => escapeHtml(String(s == null ? '' : s)
   .replace(/\\/g, '\\\\')
   .replace(/'/g, "\\'")
   .replace(/\r?\n/g, '\\n'));
-function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+function debounce(fn, ms){
+  let t;
+  const f = (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); };
+  // Chi ridisegna tutto deve poter annullare quello che è ancora in coda,
+  // altrimenti un valore vecchio arriva dopo e sfasa la schermata.
+  f.annulla = () => clearTimeout(t);
+  return f;
+}
 
 /* Vibrazione: un buffetto sul telefono quando succede qualcosa di grosso.
    Si può spegnere dalle Opzioni, e sui computer non fa nulla. */
@@ -459,14 +466,23 @@ function saveSession(){
   } catch(e){ /* sessione piena: non è un problema bloccante */ }
 }
 
-function mergeCollection(localArr, remoteArr, collection){
+/* `completo` dice che lo snapshot arriva davvero dal server (non dalla
+   cache locale di Firestore): solo in quel caso l'assenza di un documento
+   significa «cancellato», e non «non ancora arrivato». */
+function mergeCollection(localArr, remoteArr, collection, completo){
   const byId = {};
   remoteArr.forEach(r => { byId[r.id] = r; });
   (localArr||[]).forEach(l => {
     const pendingKey = collection + ':' + l.id;
     if (__saveTimers[pendingKey]) { byId[l.id] = l; return; }
     const r = byId[l.id];
-    if (!r) { byId[l.id] = l; return; }
+    if (!r) {
+      // Era già arrivato sul server (ha syncedAt) e adesso non c'è più:
+      // qualcuno l'ha cancellato da un altro dispositivo. Rimetterlo lo
+      // faceva risorgere per sempre, e al primo tocco tornava pure online.
+      if (completo && l.syncedAt) return;
+      byId[l.id] = l; return;
+    }
     const lt = l.updatedAt || l.createdAt || 0;
     const rt = r.updatedAt || r.createdAt || 0;
     byId[l.id] = lt > rt ? l : r;
@@ -490,7 +506,8 @@ function attachFirestore(uidUser){
   const wire = (name, mapper) => {
     unsubscribers.push(base.collection(name).onSnapshot(snap => {
       const remote = snap.docs.map(d => ({...d.data(), id: d.id}));
-      state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name);
+      const completo = !(snap.metadata && snap.metadata.fromCache);
+      state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name, completo);
       saveLocal(); setSaveStatus('saved'); renderIfSafe();
       if (!primaVolta[name]){ primaVolta[name] = true; uploadUnsynced(name, remote); }
     }, err => { console.error('Errore sync ' + name, err); }));
@@ -1258,7 +1275,7 @@ function characterFormHTML(isEdit){
       <div class="field">
         <label>Background</label>
         <div class="chip-row" style="margin-bottom:8px;">
-          ${backgroundNames().map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${jsStr(b)}'; renderModalRoot()">${b}</button>`).join('')}
+          ${backgroundNames().map(b=>`<button type="button" class="chip ${d.background===b?'active':''}" onclick="draftChar.background='${jsStr(b)}'; renderModalRoot()">${escapeHtml(b)}</button>`).join('')}
         </div>
         <input value="${attr(d.background||'')}" placeholder="…oppure scrivi il tuo" oninput="draftChar.background=this.value">
       </div>
@@ -1351,7 +1368,9 @@ function updateCharField(id, path, value){
 function updateAbility(charId, key, value){
   const c = charById(charId); if (!c) return;
   const score = clamp(parseInt(value)||10, 1, 30);
+  const modPrec = key === 'dex' ? mod(getPath(c,'abilities.dex',10)) : null;
   setPath(c, 'abilities.'+key, score);
+  if (key === 'dex') c.__dexModPrec = modPrec;
   refreshDerived(c, key);
   scheduleSave('characters', c);
 }
@@ -1364,7 +1383,15 @@ function refreshDerived(c, key){
     set('savemod-'+key, signStr(saveMod(c,key)));
     SKILLS.filter(s=>s.ability===key).forEach(s=> set('skmod-'+s.key, signStr(skillMod(c,s))));
     if (key === 'dex'){
-      c.initiative = mod(getPath(c,'abilities.dex',10));
+      // Sposta l'iniziativa della differenza invece di riscriverla: chi ha
+      // Attento o simili si ritrovava il bonus cancellato senza avviso.
+      const nuovo = mod(getPath(c,'abilities.dex',10));
+      const vecchio = Number.isFinite(c.__dexModPrec) ? c.__dexModPrec : null;
+      const attuale = Number(c.initiative);
+      c.initiative = (vecchio !== null && Number.isFinite(attuale))
+        ? attuale + (nuovo - vecchio)   // sposta, non riscrive
+        : nuovo;
+      delete c.__dexModPrec;
       const initEl = document.getElementById('cs-init'); if (initEl && document.activeElement !== initEl) initEl.value = c.initiative;
     }
     if (key === 'wis') set('passive-perc', passivePerception(c));
@@ -1527,7 +1554,7 @@ function renderSheetOverview(c){
       <div class="combat-grid">
         <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
         <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Cost.</div></div>
-        <div class="combat-stat"><div class="v">${10 + (c.casterType && c.casterType!=='none' ? spellcastingMod(c) : mod(getPath(c,'abilities.wis',10)))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percez. attiva'}</div></div>
+        <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
       </div>
 
       <div class="hp-block" style="margin-top:10px">
@@ -2105,6 +2132,7 @@ function restModalHTML(charId){
   const c = charById(charId); if (!c) return '';
   const left = hitDiceLeft(c);
   const conMod = mod(getPath(c,'abilities.con',10));
+  const srCount = (c.resources||[]).filter(r => r.recovery === 'sr').length;
   const inner = `
     <div class="card" style="margin-bottom:12px">
       <div class="card-title">☀️ Riposo breve</div>
@@ -2121,7 +2149,12 @@ function restModalHTML(charId){
         <span class="muted">Seconda classe: d${c.hitDie2}</span>
         <button class="btn btn-sm btn-gold" onclick="spendHitDice('${charId}',1,2)">Spendi 1 dado d${c.hitDie2}</button>
       </div>` : ''}
-      ${(c.casterType==='pact') ? `<button class="btn btn-arcane btn-block" style="margin-top:10px" onclick="restorePactSlots('${charId}')">✦ Recupera slot del Patto</button>` : ''}
+      ${(srCount || c.casterType==='pact') ? `
+        <button class="btn btn-gold btn-block" style="margin-top:10px" onclick="concludiRiposoBreve('${charId}')">✓ Concludi il riposo breve</button>
+        <p class="muted" style="font-size:.73rem; margin-top:6px">Ricarica ${[
+          srCount ? (srCount===1?'la risorsa che torna col riposo breve':'le '+srCount+' risorse che tornano col riposo breve') : '',
+          c.casterType==='pact' ? 'gli slot del Patto' : ''
+        ].filter(Boolean).join(' e ')}, anche se non hai speso dadi vita.</p>` : ''}
     </div>
     <div class="card">
       <div class="card-title">🌙 Riposo lungo</div>
@@ -2142,7 +2175,6 @@ function spendHitDice(charId, n, which){
   for (let i=0;i<n;i++){ const r = rollDie(die); rolls.push(r); healed += Math.max(0, r + conMod); }
   if (which === 2) c.hitDiceUsed2 = (c.hitDiceUsed2||0) + n;
   else c.hitDiceUsed = (c.hitDiceUsed||0) + n;
-  (c.resources||[]).forEach(r => { if (r.recovery === 'sr') r.left = Number(r.total)||0; });
   const max = getPath(c,'hp.max',0);
   const before = getPath(c,'hp.current',0);
   setPath(c,'hp.current', clamp(before + healed, 0, max));
@@ -2151,6 +2183,27 @@ function spendHitDice(charId, n, which){
   scheduleSave('characters', c);
   closeModal(); render();
   toast(`☀️ +${real} PF — ${n}d${die} [${rolls.join(', ')}] ${signStr(conMod)} per dado`);
+}
+/* Ricarica quello che torna con un riposo breve. Vale anche senza dadi
+   vita da spendere: il riposo lo fai comunque. */
+function concludiRiposoBreve(charId){
+  const c = charById(charId); if (!c) return;
+  let n = 0;
+  (c.resources||[]).forEach(r => {
+    if (r.recovery !== 'sr') return;
+    const pieno = Number(r.total)||0;
+    if ((Number(r.left)||0) !== pieno) n++;
+    r.left = pieno;
+  });
+  // Il warlock riprende gli slot del Patto a ogni riposo breve.
+  if (c.casterType === 'pact'){
+    if (Object.values(c.slotsUsed||{}).some(v => (Number(v)||0) > 0)) n++;
+    c.slotsUsed = {};
+  }
+  scheduleSave('characters', c);
+  closeModal(); render();
+  toast(n ? ('☀️ Riposo breve: ' + n + (n===1?' risorsa recuperata':' risorse recuperate'))
+          : '☀️ Riposo breve: non c\'era niente da recuperare');
 }
 function restorePactSlots(charId){
   const c = charById(charId); if (!c) return;
@@ -2477,7 +2530,7 @@ function renderSheetBackground(c){
     <div class="field">
       <label>Background</label>
       <div class="chip-row" style="margin-bottom:8px;">
-        ${backgroundNames().map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${jsStr(b)}')">${b}</button>`).join('')}
+        ${backgroundNames().map(b=>`<button class="chip ${c.background===b?'active':''}" onclick="setBackgroundPreset('${c.id}','${jsStr(b)}')">${escapeHtml(b)}</button>`).join('')}
       </div>
       <input value="${attr(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
     </div>
@@ -2637,8 +2690,12 @@ const setGrimoireSearch = debounce((val) => {
   const el = document.getElementById('grimoire-results');
   if (el) el.innerHTML = grimoireResultsHTML();
 }, 180);
-function clearGrimoireSearch(){ state.grimoireFilter.q = ''; render(); }
+function clearGrimoireSearch(){ setGrimoireSearch.annulla(); state.grimoireFilter.q = ''; render(); }
 function setGrimoireFilter(key, val){
+  setGrimoireSearch.annulla();
+  // Se c'è del testo appena digitato lo si prende ora, prima di ridisegnare.
+  const box = document.getElementById('grimoire-search-input');
+  if (box) state.grimoireFilter.q = box.value;
   state.grimoireFilter[key] = val;
   render();
 }
@@ -2658,7 +2715,7 @@ function toggleSpellFromGrimoire(spellId, source){
 }
 
 function viewSpellDetail(id, source, charId){
-  const sp = source==='custom' ? state.customSpells.find(s=>s.id===id) : (typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).find(s=>s.id===id);
+  const sp = spellByRef({ id, source });
   if (!sp) return;
   openModal({ render: () => spellDetailHTML(sp, source, charId) });
 }
@@ -2752,9 +2809,7 @@ function editCustomSpell(id){
 // Parte da un incantesimo esistente (SRD o tuo) e ne crea una variante:
 // il modo più rapido per aggiungere quelli che non sono nell'SRD.
 function copySpellAsCustom(id, source){
-  const sp = source === 'custom'
-    ? state.customSpells.find(s=>s.id===id)
-    : (typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).find(s=>s.id===id);
+  const sp = spellByRef({ id, source });
   if (!sp) return;
   draftSpell = {
     id: uid(), name: spellName(sp) + ' (variante)', level: sp.level||0, school: schoolIt(sp.school||''),
@@ -2886,9 +2941,7 @@ function saveCustomSpell(andAnother){
 */
 let draftTagClasses = null, draftTagSpell = null;
 function openSpellClassEditor(spellId, source){
-  const sp = source === 'custom'
-    ? state.customSpells.find(s=>s.id===spellId)
-    : (typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).find(s=>s.id===spellId);
+  const sp = spellByRef({ id: spellId, source });
   if (!sp) return;
   draftTagSpell = { id: spellId, source, base: (sp.classes||[]).slice(), sp };
   draftTagClasses = spellClasses(Object.assign({}, sp, {source})).slice();
@@ -3287,8 +3340,9 @@ function renderSettings(){
         <button class="btn btn-gold" onclick="exportData()">⤓ Esporta</button>
         <button class="btn btn-ghost" onclick="triggerImport()">⤒ Importa</button>
       </div>
-      <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="openPdfImport()">⇪ Importa una scheda PDF compilabile</button>
-      <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="handleImportFile(this)">
+      <p class="muted" style="font-size:.75rem; margin-top:10px">«Importa» accetta anche una <b>scheda PDF compilabile</b> e i <b>PDF o file di testo dei tuoi manuali</b>: capisco da solo di che file si tratta.</p>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="openPdfImport()">⇪ Importa una scheda PDF compilabile</button>
+      <input type="file" id="import-file" accept="application/json,.json,application/pdf,.pdf,.txt,text/plain,.md" style="display:none" onchange="handleImportFile(this)">
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Informazioni</span></div>
@@ -3333,10 +3387,23 @@ function exportCustomSpells(){
   toast('⤓ Incantesimi esportati');
 }
 function triggerImport(){ const el = document.getElementById('import-file'); if (el) el.click(); }
+/* Il tasto «Importa» accetta qualsiasi cosa l'app sappia leggere e sceglie
+   da sé la strada: backup JSON, scheda PDF compilabile, oppure manuale
+   (PDF o testo) da cui pescare sottoclassi, razze e background. */
 function handleImportFile(input){
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
+  const nome = file.name || '';
+  const isPdf  = /pdf/i.test(file.type||'') || /\.pdf$/i.test(nome);
+  const isJson = /json/i.test(file.type||'') || /\.json$/i.test(nome);
+  const isTesto = /\.(txt|md)$/i.test(nome) || /^text\/(plain|markdown)$/i.test(file.type||'');
+
+  if (isPdf){ instradaPdf(file); return; }
+  if (isTesto && typeof hbBulkUsaFile === 'function'){
+    openHomebrewBulk(); hbBulkUsaFile([file]); return;
+  }
+  if (!isJson && !isTesto){ toast('⚠️ Non so leggere questo tipo di file'); return; }
   const reader = new FileReader();
   reader.onload = () => {
     let data;
@@ -3355,6 +3422,27 @@ function handleImportFile(input){
   };
   reader.onerror = () => toast('⚠️ Impossibile leggere il file');
   reader.readAsText(file);
+}
+/* Una scheda compilabile ha i campi del modulo; un manuale no. Lo si
+   capisce provando a leggerli, senza chiedere niente all'utente. */
+async function instradaPdf(file){
+  if (typeof readPdfFields !== 'function'){ toast('⚠️ Non so leggere questo tipo di file'); return; }
+  toast('Sto guardando che PDF è…');
+  let campi = [];
+  try {
+    const buf = await file.arrayBuffer();
+    campi = await readPdfFields(buf);
+  } catch(e){
+    console.warn('PDF senza campi leggibili', e);
+    campi = [];
+  }
+  if (campi.length && typeof useSheetPdf === 'function'){
+    openPdfImport(); useSheetPdf(file); return;
+  }
+  if (typeof hbBulkUsaFile === 'function'){
+    openHomebrewBulk(); hbBulkUsaFile([file]); return;
+  }
+  toast('⚠️ Questo PDF non ha campi compilabili da leggere');
 }
 function doImport(data){
   const mergeIn = (key, arr, mapper) => {

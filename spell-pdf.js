@@ -156,7 +156,9 @@ function parseSpellsFromText(raw){
     for (let j = li - 1; j >= Math.max(0, li - 5); j--){
       const l = lines[j];
       if (!l) continue;
-      if (isSchool(l) && !school){ school = l.split(/\s{2,}/)[0].trim(); nameAt = j; continue; }
+      // «Evocation cantrip» / «Transmutation ritual»: la scuola è la prima
+    // parola, il resto è una qualifica e va tolta o non si traduce più.
+    if (isSchool(l) && !school){ school = (l.trim().split(/\s+/)[0] || '').trim(); nameAt = j; continue; }
       if (/^(Casting|Range|Components|Duration|Tempo|Gittata|Componenti|Durata)\s*:/i.test(l)) continue;
       if (l.length > 60) break;
       name = l.trim(); nameAt = j;

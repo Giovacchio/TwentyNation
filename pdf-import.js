@@ -504,10 +504,16 @@ function extractSpells(fields, idx, c){
     if (/^0\s*\d+$/.test(name)) level = 0;
     else {
       // il livello è quello dell'intestazione più vicina sopra, nella stessa colonna
+      // L'intestazione e le caselle della stessa colonna non sono allineate
+      // allo stesso pixel: il confronto per fascia arrotondata mancava sempre
+      // il bersaglio. Si prende la più vicina in orizzontale entro 90 punti.
       let bestH = null;
       headers.forEach(h => {
-        if (colOf(h) !== colOf(box) || h.y < box.y) return;
-        if (!bestH || h.y < bestH.y) bestH = h;
+        if (Math.abs(h.x - box.x) > 90 || h.y < box.y) return;
+        if (!bestH) { bestH = h; return; }
+        const dNuovo = Math.abs(h.x - box.x), dVecchio = Math.abs(bestH.x - box.x);
+        // a parità di colonna vince quella che sta più in basso (più vicina)
+        if (dNuovo < dVecchio - 20 || (Math.abs(dNuovo - dVecchio) <= 20 && h.y < bestH.y)) bestH = h;
       });
       if (bestH) level = levelOfHeader[bestH.name];
     }
@@ -572,6 +578,11 @@ function pdfImportHTML(){
 function handleSheetPdf(input){
   const file = input.files && input.files[0];
   input.value = '';
+  useSheetPdf(file);
+}
+/* Legge una scheda già scelta altrove (per esempio dal tasto «Importa»
+   delle opzioni, che accetta qualsiasi tipo di file). */
+function useSheetPdf(file){
   if (!file) return;
   if (file.size > 40 * 1024 * 1024){ toast('⚠️ PDF troppo grande (oltre 40 MB)'); return; }
   pendingSheet = 'loading';
