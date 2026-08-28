@@ -11,6 +11,12 @@
 - **Niente più voci fantasma.** Un frammento come «Level 10: 4 danni da fuoco» non viene più scambiato per una sottoclasse.
 - **Velocità in piedi abbreviati.** `25ft.` diventa 7,5 m; prima restava il valore di riserva.
 
+### Un solo caricamento e sono dentro tutti
+- Finita la lettura **è già tutto selezionato**: basta premere «Aggiungi 116» e ci sono. Prima andavano spuntati a mano uno per uno.
+- Le sottoclassi di classi che l'app non ha si assegnano **tutte insieme** con un menù a tendina sul gruppo, invece che aprendo voce per voce.
+- Durante la lettura si vede **a che pagina è arrivata** (`Pagina 128 di 203`): un manuale intero richiede qualche minuto e ora si capisce che sta lavorando.
+- «📖 Leggile tutte dal tuo manuale» compare anche **dentro la creazione guidata**, ai passi di razza, sottoclasse e background: è lì che ci si accorge che manca qualcosa.
+
 ### La schermata di scelta regge i numeri grossi
 - Le sottoclassi sono **raggruppate per classe**, con il conteggio e un «scegli tutte» per gruppo: con 116 voci non si scorre più a vuoto.
 - Ogni riga dice **a quale classe appartiene**, e segnala con ⚠︎ quelle da assegnare.

@@ -76,7 +76,7 @@ function stepRace(){
   const needSkills = race && race.skillChoice && bld.raceSkills.length < race.skillChoice;
   return `
     <div class="chip-row" style="margin-bottom:14px">
-      ${allRaces().map(r=>`<button class="chip ${bld.raceId===r.id?'active':''}" onclick="pickRace('${r.id}')">${escapeHtml(r.name)}${r.notSrd?' *':''}${r.homebrew?' ✦':''}</button>`).join('')}
+      ${allRaces().map(r=>`<button class="chip ${bld.raceId===r.id?'active':''}" onclick="pickRace('${r.id}')">${escapeHtml(r.name)}${r.notSrd?' *':''}${r.fromCampaign?' ⚔️':(r.homebrew?' ✦':'')}</button>`).join('')}
     </div>
     ${race ? `
       <div class="card" style="margin-bottom:12px">
@@ -113,6 +113,7 @@ function stepRace(){
       ${race.notSrd ? `<div class="spell-source-note">* Variante non compresa nell'SRD: le meccaniche sono riassunte, il talento va scritto a mano.</div>` : ''}
     ` : `<p class="muted">Scegli una razza per vedere cosa comporta.</p>`}
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">📚 Aggiungi una razza tua</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">📖 Leggile tutte dal tuo manuale</button>
     ${bldNav(!!race && !needSub && !needBonus && !needSkills)}
   `;
 }
@@ -229,7 +230,7 @@ function stepSubclass(){
     const feats = featuresUpTo(x, bld.level);
     return `<button class="card sub-card ${on?'on':''}" style="width:100%; text-align:left" onclick="bldSet({subclassId:'${x.id}'})">
       <div class="row-between" style="align-items:center">
-        <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.homebrew?' ✦':''}</b>
+        <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.fromCampaign?' ⚔️':(x.homebrew?' ✦':'')}</b>
         <span class="badge">${on ? 'scelto' : 'scegli'}</span>
       </div>
       ${feats.length ? `<div class="list-gap" style="margin-top:9px">${feats.map(f=>`
@@ -246,11 +247,13 @@ function stepSubclass(){
     <div class="card" style="margin-bottom:14px; border-color:var(--gold-dim); padding:11px 13px">
       <div class="muted" style="font-size:.78rem; line-height:1.55">Nell'app c'è ${srd.length === 1 ? "l'unico archetipo" : 'solo quello'} che la licenza libera (SRD) permette di includere: uno per classe. Gli altri sono materiale dei manuali, quindi te li aggiungi tu dal tuo libro — bastano un nome e i privilegi per livello, e poi restano lì per sempre.</div>
       <button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="hbFromBuilder('subclass','${c.id}')">✦ Crea il tuo ${escapeHtml(c.subclassLabel.toLowerCase())}</button>
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">📖 Leggili tutti dal tuo manuale</button>
     </div>
 
     <div class="list-gap">
       ${srd.map(cardFor).join('')}
-      ${mine.length ? `<div class="divider"><span class="flourish">❧</span><span>I tuoi</span></div>${mine.map(cardFor).join('')}` : ''}
+      ${mine.length ? `<div class="divider"><span class="flourish">❧</span><span>${mine.some(x=>x.fromCampaign)?'I tuoi e quelli del tavolo':'I tuoi'}</span></div>${mine.map(cardFor).join('')}
+        <div class="muted" style="font-size:.72rem; text-align:center">✦ tuoi · ⚔️ condivisi nella campagna</div>` : ''}
     </div>
 
     <button class="card sub-card ${bld.subclassId==='none'?'on':''}" style="width:100%; text-align:left; margin-top:10px" onclick="bldSet({subclassId:'none'})">
@@ -270,9 +273,10 @@ function stepBackground(){
   const bg = allBackgrounds().find(b => b.id === bld.bgId);
   return `
     <div class="chip-row" style="margin-bottom:14px">
-      ${allBackgrounds().map(b=>`<button class="chip ${bld.bgId===b.id?'active':''}" onclick="bldSet({bgId:'${b.id}'})">${escapeHtml(b.name)}${b.homebrew?' ✦':''}</button>`).join('')}
+      ${allBackgrounds().map(b=>`<button class="chip ${bld.bgId===b.id?'active':''}" onclick="bldSet({bgId:'${b.id}'})">${escapeHtml(b.name)}${b.fromCampaign?' ⚔️':(b.homebrew?' ✦':'')}</button>`).join('')}
     </div>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('background')">📚 Aggiungi un background tuo</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="openHomebrewBulk()">📖 Leggili tutti dal tuo manuale</button>
     ${bg && bg.skills.some(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)) ? `
       <div class="card" style="margin-bottom:12px; border-color:var(--warn)">
         <div class="muted" style="font-size:.8rem">⚠️ ${escapeHtml(bg.skills.filter(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)).map(k=>SKILLS.find(s=>s.key===k).label).join(' e '))} l'hai già presa dalla classe o dalla razza: una competenza doppia non serve a nulla. Torna indietro e cambia la scelta della classe, oppure chiedi al master di sostituirla.</div>

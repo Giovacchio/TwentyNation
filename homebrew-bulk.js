@@ -492,9 +492,10 @@ function hbBulkHTML(){
       Quello che entra resta tuo; lo condividi col tavolo solo se lo decidi.
     </p>
     <div class="btn-row">
-      <button class="btn btn-gold" ${b.busy?'disabled':''} onclick="document.getElementById('hb-bulk-file').click()">📂 ${b.busy?'Leggo…':'Scegli il file'}</button>
+      <button class="btn btn-gold" ${b.busy?'disabled':''} onclick="document.getElementById('hb-bulk-file').click()">📂 ${b.busy? (b.tot ? 'Pagina '+b.pag+' di '+b.tot+'…' : 'Leggo…') : 'Scegli il file'}</button>
       <button class="btn btn-ghost" ${b.busy?'disabled':''} onclick="hbBulkFromBox()">Analizza il testo</button>
     </div>
+    ${b.busy ? `<p class="muted" style="font-size:.75rem; margin-top:-6px">Un manuale intero richiede qualche minuto: tieni l'app aperta finché non finisce.</p>` : ''}
     <input type="file" id="hb-bulk-file" accept=".txt,text/plain,application/pdf,.pdf,.md" style="display:none" onchange="hbBulkFile(this)">
     <div class="field" style="margin-top:12px">
       <label>…oppure incolla qui</label>
@@ -570,6 +571,13 @@ function hbBulkHTML(){
             <button class="chip" onclick="hbBulkAll('subclass',true,'${k}')">Scegli tutte</button>
             <button class="chip" onclick="hbBulkAll('subclass',false,'${k}')">Nessuna</button>
           </div>
+          ${k ? '' : `<div class="field" style="margin:8px 0">
+            <label>Assegna tutto il gruppo a una classe</label>
+            <select onchange="hbBulkAssegna(this.value)">
+              <option value="">— scegli la classe —</option>
+              ${(typeof CLASSES_FULL!=='undefined'?CLASSES_FULL:[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+            </select>
+          </div>`}
           <div class="list-gap">${voci.map(riga).join('')}</div>` : ''}
       </div>`;
     }).join('');
@@ -614,6 +622,16 @@ function hbBulkAll(kind, on, classId){
     .forEach(x => on ? hbBulk.scelti.add(x.id) : hbBulk.scelti.delete(x.id));
   renderModalRoot();
 }
+/* Dà in un colpo solo una classe a tutte le sottoclassi rimaste senza. */
+function hbBulkAssegna(classId){
+  if (!classId) return;
+  let n = 0;
+  hbBulk.trovati.forEach(x => { if (x.kind==='subclass' && !x.classId){ x.classId = classId; n++; } });
+  if (hbBulk.aperti) hbBulk.aperti.add(classId);
+  if (hbBulk.chiusi) hbBulk.chiusi.delete(classId);
+  renderModalRoot();
+  if (n) toast('⚔️ ' + n + ' sottoclassi assegnate a ' + ((CLASS_BY_ID[classId]||{}).name || classId));
+}
 /* Apre o chiude il gruppo di una classe nell'elenco. */
 function hbBulkApri(classId){
   const pochi = (hbBulk.trovati||[]).filter(x=>x.kind==='subclass').length <= 12;
@@ -629,7 +647,9 @@ function hbBulkAnalizza(testo){
   const trovati = hbScanText(testo);
   hbBulk.trovati = trovati;
   hbBulk.busy = false;
-  hbBulk.scelti = new Set();
+  // Chi carica un manuale intero le vuole tutte: parte tutto selezionato,
+  // semmai si toglie quello che non serve.
+  hbBulk.scelti = new Set(trovati.map(x => x.id));
   hbBulk.aperti = new Set();
   hbBulk.chiusi = new Set();
   renderModalRoot({ toTop:true });
@@ -644,12 +664,18 @@ function hbBulkFile(input){
   input.value = '';
   if (!file) return;
   const isPdf = /pdf/i.test(file.type||'') || /\.pdf$/i.test(file.name||'');
-  hbBulk.busy = true; renderModalRoot();
+  hbBulk.busy = true; hbBulk.pag = 0; hbBulk.tot = 0; renderModalRoot();
   if (isPdf){
     const r = new FileReader();
     r.onload = async () => {
       try {
-        const { text } = await extractPdfColumns(r.result, 1, 0);
+        let ultimo = 0;
+        const { text } = await extractPdfColumns(r.result, 1, 0, (fatte, totali) => {
+          hbBulk.pag = fatte; hbBulk.tot = totali;
+          // una ridisegnata ogni mezzo secondo: basta a far vedere che lavora
+          const ora = Date.now();
+          if (ora - ultimo > 500){ ultimo = ora; renderModalRoot(); }
+        });
         hbBulkAnalizza(text);
       } catch(e){ console.error(e); hbBulk.busy=false; renderModalRoot(); toast('⚠️ Non riesco a leggere questo PDF'); }
     };
