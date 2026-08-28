@@ -242,6 +242,20 @@ function campaignHTML(){
       <div class="combat-stat"><div class="v">${membri.length}</div><div class="l">Membri</div></div>
     </div>
 
+    ${(() => { const n = daCondividere(); return `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title">Le tue cose</div>
+        <p class="muted" style="margin:6px 0 10px; font-size:.8rem">
+          ${n ? ('Hai <b>' + n + '</b> fra incantesimi e aggiunte che il tavolo non vede ancora.')
+              : 'Il tavolo vede già tutto quello che hai.'}
+        </p>
+        <button class="btn btn-gold btn-block" ${n?'':'disabled'} onclick="condividiTutto()">⚔️ Condividi tutto${n?' ('+n+')':''}</button>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" onclick="openCondivisione()">Scegli cosa</button>
+          <button class="btn btn-ghost btn-sm" onclick="ritiraTutto()">Ritira tutto</button>
+        </div>
+      </div>`; })()}
+
     <div class="divider"><span class="flourish">❧</span><span>Al tavolo</span></div>
     <div class="list-gap">
       ${membri.map(([uidM, m])=>`<div class="attack-row">
@@ -261,6 +275,22 @@ function campaignHTML(){
         ${canUnshare(sp) ? `<button class="spell-item-add" title="Ritira" onclick="unshareFromCampaign('spells','${jsStr(sp.id)}')">✕</button>` : ''}
       </div>`).join('')}</div>` : ''}
 
+    ${nHb ? `<div class="divider"><span class="flourish">❧</span><span>Aggiunte condivise</span></div>
+      <div class="list-gap">${(state.sharedHomebrew||[]).map(h=>{
+        const k = (typeof HB_KINDS !== 'undefined' && HB_KINDS[h.kind]) ? HB_KINDS[h.kind] : null;
+        const cls = h.classId && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[h.classId] ? CLASS_BY_ID[h.classId].name : '';
+        return `<div class="attack-row">
+          <div class="attack-main" style="pointer-events:none">
+            <div class="attack-name">${k?k.icon:'📚'} ${escapeHtml(h.name||'')}</div>
+            <div class="muted" style="font-size:.72rem">${k?k.label:h.kind}${cls?' · '+escapeHtml(cls):''} · da ${escapeHtml(h.sharedByName||'qualcuno')}</div>
+          </div>
+          ${canUnshare(h) ? `<button class="attack-btn" style="min-width:44px" title="Ritira" onclick="unshareFromCampaign('homebrew','${jsStr(h.id)}')">✕</button>` : ''}
+        </div>`;
+      }).join('')}</div>` : `
+      <div class="card" style="margin-top:14px">
+        <div class="muted" style="font-size:.8rem">Nessun archetipo, razza o background in comune. Li metti dal tasto ⚔️ in <b>Opzioni → Contenuti tuoi</b>, oppure appena ne crei uno dalla creazione guidata.</div>
+      </div>`}
+
     <button class="btn btn-danger btn-block" style="margin-top:16px" onclick="confirmLeaveCampaign()">Esci dalla campagna</button>`);
 }
 function copyInvite(){
@@ -269,4 +299,157 @@ function copyInvite(){
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(txt).then(()=>toast('📋 Codice copiato: ' + txt), ()=>toast('Codice: ' + txt));
   } else toast('Codice: ' + txt);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Metti in comune col tavolo — in un colpo solo
+   Prima ogni incantesimo e ogni aggiunta andavano condivisi uno per
+   uno con il tasto ⚔️: con un manuale intero importato erano centinaia
+   di tocchi. Qui si vede tutto insieme e si manda in blocco.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Le tue cose, quelle che puoi mettere in comune (non quelle che
+   arrivano già dal tavolo). */
+function mieCose(){
+  const miei = (state.homebrew || []).filter(x => x && x.id && !x.fromCampaign);
+  const spells = (state.customSpells || []).filter(x => x && x.id);
+  return { spells, homebrew: miei };
+}
+function giaSuTavolo(kind, id){
+  const lista = kind === 'spells' ? (state.sharedSpells || []) : (state.sharedHomebrew || []);
+  return lista.some(x => x && x.id === id);
+}
+/* Quante cose tue non sono ancora sul tavolo. */
+function daCondividere(){
+  const m = mieCose();
+  return m.spells.filter(x => !giaSuTavolo('spells', x.id)).length
+       + m.homebrew.filter(x => !giaSuTavolo('homebrew', x.id)).length;
+}
+
+/* Il clic solo: manda tutto quello che manca. */
+function condividiTutto(){
+  if (!campaignReady()){ toast('Prima entra in una campagna'); return; }
+  const m = mieCose();
+  const sp = m.spells.filter(x => !giaSuTavolo('spells', x.id));
+  const hb = m.homebrew.filter(x => !giaSuTavolo('homebrew', x.id));
+  const n = sp.length + hb.length;
+  if (!n){ toast('È già tutto in comune col tavolo'); return; }
+  const pezzi = [];
+  if (sp.length) pezzi.push(sp.length + (sp.length===1?' incantesimo':' incantesimi'));
+  if (hb.length) pezzi.push(hb.length + (hb.length===1?' aggiunta':' aggiunte'));
+  confirmDialog('Mettere tutto in comune?',
+    'Vanno sul tavolo «' + (state.campaign.name || 'la campagna') + '» ' + pezzi.join(' e ') +
+    '. Li vedranno i membri, e puoi ritirarli quando vuoi.',
+    async () => {
+      let fatti = 0;
+      if (sp.length) fatti += await shareToCampaign('spells', sp);
+      if (hb.length) fatti += await shareToCampaign('homebrew', hb);
+      renderModalRoot(); render();
+      toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente');
+    }, 'Condividi ' + n);
+}
+
+/* Ritira in blocco tutto quello che hai messo tu. */
+function ritiraTutto(){
+  if (!campaignReady()) return;
+  const sp = (state.sharedSpells || []).filter(canUnshare);
+  const hb = (state.sharedHomebrew || []).filter(canUnshare);
+  const n = sp.length + hb.length;
+  if (!n){ toast('Non c\'è niente che tu possa ritirare'); return; }
+  confirmDialog('Ritirare tutto dal tavolo?',
+    n + (n===1?' cosa smetterà':' cose smetteranno') + ' di essere visibile ai membri. Le tue copie restano tue e non si toccano.',
+    async () => {
+      for (const x of sp) await unshareFromCampaign('spells', x.id);
+      for (const x of hb) await unshareFromCampaign('homebrew', x.id);
+      renderModalRoot(); render();
+      toast('↩︎ Ritirate ' + n);
+    }, 'Ritira ' + n);
+}
+
+/* ─── La schermata a scelta multipla ─── */
+let condScelti = null;
+
+function openCondivisione(){
+  if (!campaignReady()){ toast('Prima entra in una campagna'); return; }
+  const m = mieCose();
+  // parte già spuntato quello che non è ancora sul tavolo: il caso normale
+  condScelti = new Set();
+  m.spells.forEach(x => { if (!giaSuTavolo('spells', x.id)) condScelti.add('spells:'+x.id); });
+  m.homebrew.forEach(x => { if (!giaSuTavolo('homebrew', x.id)) condScelti.add('homebrew:'+x.id); });
+  openModal({ render: () => condivisioneHTML() });
+}
+function condToggle(chiave){
+  if (!condScelti) return;
+  if (condScelti.has(chiave)) condScelti.delete(chiave); else condScelti.add(chiave);
+  renderModalRoot();
+}
+function condTutti(kind, on){
+  const m = mieCose();
+  const lista = kind === 'spells' ? m.spells : m.homebrew;
+  lista.forEach(x => {
+    if (giaSuTavolo(kind, x.id)) return;          // già su: non si tocca
+    const k = kind + ':' + x.id;
+    if (on) condScelti.add(k); else condScelti.delete(k);
+  });
+  renderModalRoot();
+}
+function condivisioneHTML(){
+  const m = mieCose();
+  const c = state.campaign || {};
+  const riga = (kind, x, nome, sotto) => {
+    const su = giaSuTavolo(kind, x.id);
+    const k = kind + ':' + x.id;
+    const on = condScelti.has(k);
+    return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':''}"
+        ${su ? 'disabled style="opacity:.55; width:100%; text-align:left"' : `onclick="condToggle('${jsStr(k)}')"`}>
+      <span style="flex-shrink:0; margin-right:10px; font-size:1.05rem">${su ? '⚔️' : (on ? '☑️' : '⬜')}</span>
+      <span class="attack-main">
+        <span class="attack-name">${escapeHtml(nome)}</span>
+        <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(sotto)}${su ? ' · già sul tavolo' : ''}</span>
+      </span>
+    </button>`;
+  };
+  const sezione = (kind, titolo, lista, nomeDi, sottoDi) => {
+    if (!lista.length) return '';
+    const mancanti = lista.filter(x => !giaSuTavolo(kind, x.id)).length;
+    return `<div class="divider"><span class="flourish">❧</span><span>${titolo} (${lista.length})</span></div>
+      ${mancanti ? `<div class="chip-row" style="margin-bottom:8px">
+        <button class="chip" onclick="condTutti('${kind}',true)">Scegli tutti</button>
+        <button class="chip" onclick="condTutti('${kind}',false)">Nessuno</button>
+      </div>` : '<p class="muted" style="font-size:.75rem; margin-bottom:8px">Sono già tutti sul tavolo.</p>'}
+      <div class="list-gap">${lista.slice(0,150).map(x => riga(kind, x, nomeDi(x), sottoDi(x))).join('')}</div>
+      ${lista.length>150?`<p class="muted" style="font-size:.73rem; margin-top:8px">…e altre ${lista.length-150}: usa «Condividi tutto».</p>`:''}`;
+  };
+  const n = condScelti ? condScelti.size : 0;
+  const nomeSp = (x) => (typeof spellName === 'function' ? spellName(x) : (x.name||''));
+  const sottoSp = (x) => (x.level ? x.level + '° livello' : 'trucchetto') + (x.school ? ' · ' + x.school : '');
+  const sottoHb = (x) => {
+    const k = (typeof HB_KINDS !== 'undefined' && HB_KINDS[x.kind]) ? HB_KINDS[x.kind].label : x.kind;
+    const cl = x.classId && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[x.classId] ? CLASS_BY_ID[x.classId].name : '';
+    return k + (cl ? ' · ' + cl : '');
+  };
+  return modalShell('⚔️ Metti in comune', `
+    <p class="muted" style="margin-bottom:14px">
+      Quello che scegli lo vedono i membri di <b>${escapeHtml(c.name||'la campagna')}</b> nel grimorio
+      e nella creazione guidata. Le tue copie restano tue: ritiri quando vuoi.
+    </p>
+    ${sezione('homebrew','Sottoclassi, razze e background', m.homebrew, x=>x.name||'', sottoHb)}
+    ${sezione('spells','Incantesimi tuoi', m.spells, nomeSp, sottoSp)}
+    ${(!m.homebrew.length && !m.spells.length) ? emptyState('📭','Non hai ancora niente di tuo da mettere in comune. Importa qualcosa dai tuoi manuali e torna qui.') : ''}
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>
+      <button class="btn btn-primary" ${n?'':'disabled'} onclick="condividiScelti()">Condividi ${n||''}</button>
+    </div>`);
+}
+async function condividiScelti(){
+  if (!campaignReady() || !condScelti || !condScelti.size) return;
+  const m = mieCose();
+  const sp = m.spells.filter(x => condScelti.has('spells:'+x.id) && !giaSuTavolo('spells', x.id));
+  const hb = m.homebrew.filter(x => condScelti.has('homebrew:'+x.id) && !giaSuTavolo('homebrew', x.id));
+  let fatti = 0;
+  if (sp.length) fatti += await shareToCampaign('spells', sp);
+  if (hb.length) fatti += await shareToCampaign('homebrew', hb);
+  condScelti = null;
+  closeModal(); render();
+  toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente');
 }

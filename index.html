@@ -620,7 +620,9 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   position: fixed; left: 50%; bottom: calc(var(--nav-h) + 26px + var(--safe-bottom)); transform: translateX(-50%);
   background: var(--card); color: var(--ink); padding: 12px 18px; border-radius: 12px; font-size: .82rem; font-weight: 700;
   box-shadow: var(--shadow-lg); z-index: 200; animation: toastIn .22s ease; max-width: 90vw; text-align: center;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  /* le parole lunghe vanno a capo invece di essere tagliate a metà */
+  overflow-wrap: anywhere; word-break: normal; line-height: 1.35;
   font-family: var(--font-ui); border: 1px solid var(--gold-dim);
 }
 .save-status {
@@ -676,7 +678,10 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   .overlay { align-items: center; justify-content: center; padding: 24px; }
   .sheet-modal { border-radius: 20px; max-width: 660px; max-height: 88vh; border-bottom: 1px solid var(--line); animation: popIn .22s ease; padding-top: 18px; }
   .sheet-modal-handle { display: none; }
-  .toast { bottom: 30px; left: auto; right: 30px; transform: none; animation: popIn .22s ease; }
+  .toast { bottom: 30px; left: auto; right: 30px; transform: none; animation: popIn .22s ease; max-width: 380px; }
+  /* Su schermo grande il dado sta nell'angolo, fuori dalla colonna del
+     contenuto: prima finiva sopra i pulsanti delle tabelle larghe. */
+  .fab { right: calc(26px + var(--safe-right)); bottom: calc(26px + var(--safe-bottom)); }
   .hero h1 { font-size: 2.2rem; }
   .trait-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 }
@@ -781,7 +786,20 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   100% { transform: translate(var(--dx,0), 104vh) scale(1.1); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .lv-spark { display: none; } }
-</style>
+
+    /* Scorrimento laterale fra le sezioni della scheda: la nuova entra
+       dal lato da cui è arrivato il dito. */
+    @keyframes entraDaDestra { from { transform: translateX(22px); opacity: .25 } to { transform: none; opacity: 1 } }
+    @keyframes entraDaSinistra { from { transform: translateX(-22px); opacity: .25 } to { transform: none; opacity: 1 } }
+    #sheet-tab-body.entra-da-destra { animation: entraDaDestra .19s cubic-bezier(.22,.61,.36,1) }
+    #sheet-tab-body.entra-da-sinistra { animation: entraDaSinistra .19s cubic-bezier(.22,.61,.36,1) }
+    @media (prefers-reduced-motion: reduce) {
+      #sheet-tab-body.entra-da-destra, #sheet-tab-body.entra-da-sinistra { animation: none }
+    }
+    /* La barra delle sezioni scorre se non ci sta, senza sbordare. */
+    .segmented { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .segmented::-webkit-scrollbar { display: none }
+  </style>
 </head>
 <body>
 <div id="bg" aria-hidden="true"></div>

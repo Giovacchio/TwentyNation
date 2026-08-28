@@ -102,6 +102,7 @@ function homebrewListHTML(){
       : emptyState('📚','Non hai ancora contenuti tuoi. Aggiungine uno con i pulsanti qui sopra.')}
     <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openHomebrewBulk()">📖 Leggi dal tuo manuale</button>
     ${list.length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
+    ${(list.length && typeof campaignReady === 'function' && campaignReady() && daCondividere()) ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiTutto()">⚔️ Condividi tutto col tavolo (${daCondividere()})</button>` : ''}
     ${list.length ? `<div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" onclick="exportHomebrew()">⤓ Esporta</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-import-file').click()">⤒ Importa file</button>

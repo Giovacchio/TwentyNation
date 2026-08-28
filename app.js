@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.4';
+const APP_VERSION = '5.5';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -411,6 +411,11 @@ document.documentElement.setAttribute('data-theme', state.theme);
 
 /* ─── 5. PERSISTENZA ─── */
 const LS_KEY = 'grimorio-data-v1';
+/* A quale account appartiene la copia locale. Serve a non mostrare i
+   personaggi di uno all'altro quando due persone usano lo stesso
+   telefono, e a non caricare la roba di uno nell'account dell'altro. */
+const LS_UID = 'grimorio-uid';
+const cassettoDi = (uid) => LS_KEY + '--' + uid;
 const SS_COMBAT = 'grimorio-combat-v1';
 const SS_DICE = 'grimorio-dice-v1';
 const __saveTimers = {};
@@ -533,8 +538,16 @@ function attachFirestore(uidUser){
    cancellato da un altro telefono. */
 async function uploadUnsynced(name, remote){
   if (!currentUser || !firebaseReady) return;
-  const suServer = new Set((remote||[]).map(r => r.id));
-  const orfani = (state[name] || []).filter(x => x && x.id && !x.syncedAt && !suServer.has(x.id));
+  const suServer = {};
+  (remote||[]).forEach(r => { suServer[r.id] = r; });
+  const orfani = (state[name] || []).filter(x => {
+    if (!x || !x.id || x.syncedAt) return false;
+    const r = suServer[x.id];
+    if (!r) return true;                        // mai arrivato: va caricato
+    // c'è già, ma la copia locale è più recente: è una modifica fatta
+    // da scollegati e va portata su
+    return (x.updatedAt || 0) > (r.updatedAt || 0);
+  });
   if (!orfani.length) return;
   setSaveStatus('saving');
   try {
@@ -553,7 +566,7 @@ async function uploadUnsynced(name, remote){
     }
     saveLocal(); setSaveStatus('saved');
     const n = orfani.length;
-    toast('☁️ ' + n + (n === 1 ? ' cosa creata offline è ora sul tuo account' : ' cose create offline sono ora sul tuo account'));
+    toast('☁️ ' + n + (n === 1 ? ' modifica fatta offline è ora sul tuo account' : ' modifiche fatte offline sono ora sul tuo account'));
   } catch(e){
     console.error('Risalita non riuscita per ' + name, e);
     setSaveStatus('offline'); // restano senza bollo: riproveremo al prossimo collegamento
@@ -567,7 +580,14 @@ async function fsSet(collection, obj){
   obj.id = obj.id || uid();
   obj.updatedAt = Date.now();
   saveLocal();
-  if (!currentUser || !firebaseReady){ setSaveStatus('offline'); return obj.id; }
+  if (!currentUser || !firebaseReady){
+    // Da scollegati il bollo «già sul server» non vale più: la modifica
+    // dev'essere ricaricata al prossimo collegamento, o resta solo qui.
+    delete obj.syncedAt;
+    saveLocal();
+    setSaveStatus('offline');
+    return obj.id;
+  }
   try {
     const payload = JSON.parse(JSON.stringify(obj));
     payload.syncedAt = Date.now();
@@ -655,6 +675,45 @@ function noteAuthError(err){
   toast(f ? f() : ('Accesso non riuscito (' + __lastAuthError.code + ')'));
 }
 
+/* Entrando con un account diverso da quello della copia locale, la copia
+   di prima non va persa: si mette in un cassetto suo e torna fuori
+   quando quella persona rientra. Chi entra la prima volta si porta
+   dietro quello che aveva creato da scollegato: è suo. */
+function cambiaCassetto(uid){
+  let precedente = null;
+  try { precedente = localStorage.getItem(LS_UID); } catch(e){ return; }
+  if (precedente === uid) return;             // stesso account: niente da fare
+
+  if (precedente){
+    // metti da parte quello che c'è, è di qualcun altro
+    try {
+      const attuale = localStorage.getItem(LS_KEY);
+      if (attuale) localStorage.setItem(cassettoDi(precedente), attuale);
+    } catch(e){ console.warn('Non riesco a mettere da parte i dati precedenti', e); }
+
+    // riprendi il cassetto di chi sta entrando, se ne ha uno
+    let suo = null;
+    try { suo = localStorage.getItem(cassettoDi(uid)); } catch(e){}
+    ['characters','npcs','customSpells','spellTags','homebrew','journal']
+      .forEach(k => { state[k] = []; });
+    if (suo){
+      try {
+        const d = JSON.parse(suo);
+        ['characters','npcs','customSpells','spellTags','homebrew','journal']
+          .forEach(k => { if (Array.isArray(d[k])) state[k] = d[k]; });
+        localStorage.removeItem(cassettoDi(uid));
+      } catch(e){ console.warn('Cassetto illeggibile', e); }
+    }
+    try { localStorage.setItem(LS_KEY, JSON.stringify({
+      characters: state.characters, npcs: state.npcs, customSpells: state.customSpells,
+      spellTags: state.spellTags, homebrew: state.homebrew, journal: state.journal })); } catch(e){}
+    setTimeout(() => toast('👤 Account cambiato: rivedi le tue cose fra un istante'), 600);
+  }
+  // niente uid prima d'ora: quello che c'è l'hai creato tu da scollegato,
+  // resta dov'è e sale sull'account con il primo collegamento.
+  try { localStorage.setItem(LS_UID, uid); } catch(e){}
+}
+
 function signIn(forceMethod){
   if (!firebaseReady){ toast('Connessione a Firebase non disponibile'); return; }
   if (isInAppBrowser()){ openInAppBrowserHelp(); return; }
@@ -663,7 +722,11 @@ function signIn(forceMethod){
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
 
-  const preferred = forceMethod || localStorage.getItem('grimorio-auth-method') || 'popup';
+  // Nell'app installata la finestra popup spesso non ha dove aprirsi e
+  // torna indietro senza niente: lì si parte direttamente dal
+  // reindirizzamento, che è l'unico che regge.
+  const predefinito = isStandalonePWA() ? 'redirect' : 'popup';
+  const preferred = forceMethod || localStorage.getItem('grimorio-auth-method') || predefinito;
   if (preferred === 'redirect') return startRedirect(provider);
 
   // Da qui in poi niente attese: la chiamata deve restare dentro il gesto.
@@ -998,10 +1061,88 @@ function goView(v){
 }
 function openSheet(id){
   state.view = 'sheet'; state.activeCharId = id; state.sheetTab = 'overview';
+  suggerisciScorrimento();
   state.knownFilter = 'all';
   pushNav(); render(); scrollTop();
 }
 function setSheetTab(tab){ state.sheetTab = tab; replaceNav(); render(); scrollTop(); }
+
+/* ─── Scorrimento laterale fra le sezioni della scheda ───
+   Sul telefono passare da Zaino a Magie voleva dire mirare un
+   pulsante piccolo in cima: col dito è immediato. */
+const SHEET_TABS_ORDINE = ['overview','inventory','spells','background','notes'];
+function sheetTabsDisponibili(c){
+  const conMagie = c && ((c.casterType && c.casterType !== 'none') || (c.knownSpells||[]).length > 0);
+  return SHEET_TABS_ORDINE.filter(t => t !== 'spells' || conMagie);
+}
+/* verso: +1 verso destra (sezione successiva), -1 indietro */
+function scorriScheda(verso){
+  const c = charById(state.activeCharId); if (!c) return false;
+  const tabs = sheetTabsDisponibili(c);
+  const i = tabs.indexOf(state.sheetTab);
+  const j = i + verso;
+  if (i < 0 || j < 0 || j >= tabs.length) return false;
+  state.sheetTab = tabs[j];
+  __scorrimentoDa = verso > 0 ? 'destra' : 'sinistra';
+  replaceNav(); render(); scrollTop();
+  return true;
+}
+let __scorrimentoDa = null;
+/* Chiamata dopo ogni disegno: fa entrare la sezione dal lato giusto
+   e porta in vista il nome della sezione nella barra. */
+function animaScorrimento(){
+  const body = document.getElementById('sheet-tab-body');
+  if (body && __scorrimentoDa){
+    body.classList.add(__scorrimentoDa === 'destra' ? 'entra-da-destra' : 'entra-da-sinistra');
+  }
+  __scorrimentoDa = null;
+  const att = document.querySelector('.segmented button.active');
+  if (att && att.scrollIntoView) att.scrollIntoView({ block:'nearest', inline:'center' });
+}
+/* Un elemento che scorre in orizzontale per conto suo (una tabella larga,
+   la barra delle sezioni) si tiene il gesto: non deve cambiare pagina. */
+function scorreInOrizzontale(el){
+  for (let n = el; n && n !== document.body; n = n.parentElement){
+    if (!(n instanceof Element)) continue;
+    if (n.scrollWidth > n.clientWidth + 4){
+      const ov = getComputedStyle(n).overflowX;
+      if (ov === 'auto' || ov === 'scroll') return true;
+    }
+  }
+  return false;
+}
+function installSheetSwipe(){
+  let x0 = 0, y0 = 0, attivo = false;
+  const app = document.getElementById('app') || document.body;
+  app.addEventListener('touchstart', (e) => {
+    attivo = false;
+    if (state.view !== 'sheet' || state.modal) return;
+    if (!e.touches || e.touches.length !== 1) return;
+    const t = e.target;
+    if (t && t.closest && t.closest('input,textarea,select,.segmented')) return;
+    if (t instanceof Element && scorreInOrizzontale(t)) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; attivo = true;
+  }, { passive: true });
+  app.addEventListener('touchend', (e) => {
+    if (!attivo) return;
+    attivo = false;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    // deve essere netto e orizzontale, o rubiamo lo scorrimento verticale
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.7) return;
+    if (scorriScheda(dx < 0 ? 1 : -1) && typeof buzz === 'function') buzz(8);
+  }, { passive: true });
+}
+/* Il suggerimento si dà una volta sola, alla prima scheda aperta. */
+function suggerisciScorrimento(){
+  try {
+    if (localStorage.getItem('grimorio-hint-swipe')) return;
+    if (!('ontouchstart' in window)) return;
+    localStorage.setItem('grimorio-hint-swipe','1');
+    setTimeout(() => toast('💡 Scorri col dito fra le sezioni'), 1400);
+  } catch(e){}
+}
 function setDmTab(tab){ state.dmTab = tab; replaceNav(); render(); }
 
 function toggleTheme(){
@@ -1088,6 +1229,7 @@ function render(){
     + bottomNavHTML() + fabHTML();
   updateSaveStatusEl();
   fitAllTextareas();
+  animaScorrimento();
   if (!changed) window.scrollTo(0, y);
 }
 
@@ -1525,7 +1667,7 @@ function renderCharacterSheet(){
       <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Storia</button>
       <button class="${state.sheetTab==='notes'?'active':''}" onclick="setSheetTab('notes')">Note</button>
     </div>
-    ${tab}
+    <div id="sheet-tab-body">${tab}</div>
   `;
 }
 
@@ -3946,7 +4088,13 @@ function boot(){
     auth.onAuthStateChanged(u => {
       currentUser = u;
       state.authReady = true;
-      if (u){ state.offlineMode = false; localStorage.removeItem('grimorio-offline'); attachFirestore(u.uid); if (typeof attachCampaign === 'function') attachCampaign(); }
+      if (u){
+        state.offlineMode = false;
+        localStorage.removeItem('grimorio-offline');
+        cambiaCassetto(u.uid);
+        attachFirestore(u.uid);
+        if (typeof attachCampaign === 'function') attachCampaign();
+      }
       else detachFirestore();
       render();
     });
@@ -3961,6 +4109,7 @@ function boot(){
   handleLaunchShortcut();
 
   // Salvataggio immediato quando l'app va in background (chiusura app da telefono).
+  installSheetSwipe();
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPendingSaves(); });
   window.addEventListener('pagehide', flushPendingSaves);
   window.addEventListener('online', () => { if (currentUser) setSaveStatus('saved'); });

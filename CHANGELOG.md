@@ -1,5 +1,35 @@
 # Grimorio — lista dei cambiamenti
 
+## v5.5 — 28 agosto 2026
+**Condivisione col tavolo in un clic, account che regge fra browser e app, e la scheda si sfoglia col dito.**
+
+### Metti in comune col tavolo in un colpo solo
+Prima ogni incantesimo e ogni aggiunta andavano condivisi uno per uno col tasto ⚔️: con un manuale intero importato erano centinaia di tocchi.
+
+- Nella schermata **Campagna** c'è un riquadro nuovo che dice quante cose tue il tavolo non vede ancora, e un tasto **«⚔️ Condividi tutto»** che le manda tutte insieme.
+- **«Scegli cosa»** apre l'elenco completo con le caselle: quello che è già sul tavolo è segnato e non si ripropone, il resto parte già spuntato.
+- **«Ritira tutto»** fa il contrario in un colpo, e ritira solo quello che hai messo tu (il master può ritirare qualsiasi cosa).
+- La scorciatoia compare anche in *Contenuti tuoi*, col conteggio: è lì che finisci dopo aver importato un manuale.
+
+### L'account regge il passaggio fra browser e app
+- **Nell'app installata l'accesso parte dal reindirizzamento.** La finestra popup lì spesso non ha dove aprirsi e torna indietro senza niente: sembrava che il tasto non facesse nulla. Nel browser resta il popup, che è più rapido.
+- **Due persone sullo stesso telefono non si vedono più i dati.** Entrando con un account diverso, la copia locale di prima viene **messa da parte in un cassetto suo** invece di restare a schermo — e torna fuori intatta quando quella persona rientra. Prima i personaggi del primo restavano visibili al secondo.
+- **Le modifiche fatte da scollegato adesso risalgono.** Cambiare qualcosa senza connessione lasciava il bollo «già sul server»: la modifica restava solo sul telefono e non arrivava mai all'account. Ora il bollo viene tolto e al collegamento successivo quello che hai cambiato sale.
+- Chi entra per la prima volta si porta dietro quello che aveva creato da scollegato: è suo e finisce sul suo account.
+
+### La scheda si sfoglia col dito
+- **Scorri a sinistra o a destra** per passare da Panoramica a Zaino a Magie a Storia a Note. La sezione entra dal lato da cui è arrivato il dito, e la barra in cima si sposta da sola sulla sezione attiva.
+- Il gesto non ruba lo scorrimento verticale (dev'essere netto e orizzontale) e **non scatta dentro le tabelle larghe**, sulla barra delle sezioni o mentre scrivi in un campo.
+- Alle due estremità non si va oltre, e chi non lancia incantesimi non ha la sezione Magie fra quelle da sfogliare.
+- Il suggerimento compare una volta sola, la prima volta che apri una scheda su un telefono.
+
+### Rifinitura
+- **Gli avvisi non tagliano più le parole a metà.** Il riquadro si fermava a due righe e troncava senza puntini: adesso va a capo e arriva a tre righe.
+- Su schermo grande il dado sta nell'angolo, fuori dalla colonna del contenuto.
+- La barra delle sezioni scorre se non ci sta, senza sbordare.
+
+> Verificato: 15 prove nuove su scorrimento, condivisione e cambio account, più traduzione, caricamento, revisione, importazione, guida, bulk, campagna, sincronizzazione, persistenza e le regressioni da v40 a v48 — tutte verdi, zero errori a runtime. Audit mobile su 99 schermate: le segnalazioni scendono da 4 a 2 (in entrambi i casi il dado copre un pulsante da fermo, e basta scorrere un poco perché si tolga).
+
 ## v5.4 — 28 agosto 2026
 **«Traduci i nomi in italiano»: quello che importi dai manuali smette di essere in inglese.**
 
