@@ -1,5 +1,31 @@
 # TwentyNation — lista dei cambiamenti
 
+## v5.8 — 28 agosto 2026
+**Le sottoclassi e le razze non venivano salvate. Mai. Nemmeno sul tuo account.**
+
+Il tavolo mostrava «147 incantesimi · 0 aggiunte» e sembrava un problema della condivisione. Non lo era.
+
+**Firestore non accetta un array dentro un altro array.** I privilegi di una sottoclasse sono `{3: [["Frenesia","testo"], …]}` e i tratti di una razza sono `[["Scurovisione","vedi al buio"], …]`: array di array, esattamente la forma vietata. Ogni salvataggio delle tue aggiunte veniva quindi **respinto dal server**, e l'errore finiva solo nella console del browser.
+
+Conseguenze, tutte spiegate da questa sola causa:
+- Le tue 164 aggiunte esistevano **solo nella memoria del dispositivo**. Non erano mai arrivate al tuo account.
+- Sul tavolo ne arrivavano zero, mentre i 147 incantesimi passavano senza problemi: gli incantesimi non hanno quella forma.
+- La sparizione dell'altra volta è stata definitiva perché non c'era nessuna copia nel cloud da cui recuperarle.
+
+### La correzione
+- L'array interno viaggia **dentro un oggetto** e viene riaperto in lettura. Applicato a tutti i punti di passaggio: salvataggio sul tuo account, risalita di quello creato offline, lettura dei tuoi dati, condivisione col tavolo e lettura del condiviso.
+- Il giro di andata e ritorno restituisce i dati **identici**: verificato sui privilegi per livello e sui tratti delle razze, fino a vederli ricomparire nella creazione guidata.
+- Quello che non ha array annidati (gli incantesimi, i personaggi) non viene toccato.
+- **Un rifiuto del server ora si vede.** Prima finiva in un log che nessuno guarda: adesso compare un avviso. È questo che ha reso il difetto invisibile per settimane.
+
+### Recupero
+Le tue 164 voci non hanno mai ricevuto il bollo «salvata sul server», quindi al primo collegamento dopo l'aggiornamento **risalgono da sole** sul tuo account. Da quel momento sono al sicuro e condivisibili.
+
+### Anche
+La scritta **GRIMORIO** nella barra laterale del computer è diventata TWENTYNATION: mi era sfuggita nella v5.6.
+
+> Verificato: 10 prove nuove sul confezionamento e sul giro completo (salvataggio, condivisione, rilettura, comparsa nella creazione guidata), più tutta la suite e le regressioni da v40 a v48 — zero errori a runtime. Audit mobile invariato.
+
 ## v5.7 — 28 agosto 2026
 **Le tue aggiunte non spariscono più, la campagna non ti molla, e il tavolo si apre dalla prima schermata.**
 

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.7';
+const APP_VERSION = '5.8';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -566,7 +566,7 @@ function attachFirestore(uidUser){
   const primaVolta = {};
   const wire = (name, mapper) => {
     unsubscribers.push(base.collection(name).onSnapshot(snap => {
-      const remote = snap.docs.map(d => ({...d.data(), id: d.id}));
+      const remote = snap.docs.map(d => ({...daNuvola(d.data()), id: d.id}));
       const completo = !(snap.metadata && snap.metadata.fromCache);
       state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name, completo);
       saveLocal(); setSaveStatus('saved'); renderIfSafe();
@@ -606,7 +606,7 @@ async function uploadUnsynced(name, remote){
       const bollo = Date.now();
       lotto.forEach(o => {
         o.updatedAt = o.updatedAt || bollo;
-        const payload = JSON.parse(JSON.stringify(o));
+        const payload = perNuvola(JSON.parse(JSON.stringify(o)));
         payload.syncedAt = bollo;
         batch.set(userCol(name).doc(o.id), payload, { merge: true });
       });
@@ -625,6 +625,36 @@ function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }
 
 function userCol(collection){ return db.collection('users').doc(currentUser.uid).collection(collection); }
 
+/* ─── Confezionamento per Firestore ───
+   Firestore NON accetta un array dentro un altro array. I privilegi di
+   una sottoclasse sono {3:[["Nome","testo"],…]} e i tratti di una razza
+   sono [["Nome","testo"],…]: entrambi array di array. Ogni salvataggio
+   delle tue aggiunte veniva quindi rifiutato in silenzio — restavano
+   solo sul telefono e non arrivavano né all'account né al tavolo.
+   Qui l'array interno viaggia dentro un oggetto, e torna com'era. */
+function perNuvola(v){
+  if (Array.isArray(v)) return v.map(x => Array.isArray(x) ? { __a: perNuvola(x) } : perNuvola(x));
+  if (v && typeof v === 'object'){
+    const o = {}; Object.keys(v).forEach(k => { o[k] = perNuvola(v[k]); }); return o;
+  }
+  return v;
+}
+function daNuvola(v){
+  if (Array.isArray(v)) return v.map(x =>
+    (x && typeof x === 'object' && Array.isArray(x.__a)) ? daNuvola(x.__a) : daNuvola(x));
+  if (v && typeof v === 'object'){
+    const o = {}; Object.keys(v).forEach(k => { o[k] = daNuvola(v[k]); }); return o;
+  }
+  return v;
+}
+/* Usata dalle prove: dice se è rimasto un array dentro un array. */
+function haArrayAnnidati(v){
+  if (Array.isArray(v)) return v.some(x => Array.isArray(x) || haArrayAnnidati(x));
+  if (v && typeof v === 'object') return Object.keys(v).some(k => haArrayAnnidati(v[k]));
+  return false;
+}
+
+let __avvisoRifiuto = false;
 async function fsSet(collection, obj){
   obj.id = obj.id || uid();
   obj.updatedAt = Date.now();
@@ -638,7 +668,7 @@ async function fsSet(collection, obj){
     return obj.id;
   }
   try {
-    const payload = JSON.parse(JSON.stringify(obj));
+    const payload = perNuvola(JSON.parse(JSON.stringify(obj)));
     payload.syncedAt = Date.now();
     await userCol(collection).doc(obj.id).set(payload, {merge:true});
     // solo ora sappiamo che è arrivato davvero: marcarlo prima avrebbe
@@ -650,6 +680,13 @@ async function fsSet(collection, obj){
   } catch(e){
     console.error('Errore salvataggio', e);
     setSaveStatus('offline');
+    // Un rifiuto del server non è un problema di rete: va detto, o si
+    // continua a credere che sia tutto al sicuro quando non lo è.
+    const codice = (e && (e.code || e.message)) || '';
+    if (/invalid|nested|argument|permission/i.test(codice) && !__avvisoRifiuto){
+      __avvisoRifiuto = true;
+      toast('⚠️ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
+    }
   }
   return obj.id;
 }

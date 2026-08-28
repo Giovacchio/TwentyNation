@@ -66,7 +66,8 @@ function attachCampaign(){
 
   const wireShared = (name, key) => {
     campUnsub.push(base.collection(name).onSnapshot(snap => {
-      state[key] = snap.docs.map(x => ({ ...x.data(), id: x.id }));
+      state[key] = snap.docs.map(x => ({
+        ...(typeof daNuvola === 'function' ? daNuvola(x.data()) : x.data()), id: x.id }));
       renderIfSafe();
     }, err => console.error('Condivisi non leggibili: ' + name, err)));
   };
@@ -177,7 +178,9 @@ async function shareToCampaign(kind, items){
     for (let i = 0; i < lista.length; i += 400){
       const batch = db.batch();
       lista.slice(i, i+400).forEach(x => {
-        const payload = JSON.parse(JSON.stringify(x));
+        const payload = (typeof perNuvola === 'function')
+          ? perNuvola(JSON.parse(JSON.stringify(x)))
+          : JSON.parse(JSON.stringify(x));
         payload.sharedBy = currentUser.uid;
         payload.sharedByName = myName();
         payload.sharedAt = Date.now();
