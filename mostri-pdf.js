@@ -40,6 +40,102 @@ function mpGradoSfida(v){
   return m ? m[1] : '0';
 }
 
+
+/* ─── Elenchi in JSON ───
+   Le raccolte SRD che si trovano in rete usano due o tre forme ricorrenti.
+   Le si riconosce e si portano al modello dell'app, senza pretendere che
+   siano fatte tutte allo stesso modo. */
+function mpDaJson(testo){
+  let dati;
+  try { dati = JSON.parse(testo); } catch(e){ return null; }
+  // può essere un elenco, o un oggetto che lo contiene
+  let lista = Array.isArray(dati) ? dati : null;
+  if (!lista && dati && typeof dati === 'object'){
+    for (const k of ['monsters','results','data','creatures','records']){
+      if (Array.isArray(dati[k])){ lista = dati[k]; break; }
+    }
+    if (!lista && dati.name) lista = [dati];        // un mostro solo
+  }
+  if (!Array.isArray(lista) || !lista.length) return null;
+
+  const num = (v) => { const m = /-?\d+(?:[.,]\d+)?/.exec(String(v==null?'':v)); return m ? Number(m[0].replace(',','.')) : null; };
+  const testoDi = (v) => typeof v === 'string' ? v : (v && v.desc) || '';
+  const primoDi = (o, chiavi) => { for (const k of chiavi) if (o[k] != null && o[k] !== '') return o[k]; return null; };
+
+  const fuori = [];
+  lista.forEach(m => {
+    if (!m || typeof m !== 'object' || !m.name) return;
+
+    // taglia e tipo: campi propri, oppure la riga «Medium humanoid, neutral»
+    let sz = MP_TAGLIE[String(primoDi(m,['size'])||'').toLowerCase()] || '';
+    let t  = MP_TIPI[String(primoDi(m,['type'])||'').toLowerCase().split(/[ ,(]/)[0]] || '';
+    if ((!sz || !t) && m.meta){
+      const r = mpRigaTipo(m.meta);
+      if (r){ sz = sz || r.sz; t = t || r.t; }
+    }
+
+    // classe armatura: numero, stringa, oppure elenco di oggetti
+    let ac = primoDi(m, ['armor_class','Armor Class','ac']);
+    if (Array.isArray(ac)) ac = ac.length ? (ac[0].value != null ? ac[0].value : num(ac[0])) : null;
+    ac = num(ac);
+
+    const hp = num(primoDi(m, ['hit_points','Hit Points','hp']));
+    let hd = String(primoDi(m, ['hit_dice','hitDice']) || '');
+    if (!hd){ const mm = /\(([^)]*d[^)]*)\)/.exec(String(primoDi(m,['Hit Points','hit_points'])||'')); if (mm) hd = mm[1]; }
+
+    // velocità: stringa, oppure oggetto {walk, fly, …}
+    let sp = primoDi(m, ['speed','Speed']);
+    if (sp && typeof sp === 'object'){
+      const nomi = { walk:'', fly:'volare', swim:'nuotare', climb:'scalare', burrow:'scavare', hover:'fluttuare' };
+      sp = Object.keys(sp).filter(k => sp[k] && k !== 'hover')
+        .map(k => (nomi[k] ? nomi[k] + ' ' : '') + sp[k]).join(', ');
+    }
+    sp = mpVelocita(sp || '');
+
+    const ab = [
+      num(primoDi(m,['strength','STR','str'])), num(primoDi(m,['dexterity','DEX','dex'])),
+      num(primoDi(m,['constitution','CON','con'])), num(primoDi(m,['intelligence','INT','int'])),
+      num(primoDi(m,['wisdom','WIS','wis'])), num(primoDi(m,['charisma','CHA','cha'])),
+    ].map(v => v == null ? 10 : v);
+
+    let cr = primoDi(m, ['challenge_rating','Challenge','cr','challenge']);
+    if (typeof cr === 'number'){
+      cr = cr === 0.5 ? '1/2' : cr === 0.25 ? '1/4' : cr === 0.125 ? '1/8' : String(cr);
+    } else cr = mpGradoSfida(cr);
+
+    const coppie = (v) => {
+      if (Array.isArray(v)) return v.filter(x=>x && (x.name||x.desc)).map(x => [String(x.name||'').trim(), String(x.desc||'').trim().slice(0,400)]);
+      if (typeof v === 'string'){
+        // Alcune raccolte tengono tratti e azioni in HTML: si toglie il
+        // markup e ogni paragrafo diventa una riga.
+        const piano = v
+          .replace(/<\/(p|div|li)>/gi, '\n')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;|&rsquo;/g, "'");
+        return piano.split(/\n+/).map(r => {
+          const mm = /^\s*([^.]{2,48})\.\s+(.+)$/.exec(r.trim());
+          return mm ? [mm[1].trim(), mm[2].trim().slice(0,400)] : null;
+        }).filter(Boolean);
+      }
+      return [];
+    };
+    const tr  = coppie(primoDi(m, ['special_abilities','Traits','traits'])).slice(0,10);
+    const act = coppie(primoDi(m, ['actions','Actions'])).slice(0,10).map(x => [x[0], '', x[1], '']);
+
+    if (ac == null && hp == null) return;    // non è un mostro
+
+    fuori.push({ id: uid(), n: String(m.name), it: String(m.name),
+      sz: sz || 'Media', t: t || 'bestia', ac: ac == null ? 10 : ac, hp: hp == null ? 1 : hp, hd,
+      sp: sp || '9 m', ab,
+      sen: testoDi(primoDi(m,['senses','Senses'])) || '',
+      lang: testoDi(primoDi(m,['languages','Languages'])) || '',
+      cr, tr, act, homebrew: true });
+  });
+  return fuori.length ? fuori : null;
+}
+
 /* Trova i blocchi statistica dentro il testo di un PDF. */
 function mpScan(testo){
   const righe = String(testo||'').split(/\r?\n/).map(r => r.replace(/\s+/g,' ').trim());
@@ -124,7 +220,7 @@ function mostriPdfHTML(){
   const s = mpStato || {};
   if (!s.trovati) return modalShell('🐉 Leggi i mostri dal tuo manuale', `
     <p class="muted" style="margin-bottom:14px">
-      Carica un PDF o un file di testo con i <b>blocchi statistica</b>: l'app cerca nome, taglia,
+      Carica un <b>elenco in JSON</b> (le raccolte SRD che si trovano in rete) oppure un PDF o un file di testo con i <b>blocchi statistica</b>: l'app cerca nome, taglia,
       tipo, CA, punti ferita, velocità, punteggi, sensi, lingue, grado sfida, tratti e azioni.
       Quello che entra finisce nel tuo bestiario e diventa scegliibile come <b>forma selvatica,
       famiglio o compagno</b>.
@@ -136,7 +232,7 @@ function mostriPdfHTML(){
       <button class="btn btn-ghost" ${s.busy?'disabled':''} onclick="mpDaCasella()">Analizza il testo</button>
     </div>
     ${s.busy ? `<p class="muted" style="font-size:.75rem; margin-top:8px">Un bestiario intero richiede qualche minuto: tieni l'app aperta.</p>` : ''}
-    <input type="file" id="mp-file" multiple accept=".txt,text/plain,application/pdf,.pdf,.md" style="display:none" onchange="mpFile(this)">
+    <input type="file" id="mp-file" multiple accept=".txt,text/plain,application/pdf,.pdf,.md,.json,application/json" style="display:none" onchange="mpFile(this)">
     <div class="field" style="margin-top:12px">
       <label>…oppure incolla qui</label>
       <textarea id="mp-testo" style="min-height:120px; font-family:var(--font-ui); font-size:.8rem" placeholder="Incolla il blocco statistica di un mostro."></textarea>
@@ -176,7 +272,8 @@ function mpToggle(id){ if (mpStato.scelti.has(id)) mpStato.scelti.delete(id); el
 function mpTutti(on){ mpStato.trovati.forEach(m => on ? mpStato.scelti.add(m.id) : mpStato.scelti.delete(m.id)); renderModalRoot(); }
 function mpAnalizza(testo){
   if (!String(testo||'').trim()){ mpStato.busy = false; renderModalRoot(); toast('Non c’è niente da leggere'); return; }
-  const trovati = mpScan(testo);
+  // un elenco in JSON si riconosce subito; altrimenti si cercano i blocchi
+  const trovati = mpDaJson(testo) || mpScan(testo);
   mpStato.trovati = trovati; mpStato.busy = false;
   mpStato.scelti = new Set(trovati.map(m => m.id));
   renderModalRoot({ toTop:true });

@@ -1,5 +1,18 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.3 — 28 agosto 2026
+**Il lettore dei mostri accetta anche gli elenchi in JSON.**
+
+Le raccolte SRD che si trovano in rete sono file JSON, non blocchi statistica impaginati: il lettore costruito ieri non le avrebbe lette. Ora riconosce da solo cosa gli hai dato.
+
+- **Tre forme diverse** di raccolta, senza pretendere che siano fatte tutte allo stesso modo: campi separati (`size`, `type`, `armor_class`) oppure la riga unica `Large aberration, lawful evil`; classe armatura come numero, come stringa `17 (natural armor)` o come elenco di oggetti; velocità come testo o come `{walk, fly, swim}`; grado sfida `0.25` o `"1/4"`.
+- **Tratti e azioni anche in HTML**: le raccolte più diffuse li tengono così, e il markup viene tolto tenendo separati nome e testo.
+- **Elenco nudo o dentro un contenitore** (`{results: […]}`, `{monsters: […]}`), o anche un mostro solo.
+- **Le misure diventano metri** come per i PDF, e taglia e tipo vengono tradotti.
+- Su un JSON che non è di mostri non inventa niente, e i blocchi statistica dei PDF continuano a funzionare: l'app sceglie la strada da sé.
+
+> Verificato sul formato reale della raccolta SRD più diffusa: Aboleth letto con CA 17, 135 PF, `3 m, nuotare 12 m`, i sei punteggi, GS 10, due tratti e due azioni. 14 prove nuove, più tutta la suite e le regressioni da v40 a v48 — zero errori a runtime.
+
 ## v6.2 — 28 agosto 2026
 **Patto della Catena di serie, effetti del Cerchio della Luna configurabili, e i mostri si leggono dai PDF.**
 
