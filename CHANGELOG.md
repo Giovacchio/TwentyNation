@@ -1,5 +1,26 @@
 # Grimorio — lista dei cambiamenti
 
+## v5.2 — 28 agosto 2026
+**Le guide impaginate a due colonne adesso si leggono per intero.**
+
+«Leggi dal tuo manuale» reggeva un formato solo. Le guide vere — quelle con le voci a pallini, i titoli che vanno a capo prima della sigla e l'indice interlacciato su due colonne — venivano lette a metà: le classi finivano fra le sottoclassi, i privilegi di una scivolavano dentro quella prima, e nessuna sottoclasse trovava la sua classe.
+
+### Cosa cambia
+- **Le intestazioni di classe fanno da sezione, non da voce.** Quando l'app incontra un titolo con dadi vita e competenze capisce che apre una classe: tutte le sottoclassi che seguono le vengono legate da sole. Su una guida da 200 pagine ne ha riconosciute 116, con la classe giusta su 104 — le altre 12 sono di classi che l'app non ha (Artefice, Mistico, Cacciatore di Sangue) e restano da assegnare a mano.
+- **Titoli spezzati su due righe ricomposti.** «Cammino del Guerriero Totemico» seguito da «(PHB/SC Update):» ora è un titolo solo, e i suoi privilegi non finiscono più nella sottoclasse precedente.
+- **Niente più voci fantasma.** Un frammento come «Level 10: 4 danni da fuoco» non viene più scambiato per una sottoclasse.
+- **Velocità in piedi abbreviati.** `25ft.` diventa 7,5 m; prima restava il valore di riserva.
+
+### La schermata di scelta regge i numeri grossi
+- Le sottoclassi sono **raggruppate per classe**, con il conteggio e un «scegli tutte» per gruppo: con 116 voci non si scorre più a vuoto.
+- Ogni riga dice **a quale classe appartiene**, e segnala con ⚠︎ quelle da assegnare.
+- Con poche voci i gruppi restano già aperti.
+
+### Razze
+Su una guida di razze ne ha lette 48 su 48, con bonus ai punteggi, velocità, taglia, lingue e tratti. Le razze a bonus descrittivo (l'umano standard, «due punteggi +2, gli altri quattro +1») entrano senza numeri: si sistemano in un attimo aprendo la voce.
+
+> Come sempre: l'app non contiene questo materiale, legge quello che carichi tu dai manuali che possiedi. Quello che entra resta sul tuo account, e va al tavolo solo se lo scegli.
+
 ## v5.1 — 27 agosto 2026
 **Campagna condivisa: il tuo tavolo vede quello che ci metti dentro.**
 
