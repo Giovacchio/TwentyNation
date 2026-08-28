@@ -1,5 +1,31 @@
 # Grimorio — lista dei cambiamenti
 
+## v5.4 — 28 agosto 2026
+**«Traduci i nomi in italiano»: quello che importi dai manuali smette di essere in inglese.**
+
+In *Contenuti tuoi* c'è un tasto nuovo. Rinomina in italiano **i nomi** di tutto quello che hai importato — sottoclassi, razze, tratti, privilegi, lingue — con l'anteprima di cosa diventa cosa prima di confermare, e il tasto per tornare indietro dopo.
+
+Sui due manuali che hai caricato: **148 voci su 164** rinominate.
+
+- `Path of the Berserker` → **Cammino del Berserker**
+- `College of Whispers` → **Collegio dei Sussurri**
+- `Way of the Sun Soul` → **Via dell'Anima Solare**
+- `Life Domain` → **Dominio della Vita**
+- `Hill Dwarf` → **Nano delle Colline** · `High Elf` → **Alto Elfo** · `Gray Dwarf [Duergar]` → **Nano Grigio [Duergar]**
+- `Darkvision` → **Scurovisione** · `Common and Dwarvish` → **Comune e Nanico**
+
+### Come si comporta
+- **Il testo delle regole non viene toccato.** L'app rinomina le etichette; la prosa dei privilegi resta esattamente come sta nel tuo manuale.
+- **L'originale resta salvato.** Un tasto «↩︎ Rimetti i nomi originali» riporta tutto com'era, anche a distanza di giorni.
+- **Non traduce a metà.** Se di un nome riconosce solo un pezzo lo lascia intero in inglese: «Forbidden School of Blood Magic» resta così invece di diventare qualcosa di sgrammaticato. Le 16 voci non rinominate sono quelle che in italiano si dicono uguale (Drow, Firbolg, Kenku, Tabaxi, Githyanki…) o nomi propri che non ha senso tradurre.
+- **Rispetta l'ordine italiano**: l'aggettivo va dopo («Nano Grigio», «Halfling Piedelesto») tranne dove non si fa («Alto Elfo»), e le parentesi restano attaccate dove erano.
+
+### Due difetti trovati mentre lo costruivo
+- **Le scuole di magia erano sbagliate, e in due modi diversi.** L'elenco in `app.js` diceva *Conjuration → Convocazione* ed *Evocation → Evocazione*; quello del lettore PDF diceva *Conjuration → Evocazione* ed *Evocation → Invocazione* — che sono i termini giusti. Risultato: lo stesso incantesimo finiva in due scuole diverse a seconda di come era entrato nell'app, e il filtro per scuola nel grimorio li separava. Ora l'elenco è **uno solo** e con i termini corretti; le diciture vecchie continuano a essere capite, così niente di quello che hai già salvato si perde.
+- **Un titolo spezzato dentro la parentesi** non veniva riconosciuto: «Way of the Sun Soul (SC/XG» + «Update):» produceva una sottoclasse fantasma chiamata «Updated)». Ora la Via dell'Anima Solare entra col suo nome.
+
+> Verificato: 8 prove nuove sulla traduzione, più caricamento, revisione, importazione, guida, bulk, campagna, sincronizzazione, persistenza e le regressioni da v40 a v48 — tutte verdi, zero errori a runtime. Audit mobile su 99 schermate invariato.
+
 ## v5.3 — 28 agosto 2026
 **Revisione completa: undici difetti trovati e corretti, due dei quali sbagliavano i numeri in scheda.**
 

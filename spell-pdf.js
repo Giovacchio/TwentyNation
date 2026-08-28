@@ -126,7 +126,10 @@ function healSpacing(line){
 }
 
 const SPELL_SCHOOLS_EN = ['Abjuration','Conjuration','Divination','Enchantment','Evocation','Illusion','Necromancy','Transmutation'];
-const SCHOOL_IT = { Abjuration:'Abiurazione', Conjuration:'Evocazione', Divination:'Divinazione',
+/* Uno solo elenco per tutta l'app: se qui e in app.js divergono, lo stesso
+   incantesimo finisce in due scuole diverse a seconda di come è entrato. */
+const SCHOOL_IT = (typeof SCHOOLS_IT !== 'undefined') ? SCHOOLS_IT : {
+  Abjuration:'Abiurazione', Conjuration:'Evocazione', Divination:'Divinazione',
   Enchantment:'Ammaliamento', Evocation:'Invocazione', Illusion:'Illusione',
   Necromancy:'Necromanzia', Transmutation:'Trasmutazione' };
 

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.3';
+const APP_VERSION = '5.4';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -96,11 +96,18 @@ const CLASS_TO_SAVES = {
   "Artificiere": ["con","int"]
 };
 
+/* Nomi italiani delle scuole. Attenzione ai due che si scambiano:
+   Conjuration è «Evocazione» ed Evocation è «Invocazione». Prima questo
+   elenco diceva «Convocazione»/«Evocazione» mentre il lettore dei PDF
+   usava quelli giusti: gli stessi incantesimi finivano in due scuole
+   diverse a seconda di come erano entrati. */
 const SCHOOLS_IT = {
-  "Abjuration": "Abiurazione", "Conjuration": "Convocazione", "Divination": "Divinazione",
-  "Enchantment": "Ammaliamento", "Evocation": "Evocazione", "Illusion": "Illusione",
+  "Abjuration": "Abiurazione", "Conjuration": "Evocazione", "Divination": "Divinazione",
+  "Enchantment": "Ammaliamento", "Evocation": "Invocazione", "Illusion": "Illusione",
   "Necromancy": "Necromanzia", "Transmutation": "Trasmutazione"
 };
+/* Diciture vecchie o alternative che devono continuare a essere capite. */
+const SCHOOLS_ALIAS = { "convocazione":"Evocazione", "conjuration":"Evocazione", "evocation":"Invocazione" };
 function schoolIt(en){ return SCHOOLS_IT[en] || en || ''; }
 
 /* Nomi in italiano (da spells-it.js). Il testo delle descrizioni resta
@@ -3557,6 +3564,7 @@ function schoolFromAny(v){
   const s = typeof v === 'object' ? (v.name || v.key || v.index || '') : String(v);
   const en = Object.keys(SCHOOLS_IT).find(k => norm(k) === norm(s));
   if (en) return SCHOOLS_IT[en];
+  if (SCHOOLS_ALIAS[norm(s)]) return SCHOOLS_ALIAS[norm(s)];
   const it = Object.values(SCHOOLS_IT).find(k => norm(k) === norm(s));
   return it || s;
 }

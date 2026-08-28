@@ -125,6 +125,12 @@ function hbNormalizza(raw){
     const a = (grezze[i]||'').trim(), b = (grezze[i+1]||'').trim();
     if (a && !/[:.!?]$/.test(a) && /^\([^)]{2,30}\)\s*:$/.test(b) && a.length <= 60 && /^[A-ZÀ-Ý]/.test(a)){
       grezze[i] = a + ' ' + b; grezze[i+1] = '';
+      continue;
+    }
+    // La parentesi può spezzarsi a metà: «Via dell'Anima Solare (SC/XG» + «Update):»
+    const apre = (a.match(/\(/g)||[]).length, chiude = (a.match(/\)/g)||[]).length;
+    if (a && apre > chiude && /^[^()]{1,30}\)\s*:$/.test(b) && a.length <= 60 && /^[A-ZÀ-Ý]/.test(a)){
+      grezze[i] = a + ' ' + b; grezze[i+1] = '';
     }
   }
   const voci = [];   // { marker:'•'|'o'|'', testo }
