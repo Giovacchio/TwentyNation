@@ -1,5 +1,34 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.2 — 28 agosto 2026
+**Patto della Catena di serie, effetti del Cerchio della Luna configurabili, e i mostri si leggono dai PDF.**
+
+### 🔗 Dono del Patto (SRD)
+Il Patto della Catena è nell'SRD, quindi ora è **contenuto di serie**. Sulla scheda di un warlock dal 3° livello, in *Storia*, scegli fra Catena, Lama e Tomo.
+
+Col **Patto della Catena** il famiglio può prendere anche le quattro forme speciali, e nel bestiario sono entrati **diavoletto, quasit e pseudodragone** (il folletto c'era già) con statistiche, tratti e azioni. Non compaiono nell'elenco dei famigli normali: si sbloccano solo col patto, e quando succede l'app ti dice da dove arriva il permesso.
+
+### ⚙️ Effetti che coprono anche il Cerchio della Luna
+Il testo del Cerchio della Luna è del Manuale del Giocatore e resta fuori dall'app, ma i suoi effetti ora si dichiarano tutti con ⚙️:
+
+- **«GS = livello ÷ N, dal livello X»** oltre alla tabella per livelli: è la forma «grado sfida pari al livello del druido diviso 3» presa alla lettera. Vale il risultato migliore fra tabella e formula.
+- **Trasformazione come azione bonus**, che compare fra le azioni bonus in «Il tuo turno».
+- **Azioni in più**: nome, quando (azione / bonus / reazione) e una riga di promemoria, scritti da te. Compaiono nel turno al posto giusto — è lì che metti «spendi uno slot per curarti 1d8 per livello».
+
+Provato con i tuoi numeri: al 2° livello GS 1, al 6° GS 2, al 9° GS 3.
+
+### 🐉 Leggere i mostri dai tuoi manuali
+Nel **Tavolo del Master**, sotto il bestiario: «📖 Leggi i mostri dal tuo manuale». Riconosce i blocchi statistica nel formato standard e ne ricava **nome, taglia, tipo, CA, punti ferita e dadi vita, velocità, i sei punteggi, sensi, lingue, grado sfida, tratti e azioni**, tenendo separati i tratti dalle azioni.
+
+- **Le misure diventano metri**: `50 ft., fly 60 ft.` → `15 m, volare 18 m`.
+- I gradi sfida in frazione (`1/8`, `1/4`) restano tali.
+- Più file insieme, con l'avanzamento pagina per pagina.
+- Su un testo di prosa qualunque non inventa niente.
+
+I mostri che entrano finiscono nel tuo bestiario e diventano **scegliibili come forma selvatica, famiglio o compagno**: è così che un bestiario caricato allarga davvero il gioco.
+
+> Verificato: 16 prove nuove, più tutta la suite e le regressioni da v40 a v48 — zero errori a runtime, audit mobile invariato.
+
 ## v6.1 — 28 agosto 2026
 **Le sottoclassi che importi ora cambiano davvero le regole, non solo il testo.**
 

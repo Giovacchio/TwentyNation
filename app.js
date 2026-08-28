@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '6.1';
+const APP_VERSION = '6.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2829,6 +2829,7 @@ function renderSheetBackground(c){
       <input value="${attr(c.background||'')}" placeholder="…oppure scrivi il tuo" oninput="updateCharField('${c.id}','background',this.value)">
     </div>
     ${sottoclasseSceltaHTML(c)}
+    ${(typeof donoPattoHTML === 'function') ? donoPattoHTML(c) : ''}
 
     <div class="divider"><span class="flourish">❧</span><span>Personalità</span></div>
     <div class="trait-grid">
@@ -3312,7 +3313,8 @@ function renderBestiary(){
   return `
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">🎒 Armi, armature ed equipaggiamento</button>
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">💍 Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
-    <button class="btn btn-gold btn-block" style="margin-bottom:14px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
+    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openMostriPdf()">📖 Leggi i mostri dal tuo manuale</button>
     ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
     <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">✦ Nuovo PNG / Mostro</button>
   `;

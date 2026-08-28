@@ -197,7 +197,7 @@ const SRD_MONSTERS = [
 {id:'dryad',n:'Dryad',it:'Driade',sz:'Media',t:'folletto',ac:11,hp:22,hd:'5d8',sp:'9 m',ab:[10,12,11,14,15,18],sk:{perception:4,stealth:5},sen:'Scurovisione 18 m, Percezione passiva 14',cr:'1',
  tr:[['Passo arboreo','Si teletrasporta 18 m fra due alberi.'],['Incantesimi innati','CD 14: arte druidica, intralciare, charme su persona, parlare con le piante.']],
  act:[['Randello','+2','1d4 contundenti','']]},
-{id:'sprite',n:'Sprite',it:'Folletto',sz:'Minuscola',t:'folletto',ac:15,hp:2,hd:'1d4',sp:'3 m, volare 12 m',ab:[3,18,10,14,13,11],sk:{perception:3,stealth:8},sen:'Percezione passiva 13',cr:'1/4',
+{id:'sprite',n:'Sprite',it:'Folletto',sz:'Minuscola',t:'folletto',ac:15,hp:2,hd:'1d4',sp:'3 m, volare 12 m',ab:[3,18,10,14,13,11],sk:{perception:3,stealth:8},sen:'Percezione passiva 13',cr:'1/4',pf:true,
  act:[['Spada corta','+6','1 perforante',''],['Arco corto','+6','1 perforante + veleno','TS COS CD 10 o avvelenato; se fallisce di 5 privo di sensi'],['Percepire il cuore','—','—','Capisce le emozioni e l\'allineamento a contatto'],['Invisibilità','—','—','Diventa invisibile finché non attacca']]},
 {id:'centaur',n:'Centaur',it:'Centauro',sz:'Grande',t:'mostruosità',ac:12,hp:45,hd:'6d10+12',sp:'15 m',ab:[18,14,14,9,13,11],sk:{athletics:6,perception:3,survival:3},sen:'Percezione passiva 13',cr:'2',
  tr:[['Carica','Se corre 9 m e incorna: +3d6 danni.']],
@@ -231,6 +231,15 @@ const SRD_MONSTERS = [
 {id:'rust-monster',n:'Rust Monster',it:'Mostro della ruggine',sz:'Media',t:'mostruosità',ac:14,hp:27,hd:'5d8+5',sp:'12 m',ab:[13,12,13,2,13,6],sen:'Scurovisione 18 m, Percezione passiva 11',cr:'1/2',
  tr:[['Annusare il ferro','Fiuta il metallo entro 9 m.'],['Distruggere il metallo','Corrode armi e armature non magiche che lo colpiscono.']],
  act:[['Morso','+3','1d8+1 perforanti',''],['Antenne','—','—','Corrode un oggetto di metallo']]},
+{id:'imp',n:'Imp',it:'Diavoletto',sz:'Minuscola',t:'immondo',ac:13,hp:10,hd:'3d4+3',sp:'6 m, volare 12 m',ab:[6,17,13,11,12,14],sk:{deception:4,insight:3,persuasion:4,stealth:5},sen:'Scurovisione 36 m, Percezione passiva 11',lang:'Infernale, Comune',cr:'1',pf:true,
+ tr:[['Mutaforma','Con un\'azione assume la forma di un ratto, un corvo, un ragno o un\'altra bestia simile, o torna normale. Le statistiche restano le sue, tranne la velocità.'],['Resistenza magica','Vantaggio ai tiri salvezza contro incantesimi ed effetti magici.'],['Immunità','Immune al fuoco e al veleno; resistente al freddo e ai danni non magici da armi non argentate.'],['Invisibilità','Con un\'azione diventa invisibile finché non attacca o non si concentra su altro.']],
+ act:[['Pungiglione','+5','1d4+3 perforante più 3d6 veleno (TS Costituzione CD 11 dimezza)','']]},
+{id:'quasit',n:'Quasit',it:'Quasit',sz:'Minuscola',t:'immondo',ac:13,hp:7,hd:'3d4',sp:'12 m',ab:[5,17,10,7,10,10],sk:{stealth:5},sen:'Scurovisione 36 m, Percezione passiva 10',lang:'Abissale, Comune',cr:'1',pf:true,
+ tr:[['Mutaforma','Con un\'azione assume la forma di un pipistrello, un centopiedi o un rospo, o torna normale. Le statistiche restano le sue, tranne la velocità.'],['Resistenza magica','Vantaggio ai tiri salvezza contro incantesimi ed effetti magici.'],['Immunità','Immune al veleno; resistente al freddo, al fuoco, al fulmine e ai danni non magici da armi non argentate.'],['Invisibilità','Con un\'azione diventa invisibile finché non attacca o non si concentra su altro.']],
+ act:[['Artiglio (forma normale)','+4','1d4+3 perforante più 2d4 veleno (TS Costituzione CD 10 dimezza)',''],['Spaventare','—','Una creatura entro 6 m fa un TS Saggezza CD 10 o resta spaventata per 1 minuto',''] ]},
+{id:'pseudodragon',n:'Pseudodragon',it:'Pseudodragone',sz:'Minuscola',t:'drago',ac:13,hp:7,hd:'2d4+2',sp:'4,5 m, volare 18 m',ab:[6,15,13,10,12,10],sk:{perception:3,stealth:4},sen:'Vista cieca 3 m, scurovisione 18 m, Percezione passiva 13',lang:'Capisce Comune e Draconico ma non parla',cr:'1/4',pf:true,
+ tr:[['Sensi acuti','Vantaggio alle prove di Percezione basate su vista, udito o olfatto.'],['Resistenza magica','Vantaggio ai tiri salvezza contro incantesimi ed effetti magici.']],
+ act:[['Morso','+4','1d4+2 perforante',''],['Pungiglione','+4','1d4+2 perforante più veleno: TS Costituzione CD 11 o avvelenato per 1 ora; con un fallimento di 5 o più resta privo di sensi per lo stesso tempo','']]},
 ];
 const MONSTER_BY_ID = Object.fromEntries(SRD_MONSTERS.map(m => [m.id, m]));
 const CR_ORDER = ['0','1/8','1/4','1/2','1','2','3','4','5','6','10'];

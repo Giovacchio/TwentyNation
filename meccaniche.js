@@ -25,6 +25,42 @@ function meccanicheDi(c){
   return (sc && sc.meccaniche) ? sc.meccaniche : null;
 }
 
+
+/* ─── Dono del Patto ───
+   È un privilegio del warlock al 3° livello, non una sottoclasse: sta
+   sulla scheda. Il Patto della Catena allarga le forme del famiglio.
+   (SRD 5.1, licenza OGL 1.0a.) */
+const DONI_PATTO = {
+  chain: { nome:'Patto della Catena', desc:'Impari trova famiglio e lo lanci come rituale. Il famiglio può prendere anche forma di diavoletto, pseudodragone, quasit o folletto. Quando compi l\'azione di Attacco puoi rinunciare a un tuo attacco perché il famiglio ne faccia uno con la sua reazione.' },
+  blade: { nome:'Patto della Lama', desc:'Evochi un\'arma da mischia con cui sei competente e che conta come magica.' },
+  tome:  { nome:'Patto del Tomo',   desc:'Ricevi un libro con tre trucchetti a tua scelta da qualsiasi lista.' },
+};
+function donoPatto(c){
+  const cl = classeDi(c);
+  if (!cl || cl.id !== 'warlock') return null;
+  if (!c.pactBoon) return null;
+  return Object.assign({ id: c.pactBoon }, DONI_PATTO[c.pactBoon] || {});
+}
+function impostaDonoPatto(charId, id){
+  const c = charById(charId); if (!c) return;
+  c.pactBoon = id || '';
+  scheduleSave('characters', c); render();
+  if (id && DONI_PATTO[id]) toast('🔗 ' + DONI_PATTO[id].nome);
+}
+function donoPattoHTML(c){
+  const cl = classeDi(c);
+  if (!cl || cl.id !== 'warlock' || (c.level||1) < 3) return '';
+  const d = donoPatto(c);
+  return `<div class="field" style="margin-top:12px">
+    <label>Dono del Patto</label>
+    <select onchange="impostaDonoPatto('${c.id}', this.value)">
+      <option value="">— nessuno —</option>
+      ${Object.keys(DONI_PATTO).map(k=>`<option value="${k}" ${c.pactBoon===k?'selected':''}>${escapeHtml(DONI_PATTO[k].nome)}</option>`).join('')}
+    </select>
+    ${d ? `<div class="muted" style="font-size:.73rem; margin-top:6px">${escapeHtml(d.desc)}</div>` : ''}
+  </div>`;
+}
+
 /* ─── Forma selvatica ───
    Regola di serie del druido; una sottoclasse può alzare il grado
    sfida per livello e togliere i divieti di volo e nuoto. */
@@ -53,6 +89,12 @@ function limiteForma(c){
     const righe = f.gsPerLivello.slice().sort((a,b) => a[0] - b[0]);
     righe.forEach(r => { if (lv >= Number(r[0])) cr = Number(r[1]); });
   }
+  // «grado sfida pari al livello diviso N, arrotondato per difetto»,
+  // dal livello indicato in poi: vale se dà un risultato migliore.
+  if (f.divisore && lv >= Number(f.divisoreDa || 1)){
+    const calcolato = Math.floor(lv / Number(f.divisore));
+    if (calcolato > cr) cr = calcolato;
+  }
   const nuoto = f.nuotoDa != null ? lv >= Number(f.nuotoDa) : lv >= 4;
   const volo  = f.voloDa  != null ? lv >= Number(f.voloDa)  : lv >= 8;
   const pezzi = ['Fino a ' + crInParole(cr)];
@@ -69,10 +111,32 @@ function limiteForma(c){
 function famigliDi(c){
   const m = meccanicheDi(c);
   const f = m && m.famigli;
-  const extra = (f && Array.isArray(f.extra)) ? f.extra.filter(Boolean) : [];
+  let extra = (f && Array.isArray(f.extra)) ? f.extra.filter(Boolean) : [];
+  let daPatto = '';
+  if (c && c.pactBoon === 'chain'){
+    const delPatto = (typeof SRD_MONSTERS !== 'undefined' ? SRD_MONSTERS : []).filter(x => x.pf).map(x => x.id);
+    extra = [...new Set(extra.concat(delPatto))];
+    daPatto = DONI_PATTO.chain.nome;
+  }
+  const daSotto = (f && (f.extra || f.gsMax != null || f.qualsiasiBestia)) ? (sottoclasseDi(c)||{}).name || '' : '';
   return { extra, gsMax: f && f.gsMax != null ? Number(f.gsMax) : null,
            qualsiasiBestia: !!(f && f.qualsiasiBestia),
-           da: (extra.length || (f && (f.gsMax != null || f.qualsiasiBestia))) ? (sottoclasseDi(c)||{}).name || '' : '' };
+           da: [daPatto, daSotto].filter(Boolean).join(' e ') };
+}
+
+
+/* Azioni che la sottoclasse aggiunge al turno: le scrivi tu dal tuo
+   manuale, l'app le mostra dove servono. */
+function azioniDi(c){
+  const m = meccanicheDi(c);
+  const l = (m && Array.isArray(m.azioni)) ? m.azioni : [];
+  const f = m && m.forma;
+  const fuori = l.slice();
+  if (f && f.azioneBonus){
+    const sc = sottoclasseDi(c);
+    fuori.push({ quando:'bonus', nome:'Forma selvatica', testo:'Ti trasformi con un\'azione bonus' + (sc?' ('+sc.name+')':'') + '.' });
+  }
+  return fuori;
 }
 
 /* ─── Proposta automatica leggendo il testo del privilegio ───
@@ -159,6 +223,20 @@ function meccTogliGs(i){
   if (!meccDraft.forma.gsPerLivello.length) delete meccDraft.forma.gsPerLivello;
   renderModalRoot();
 }
+function meccAggiungiAzione(){
+  meccDraft.azioni = (meccDraft.azioni || []).concat([{ nome:'', quando:'bonus', testo:'' }]);
+  renderModalRoot();
+}
+function meccAzione(i, campo, v){
+  meccDraft.azioni = meccDraft.azioni || [];
+  meccDraft.azioni[i] = Object.assign({ quando:'bonus' }, meccDraft.azioni[i], { [campo]: v });
+  renderModalRoot();
+}
+function meccTogliAzione(i){
+  (meccDraft.azioni || []).splice(i,1);
+  if (meccDraft.azioni && !meccDraft.azioni.length) delete meccDraft.azioni;
+  renderModalRoot();
+}
 function meccToggleFam(id){
   meccDraft.famigli = meccDraft.famigli || {};
   const l = meccDraft.famigli.extra || [];
@@ -191,6 +269,17 @@ function meccanicheHTML(){
     </div>`).join('')}
     <button class="btn btn-ghost btn-block btn-sm" onclick="meccAggiungiGs()">＋ Aggiungi una riga</button>
     <div class="form-row" style="margin-top:10px">
+      <div class="field"><label>Oppure: GS = livello ÷</label><input inputmode="numeric" value="${attr(f.divisore==null?'':f.divisore)}" placeholder="3" oninput="meccSet('forma.divisore', this.value===''?'':parseInt(this.value)||0)"></div>
+      <div class="field"><label>…dal livello</label><input inputmode="numeric" value="${attr(f.divisoreDa==null?'':f.divisoreDa)}" placeholder="6" oninput="meccSet('forma.divisoreDa', this.value===''?'':parseInt(this.value)||0)"></div>
+    </div>
+    <button class="switch-row" style="margin-top:6px" onclick="meccSet('forma.azioneBonus', ${f.azioneBonus?"''":'true'})">
+      <div class="track"><div class="knob" style="${f.azioneBonus?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+        <b style="font-size:.84rem">Trasformazione come azione bonus</b>
+        <div class="muted" style="font-size:.73rem; font-weight:600">Compare fra le azioni bonus nel tuo turno.</div>
+      </div>
+    </button>
+    <div class="form-row" style="margin-top:10px">
       <div class="field"><label>Nuoto dal livello</label><input inputmode="numeric" value="${attr(f.nuotoDa==null?'':f.nuotoDa)}" placeholder="4" oninput="meccSet('forma.nuotoDa', this.value===''?'':parseInt(this.value)||0)"></div>
       <div class="field"><label>Volo dal livello</label><input inputmode="numeric" value="${attr(f.voloDa==null?'':f.voloDa)}" placeholder="8" oninput="meccSet('forma.voloDa', this.value===''?'':parseInt(this.value)||0)"></div>
     </div>
@@ -209,6 +298,21 @@ function meccanicheHTML(){
       </select>
     </div>
 
+    <div class="divider"><span class="flourish">❧</span><span>Azioni in più</span></div>
+    <p class="muted" style="font-size:.76rem; margin-bottom:8px">Cose che questa sottoclasse ti fa fare nel turno. Compaiono in «Il tuo turno» sotto la voce giusta.</p>
+    ${(d.azioni||[]).map((a,i)=>`<div class="card" style="margin-bottom:8px">
+      <div class="form-row">
+        <div class="field"><label>Nome</label><input value="${attr(a.nome||'')}" oninput="meccAzione(${i},'nome',this.value)"></div>
+        <div class="field"><label>Quando</label>
+          <select onchange="meccAzione(${i},'quando',this.value)">
+            ${['azione','bonus','reazione'].map(q=>`<option value="${q}" ${a.quando===q?'selected':''}>${q==='bonus'?'Azione bonus':q==='reazione'?'Reazione':'Azione'}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="field"><label>In una riga</label><input value="${attr(a.testo||'')}" placeholder="Es. spendi uno slot per curarti 1d8 per livello" oninput="meccAzione(${i},'testo',this.value)"></div>
+      <button class="btn btn-ghost btn-block btn-sm" onclick="meccTogliAzione(${i})">Togli</button>
+    </div>`).join('')}
+    <button class="btn btn-ghost btn-block btn-sm" onclick="meccAggiungiAzione()">＋ Aggiungi un'azione</button>
+
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
       <button class="btn btn-primary" onclick="salvaMeccaniche()">Salva</button>
@@ -222,6 +326,10 @@ function salvaMeccaniche(){
   const pulito = JSON.parse(JSON.stringify(meccDraft || {}));
   if (pulito.forma && !Object.keys(pulito.forma).length) delete pulito.forma;
   if (pulito.famigli && !Object.keys(pulito.famigli).length) delete pulito.famigli;
+  if (Array.isArray(pulito.azioni)){
+    pulito.azioni = pulito.azioni.filter(a => a && String(a.nome||'').trim());
+    if (!pulito.azioni.length) delete pulito.azioni;
+  }
   if (Object.keys(pulito).length) h.meccaniche = pulito; else delete h.meccaniche;
   h.updatedAt = Date.now();
   saveLocal();
@@ -238,6 +346,9 @@ function riassuntoMeccaniche(h){
     const max = m.forma.gsPerLivello.reduce((a,r)=>Math.max(a, Number(r[1])||0), 0);
     p.push('forma fino a ' + crInParole(max));
   }
+  if (m.forma && m.forma.divisore) p.push('forma GS = liv ÷ ' + m.forma.divisore);
+  if (m.forma && m.forma.azioneBonus) p.push('forma come bonus');
   if (m.famigli && m.famigli.extra && m.famigli.extra.length) p.push(m.famigli.extra.length + ' famigli in più');
+  if (m.azioni && m.azioni.length) p.push(m.azioni.length + (m.azioni.length===1?' azione in più':' azioni in più'));
   return p.join(' · ');
 }

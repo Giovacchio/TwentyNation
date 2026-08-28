@@ -74,6 +74,10 @@ function turnoHTML(){
       ${x.sp.level ? `<button class="attack-btn" title="Spendi uno slot" onclick="turnoSpendiSlot('${c.id}',${x.sp.level})">slot</button>` : ''}
     </div>`;
 
+  /* Le azioni dichiarate dalla tua sottoclasse, al posto giusto. */
+  const azSotto = (typeof azioniDi === 'function') ? azioniDi(c) : [];
+  const extra = (quando) => azSotto.filter(a => (a.quando||'bonus') === quando)
+    .map(a => voce('⚙️', a.nome || '', a.testo || '', '')).join('');
   const sezione = (titolo, contenuto) => contenuto
     ? `<div class="divider"><span class="flourish">❧</span><span>${titolo}</span></div><div class="list-gap">${contenuto}</div>` : '';
 
@@ -134,13 +138,13 @@ function turnoHTML(){
         ${a.dmg ? `<button class="attack-btn dmg" title="Tira i danni" onclick="rollDamage('${c.id}',${i})">${escapeHtml(a.dmg)}</button>`:''}
       </div>`).join('')
       + sp.azione.map(rigaIncantesimo).join('')
-      + AZIONI_BASE.map(([i,n,d])=>voce(i,n,d,'')).join(''))}
+      + extra('azione') + AZIONI_BASE.map(([i,n,d])=>voce(i,n,d,'')).join(''))}
 
     ${sezione('Azione bonus',
-      sp.bonus.map(rigaIncantesimo).join('') + BONUS_BASE.map(([i,n,d])=>voce(i,n,d,'')).join(''))}
+      sp.bonus.map(rigaIncantesimo).join('') + extra('bonus') + BONUS_BASE.map(([i,n,d])=>voce(i,n,d,'')).join(''))}
 
     ${sezione('Reazione',
-      sp.reazione.map(rigaIncantesimo).join('') + REAZIONI_BASE.map(([i,n,d])=>voce(i,n,d,'')).join(''))}
+      sp.reazione.map(rigaIncantesimo).join('') + extra('reazione') + REAZIONI_BASE.map(([i,n,d])=>voce(i,n,d,'')).join(''))}
 
     ${(rigaSlot || risorse) ? `<div class="divider"><span class="flourish">❧</span><span>Da spendere</span></div>
       ${rigaSlot?`<div class="chip-row" style="margin-bottom:8px">${rigaSlot}</div>`:''}

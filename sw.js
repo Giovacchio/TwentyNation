@@ -5,7 +5,7 @@
    I font di Google vengono messi in cache a parte, così l'aspetto
    resta corretto anche senza connessione.
 */
-const CACHE_VERSION = 'twentynation-v6-1';
+const CACHE_VERSION = 'twentynation-v6-2';
 const FONT_CACHE = 'grimorio-fonts-v1';
 const CORE_ASSETS = [
   './',
@@ -33,6 +33,7 @@ const CORE_ASSETS = [
   './cestino.js',
   './turno.js',
   './meccaniche.js',
+  './mostri-pdf.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
