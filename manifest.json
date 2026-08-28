@@ -1,27 +1,84 @@
 {
-  "name": "Grimorio — Compagno per D&D",
-  "short_name": "Grimorio",
+  "name": "TwentyNation — Compagno per D&D",
+  "short_name": "TwentyNation",
   "description": "Personaggi, incantesimi, inventario, background e strumenti da master per le tue sessioni di D&D.",
   "start_url": "./index.html",
   "id": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#140f1e",
   "theme_color": "#140f1e",
   "lang": "it",
   "dir": "ltr",
-  "categories": ["games", "entertainment", "utilities"],
+  "categories": [
+    "games",
+    "entertainment",
+    "utilities"
+  ],
   "icons": [
-    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Tira i dadi", "short_name": "Dadi", "url": "./index.html?a=dice", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] },
-    { "name": "Grimorio", "short_name": "Magie", "url": "./index.html?a=grimoire", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] },
-    { "name": "Tavolo del Master", "short_name": "Tavolo", "url": "./index.html?a=dm", "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }] }
+    {
+      "name": "Tira i dadi",
+      "short_name": "Dadi",
+      "url": "./index.html?a=dice",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Grimorio",
+      "short_name": "Magie",
+      "url": "./index.html?a=grimoire",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Tavolo del Master",
+      "short_name": "Tavolo",
+      "url": "./index.html?a=dm",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

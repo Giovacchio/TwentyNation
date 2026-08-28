@@ -6,8 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Grimorio">
-<meta name="application-name" content="Grimorio">
+<meta name="apple-mobile-web-app-title" content="TwentyNation">
+<meta name="application-name" content="TwentyNation">
 <meta name="theme-color" content="#140f1e" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#140f1e">
 <meta name="color-scheme" content="dark light">
@@ -15,8 +15,10 @@
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<title>Grimorio 📖</title>
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
+<link rel="icon" href="./favicon.ico" sizes="any">
+<title>TwentyNation 🎲</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -232,6 +234,9 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 /* z-index: l'animazione di opacità del titolo crea un contesto di
    impilamento e senza questo il titolo copre i pulsanti (non cliccabili). */
 .hero-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 3; }
+/* Su schermo stretto un titolo lungo finirebbe sotto i due tasti in alto
+   a destra: gli si fa spazio scendendo di una riga. */
+@media (max-width: 440px) { .hero { padding-top: 52px; } }
 .hero h1, .hero .sub, .hero .rule { position: relative; z-index: 1; }
 
 /* ────────────────── SIGILLI ────────────────── */
@@ -805,7 +810,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <div id="bg" aria-hidden="true"></div>
 <div id="embers" aria-hidden="true"></div>
 <div id="app">
-  <div id="loader"><div class="rune-load"></div><p>Il Grimorio si sta aprendo…</p></div>
+  <div id="loader"><div class="rune-load"></div><p>TwentyNation si sta aprendo…</p></div>
 </div>
 <div id="modal-root"></div>
 

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.5';
+const APP_VERSION = '5.6';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -785,8 +785,8 @@ function handleRedirectResult(){
 }
 function openInAppBrowserHelp(){
   const inner = `
-    <p class="muted" style="margin-bottom:14px">Stai usando il Grimorio dentro il browser interno di un'altra app (Instagram, Facebook, TikTok…). Google non consente l'accesso da qui: è una restrizione loro, non dell'app.</p>
-    <p class="muted" style="margin-bottom:14px"><b>Come fare:</b> tocca il menu <b>⋯</b> in alto e scegli <b>Apri in Chrome</b> (Android) o <b>Apri in Safari</b> (iPhone). Da lì l'accesso funziona, e puoi anche aggiungere il Grimorio alla schermata Home.</p>
+    <p class="muted" style="margin-bottom:14px">Stai usando TwentyNation dentro il browser interno di un'altra app (Instagram, Facebook, TikTok…). Google non consente l'accesso da qui: è una restrizione loro, non dell'app.</p>
+    <p class="muted" style="margin-bottom:14px"><b>Come fare:</b> tocca il menu <b>⋯</b> in alto e scegli <b>Apri in Chrome</b> (Android) o <b>Apri in Safari</b> (iPhone). Da lì l'accesso funziona, e puoi anche aggiungere TwentyNation alla schermata Home.</p>
     <button class="btn btn-ghost btn-block" onclick="copyAppLink()">Copia il link dell'app</button>
     <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal()">Ho capito</button>`;
   openModal({ render: () => modalShell('Apri nel browser', inner) });
@@ -836,13 +836,13 @@ function authDiagnosticsHTML(){
     <div class="spell-source-note">
       Se l'accesso non riesce da telefono: prova prima la finestra popup; se il browser la blocca, usa il reindirizzamento.
       Se torni indietro senza risultare collegato, disattiva il blocco dei cookie di terze parti per questo sito
-      (iPhone: Impostazioni → Safari → "Impedisci tracciamento tra siti" disattivato) oppure apri il Grimorio nel browser invece che dall'icona installata.
+      (iPhone: Impostazioni → Safari → "Impedisci tracciamento tra siti" disattivato) oppure apri TwentyNation nel browser invece che dall'icona installata.
     </div>`;
   return modalShell('🔐 Diagnostica accesso', inner);
 }
 function copyDiagnostics(){
   const txt = [
-    'Grimorio ' + APP_VERSION,
+    'TwentyNation ' + APP_VERSION,
     'dominio: ' + location.hostname,
     'authDomain: ' + FIREBASE_CONFIG.authDomain,
     'standalone: ' + isStandalonePWA(),
@@ -1154,7 +1154,7 @@ function toggleTheme(){
   render();
 }
 
-function loaderHTML(){ return `<div id="loader"><div class="rune-load"></div><p>Il Grimorio si sta aprendo…</p></div>`; }
+function loaderHTML(){ return `<div id="loader"><div class="rune-load"></div><p>TwentyNation si sta aprendo…</p></div>`; }
 function emptyState(icon, text){ return `<div class="empty-state"><div class="ic">${icon}</div><p>${escapeHtml(text)}</p></div>`; }
 function themeToggleBtn(){ return `<button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema" title="Cambia tema">${state.theme==='dark'?'🌙':'☀️'}</button>`; }
 
@@ -1166,8 +1166,8 @@ function offlineBannerHTML(){
 
 function authScreenHTML(){
   return `<div class="auth-screen">
-    <div class="seal glow" style="font-family:var(--font-head)">📖</div>
-    <h1>Grimorio</h1>
+    <div class="seal glow portrait"><img src="./icon-maskable-512.png" alt="TwentyNation" width="512" height="512"></div>
+    <h1>TwentyNation</h1>
     <p>Personaggi, incantesimi, inventario, background e strumenti da master: la tua compagnia sempre a portata di mano, sincronizzata su tutti i dispositivi.</p>
     <button class="google-btn" onclick="signIn()">
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.71H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.71A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.96H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.04l3.07-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.96l3.07 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
@@ -1354,7 +1354,7 @@ function renderParty(){
         <button class="btn-icon" onclick="openGlobalSearch()" aria-label="Cerca ovunque" title="Cerca ovunque">🔍</button>
         ${themeToggleBtn()}
       </div>
-      <h1>Grimorio</h1>
+      <h1>TwentyNation</h1>
       <div class="rule">❖</div>
       <div class="sub">La tua compagnia</div>
     </div>
@@ -3562,7 +3562,7 @@ function handleImportFile(input){
       openSpellImport(); analyzeSpellImport(JSON.stringify(data)); return;
     }
     if (!data || (!Array.isArray(data.characters) && !Array.isArray(data.npcs) && !Array.isArray(data.customSpells))){
-      toast('⚠️ Questo file non è un backup del Grimorio'); return;
+      toast('⚠️ Questo file non è un backup di TwentyNation'); return;
     }
     const nc = (data.characters||[]).length, nn = (data.npcs||[]).length, ns = (data.customSpells||[]).length;
     confirmDialog('Importare il backup?',
@@ -3681,7 +3681,7 @@ function doRollCustom(){
 
 /* ─── 24. IMPORTAZIONE DI MASSA DEGLI INCANTESIMI ────────────────
    Accetta un file (o un testo incollato) in JSON e riconosce da solo
-   i formati più diffusi: quello del Grimorio, quello di Open5e
+   i formati più diffusi: quello di TwentyNation, quello di Open5e
    (v1 e v2) e quello di 5e-bits/5e-database. Gli incantesimi entrano
    fra i tuoi "personalizzati", quindi sono sincronizzati sull'account
    e modificabili come tutti gli altri.
@@ -3811,7 +3811,7 @@ function spellImportHTML(){
   const inner = `
     <p class="muted" style="margin-bottom:14px">
       Scegli un file — va bene sia un <b>PDF</b> di incantesimi sia un <b>.json</b> — oppure incolla il testo qui sotto.
-      Vengono riconosciuti da soli i formati del Grimorio, di Open5e e di 5e-database.
+      Vengono riconosciuti da soli i formati di TwentyNation, di Open5e e di 5e-database.
       Gli incantesimi finiscono fra i tuoi personalizzati: restano modificabili e si sincronizzano sull'account.
     </p>
     <div class="btn-row">
@@ -4053,7 +4053,7 @@ function markUpdateReady(){
 function updateBannerHTML(){
   if (!state.updateReady) return '';
   return `<div class="update-banner">
-    <span>✨ C'è una versione nuova del Grimorio.</span>
+    <span>✨ C'è una versione nuova di TwentyNation.</span>
     <button class="btn btn-sm btn-gold" onclick="forceAppUpdate()">Aggiorna ora</button>
   </div>`;
 }

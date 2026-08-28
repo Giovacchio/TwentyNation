@@ -1,4 +1,17 @@
-# Grimorio — lista dei cambiamenti
+# TwentyNation — lista dei cambiamenti
+
+## v5.6 — 28 agosto 2026
+**L'app si chiama TwentyNation, e ha il suo marchio.**
+
+- **Icona nuova** su tutti i formati: quella tonda bordeaux col d20 dorato. Ci sono le versioni normali (192 e 512), quelle **mascherate** per Android — dove il marchio è a tutto campo sul bordeaux, così il ritaglio a cerchio o a goccia non taglia niente — la `apple-touch-icon` per iPhone e la favicon per la scheda del browser.
+- **Nome cambiato in «TwentyNation»** dove indica l'app: schermata d'accesso, intestazione del party, titolo della pagina, nome sotto l'icona una volta installata, diagnostica, avviso di aggiornamento e messaggi sui backup.
+- **«Grimorio» resta dov'era il suo posto**: è la sezione degli incantesimi, in fondo alla barra, e nei messaggi che parlano di quella («Aggiungi dal Grimorio»). Cambiarlo lì avrebbe confuso e basta.
+- Sulla schermata d'accesso al posto dell'emoji 📖 ora c'è **il marchio vero**, dentro il sigillo dorato.
+
+### Una cosa che si è rotta col nome nuovo, e che ho sistemato
+«TwentyNation» è lungo il doppio di «Grimorio»: nell'intestazione del party finiva **sotto i due tasti** in alto a destra (cerca e tema) e si leggeva «TwentyNatio…». Misurato: il titolo occupa 193 px e lo spazio libero fra i tasti ne lascia 164 sotto i 430 px di schermo. Su schermo stretto il titolo ora scende di una riga e sta largo; sopra i 440 px resta dov'era.
+
+> Verificato: tutta la suite più le regressioni da v40 a v48 — zero errori a runtime. Audit mobile su 99 schermate invariato (2 segnalazioni, il dado che copre un pulsante da fermo).
 
 ## v5.5 — 28 agosto 2026
 **Condivisione col tavolo in un clic, account che regge fra browser e app, e la scheda si sfoglia col dito.**
