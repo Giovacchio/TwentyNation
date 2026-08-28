@@ -166,7 +166,8 @@ function saveJournalEntry(){
   toast('📓 Voce salvata');
 }
 function deleteJournalEntry(id){
-  confirmDialog('Eliminare questa voce?', 'Sparisce dal diario su tutti i tuoi dispositivi. Non si torna indietro.', () => {
+  confirmDialog('Eliminare questa voce?', 'Sparisce dal diario su tutti i tuoi dispositivi. Resta nel cestino per 30 giorni.', () => {
+    if (typeof nelCestino === 'function') nelCestino('journal', (state.journal||[]).find(e => e.id === id));
     state.journal = (state.journal||[]).filter(e => e.id !== id);
     fsDelete('journal', id);
     saveLocal();

@@ -66,6 +66,7 @@ function saveHomebrew(obj){
   fsSet('homebrew', obj);
 }
 function deleteHomebrew(id){
+  if (typeof nelCestino === 'function') nelCestino('homebrew', (state.homebrew||[]).find(h => h.id === id));
   state.homebrew = (state.homebrew || []).filter(h => h.id !== id);
   fsDelete('homebrew', id);
   saveLocal(); render();

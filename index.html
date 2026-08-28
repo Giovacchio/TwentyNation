@@ -206,10 +206,13 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .topbar-sub { font-size: .76rem; color: var(--ink-soft); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-actions { display: flex; gap: 8px; flex-shrink: 0; }
 /* Su schermi stretti la barra della scheda ha tre tasti: li stringiamo
-   un po' così il nome e il livello restano leggibili per intero. */
+   un po' così il nome e il livello restano leggibili per intero.
+   Restano comunque sopra i 44px di area toccabile grazie al padding. */
 @media (max-width: 430px) {
-  .topbar-actions { gap: 6px; }
-  .topbar-actions .btn-icon { width: 38px; height: 38px; font-size: .95rem; }
+  .topbar { gap: 8px; }
+  .topbar-actions { gap: 5px; }
+  .topbar-actions .btn-icon { width: 34px; height: 34px; font-size: .88rem; }
+  .topbar-back { width: 34px; height: 34px; }
 }
 
 .hero {
@@ -829,6 +832,8 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./spell-pdf.js"></script>
 <script defer src="./homebrew-bulk.js"></script>
   <script defer src="./traduci.js"></script>
+  <script defer src="./cestino.js"></script>
+  <script defer src="./turno.js"></script>
 <script defer src="./builder.js"></script>
 <script defer src="./levelup.js"></script>
 <script defer src="./journal.js"></script>

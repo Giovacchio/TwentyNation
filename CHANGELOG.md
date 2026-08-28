@@ -1,5 +1,32 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.0 — 28 agosto 2026
+**«Il tuo turno»: tutto quello che puoi fare adesso, senza aprire la scheda. E niente si elimina più per sempre.**
+
+### ⚔️ Il tuo turno
+Il tasto ⚔️ in cima alla scheda (e nella schermata iniziale) apre una sola videata con quello che ti serve mentre il tavolo aspetta te:
+
+- **PF con −5 / −1 / +1 / +5**, CA, iniziativa e velocità in testa, con la barra della salute.
+- **Concentrazione** in evidenza con il nome dell'incantesimo e il tasto per interromperla.
+- **Condizioni attive** come pastiglie: si tolgono con un tocco, se ne aggiungono altre.
+- **Azione**: i tuoi attacchi (tocchi il bonus e tiri per colpire, tocchi i danni e li tiri), i tuoi incantesimi da 1 azione, e le dieci azioni di base con il promemoria in una riga — Scatto, Disimpegno, Schivata, Aiuto, Nascondersi, Preparare, Cercare, Usare un oggetto.
+- **Azione bonus** e **Reazione** con i loro incantesimi, divisi automaticamente leggendo il tempo di lancio. Gli incantesimi non preparati non compaiono.
+- **Da spendere**: slot per livello e risorse, un tocco per consumarne uno. Non si scende sotto zero.
+
+Il riposo è sceso nel menù ⋯ (si fa due volte a sessione, il turno ogni round), e sugli schermi stretti i tasti in cima si stringono quel tanto che basta perché nome e livello restino leggibili per intero.
+
+### 🗑️ Niente si elimina più per sempre
+Dopo esserci passati due volte, ho smesso di fidarmi delle eliminazioni.
+
+- **Cestino con 30 giorni di ripensamento** per personaggi, PNG, incantesimi, aggiunte e voci del diario. Si ripristina identico, tratti e privilegi compresi, e quello che rimetti a posto **risale sull'account** invece di restare solo lì.
+- Il cestino vive **su questo dispositivo**: non occupa spazio sul tuo account e non lo vede nessuno. Si svuota da solo dopo trenta giorni.
+- I messaggi di conferma non dicono più «non si torna indietro», perché adesso si torna indietro.
+
+### 🩺 Salute dei dati
+In **Opzioni → I tuoi dati**: quante cose hai, **quante sono davvero sul tuo account** e quante esistono solo qui, divise per tipo. Se qualcosa non è salito te lo dice in chiaro, con il tasto per esportare un backup lì accanto. È la schermata che sarebbe servita a scoprire in un attimo il difetto degli array annidati.
+
+> Verificato: 21 prove nuove (10 sul turno, 11 su cestino e salute dei dati), più tutta la suite e le regressioni da v40 a v48 — zero errori a runtime. Audit mobile su 99 schermate: zero elementi troppo piccoli, zero fuori pagina.
+
 ## v5.9 — 28 agosto 2026
 **Quando la condivisione non va, adesso l'app dice perché.**
 

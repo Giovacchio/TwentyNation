@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '5.9';
+const APP_VERSION = '6.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1448,7 +1448,8 @@ function renderParty(){
     ${chars.length
       ? `<div class="stagger list-gap party-grid">${chars.map(charCardHTML).join('')}</div>`
       : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
-    <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="openBuilder()">✦ Crea personaggio guidato</button>
+    ${chars.length ? `<button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openTurno('${chars[0].id}')">⚔️ Il tuo turno</button>` : ''}
+    <button class="btn btn-primary btn-block" style="margin-top:${chars.length?'10px':'16px'}" onclick="openBuilder()">✦ Crea personaggio guidato</button>
     <div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">✎ Scheda vuota</button>
       <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">⇪ Importa PDF</button>
@@ -1611,6 +1612,8 @@ function confirmDeleteCharacter(id){
   confirmDialog('Eliminare ' + (c?c.name:'questo personaggio') + '?', 'La scheda e tutti i suoi dati andranno persi definitivamente.', () => doDeleteCharacter(id), 'Elimina');
 }
 function doDeleteCharacter(id){
+  const c = state.characters.find(x=>x.id===id);
+  if (typeof nelCestino === 'function') nelCestino('characters', c);
   state.characters = state.characters.filter(c=>c.id!==id);
   fsDelete('characters', id);
   saveLocal();
@@ -1766,6 +1769,7 @@ function renderCharacterSheet(){
         <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
       </button>
       <div class="topbar-actions">
+        <button class="btn-icon" onclick="openTurno('${c.id}')" aria-label="Il tuo turno" title="Il tuo turno">⚔️</button>
         <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">🏕️</button>
         <button class="btn-icon" onclick="openSheetMenu('${c.id}')" aria-label="Altre azioni" title="Altre azioni">⋯</button>
       </div>
@@ -3241,6 +3245,7 @@ function resetSpellClasses(){
 
 function confirmDeleteCustomSpell(id){
   confirmDialog('Eliminare questo incantesimo?', 'Verrà rimosso anche dalle schede dei personaggi che lo conoscono.', () => {
+    if (typeof nelCestino === 'function') nelCestino('customSpells', state.customSpells.find(s=>s.id===id));
     state.customSpells = state.customSpells.filter(s=>s.id!==id);
     fsDelete('customSpells', id);
     state.characters.forEach(c=>{
@@ -3355,7 +3360,8 @@ function addNpcToInitiative(npcId){
 }
 function confirmDeleteNpc(id){
   const n = state.npcs.find(x=>x.id===id);
-  confirmDialog('Eliminare ' + (n?n.name:'questo PNG') + '?', 'Questa azione non può essere annullata.', () => {
+  confirmDialog('Eliminare ' + (n?n.name:'questo PNG') + '?', 'Finisce nel cestino: puoi rimetterlo a posto entro 30 giorni.', () => {
+    if (typeof nelCestino === 'function') nelCestino('npcs', n);
     state.npcs = state.npcs.filter(x=>x.id!==id);
     fsDelete('npcs', id);
     saveLocal(); render();
@@ -3591,6 +3597,15 @@ function renderSettings(){
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Sottoclassi, razze e background che non sono nell'SRD: li aggiungi tu dai manuali che possiedi e compaiono nella creazione guidata.${(state.homebrew||[]).length ? ' Ne hai <b>'+state.homebrew.length+'</b>.' : ''}</p>
       <button class="btn btn-gold btn-block" onclick="openHomebrew()">📚 Gestisci i tuoi contenuti</button>
+    </div>
+
+    <div class="divider"><span class="flourish">❧</span><span>I tuoi dati</span></div>
+    <div class="card" style="margin-bottom:12px">
+      <p class="muted" style="margin-bottom:12px">Cosa è al sicuro sul tuo account e cosa esiste solo qui. Quello che elimini resta recuperabile per 30 giorni.</p>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="openSaluteDati()">🩺 Salute dei dati</button>
+        <button class="btn btn-ghost" onclick="openCestino()">🗑️ Cestino${(typeof quantoNelCestino==='function' && quantoNelCestino())?' ('+quantoNelCestino()+')':''}</button>
+      </div>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Backup</span></div>
@@ -4181,6 +4196,7 @@ function handleLaunchShortcut(){
 function boot(){
   loadLocal();
   caricaVisti();
+  if (typeof caricaCestino === 'function') caricaCestino();
   loadSession();
   if (typeof loadCampaignLocal === 'function') loadCampaignLocal();
   spawnEmbers();
@@ -4259,6 +4275,7 @@ function openSheetMenu(charId){
   </button>`;
   openModal({ render: () => modalShell('⋯ ' + escapeHtml(c.name || 'Scheda'), `
     <div class="list-gap">
+      ${item('🏕️', 'Riposo', 'Breve o lungo, con i dadi vita e le risorse', `openRestModal('${c.id}')`)}
       ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
       ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
       ${item('✎', 'Modifica la scheda', 'Nome, caratteristiche, competenze, tutto il resto', `openCharacterForm('${c.id}')`)}
