@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '6.6';
+const APP_VERSION = '6.7';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -400,6 +400,8 @@ const state = {
   grimoirePickFor: null,
   grimoireFilter: { q: '', level: 'all', clas: 'all' },
   knownFilter: 'all',
+  bestiarioQ: '', bestiarioGs: '', combatCercaQ: '',
+  hbQ: '', hbKind: '',
   combat: { list: [], round: 1, turn: 0 },
   diceHistory: [],
   rollMode: 'normal',
@@ -445,24 +447,62 @@ function loadLocal(){
     const data = JSON.parse(raw);
     state.characters = (data.characters || []).map(safeMigrate).filter(Boolean);
     state.npcs = data.npcs || [];
+    bestiarioScorda();
     state.customSpells = data.customSpells || [];
     state.spellTags = data.spellTags || [];
     state.homebrew = data.homebrew || [];
     state.journal = data.journal || [];
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
-function saveLocal(){
+/* Salvataggio locale «a raffica». Aggiungendo 3000 mostri il vecchio
+   saveLocal veniva chiamato tre volte per creatura e ogni volta
+   riscriveva l'intero archivio: novemila serializzazioni da un megabyte,
+   con l'app bloccata per minuti. Adesso le chiamate ravvicinate si
+   fondono in una sola scrittura, e chi ha bisogno della certezza che sia
+   finita usa saveLocalOra(). */
+let __salvaLocaleTimer = null;
+let __ultimoPesoLocale = 0;
+
+function pacchettoLocale(){
+  return JSON.stringify({
+    characters: state.characters, npcs: state.npcs,
+    customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
+    journal: state.journal
+  });
+}
+/* Scrive davvero, subito. Torna false se la memoria del telefono è piena:
+   chi sta aggiungendo tanta roba insieme se ne accorge e torna indietro
+   invece di lasciare in giro mezza importazione. */
+function saveLocalOra(){
+  clearTimeout(__salvaLocaleTimer); __salvaLocaleTimer = null;
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
-      journal: state.journal
-    }));
+    const testo = pacchettoLocale();
+    localStorage.setItem(LS_KEY, testo);
+    __ultimoPesoLocale = testo.length;
+    return true;
   } catch(e){
     console.warn('Impossibile salvare in locale', e);
     toast('⚠️ Memoria del dispositivo piena: libera spazio');
+    return false;
   }
 }
+/* Il salvataggio resta immediato. Rimandarlo anche solo di qualche
+   centesimo sembrava un guadagno, ma apre una crepa: chi cambia account
+   legge l'archivio subito dopo aver toccato lo stato, e si porterebbe
+   via la versione di prima. Il vero peso non era mai il salvataggio in
+   sé, era chiamarlo tremila volte di fila: quello lo risolve fsSetMany,
+   che salva una volta per tutto il gruppo. */
+function saveLocal(){ return saveLocalOra(); }
+/* Quanto pesa adesso l'archivio locale, per la schermata «salute dei dati». */
+function pesoArchivioLocale(){
+  try { return (localStorage.getItem(LS_KEY) || '').length; }
+  catch(e){ return __ultimoPesoLocale; }
+}
+/* Chiudendo la pagina un salvataggio in attesa andrebbe perso. */
+function chiudiInSicurezza(){ if (__salvaLocaleTimer) saveLocalOra(); }
+window.addEventListener('pagehide', chiudiInSicurezza);
+window.addEventListener('beforeunload', chiudiInSicurezza);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') chiudiInSicurezza(); });
 function loadSession(){
   try {
     const c = sessionStorage.getItem(SS_COMBAT);
@@ -569,6 +609,7 @@ function attachFirestore(uidUser){
       const remote = snap.docs.map(d => ({...daNuvola(d.data()), id: d.id}));
       const completo = !(snap.metadata && snap.metadata.fromCache);
       state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name, completo);
+      if (name === 'npcs') bestiarioScorda();
       saveLocal(); setSaveStatus('saved'); renderIfSafe();
       if (!primaVolta[name]){ primaVolta[name] = true; uploadUnsynced(name, remote); }
     }, err => { console.error('Errore sync ' + name, err); }));
@@ -658,12 +699,14 @@ let __avvisoRifiuto = false;
 async function fsSet(collection, obj){
   obj.id = obj.id || uid();
   obj.updatedAt = Date.now();
+  // subito su questo dispositivo, prima ancora di provare la rete: se la
+  // chiamata resta appesa o fallisce, la modifica è comunque già al sicuro
   saveLocal();
   if (!currentUser || !firebaseReady){
     // Da scollegati il bollo «già sul server» non vale più: la modifica
     // dev'essere ricaricata al prossimo collegamento, o resta solo qui.
     delete obj.syncedAt;
-    saveLocal();
+    saveLocal();   // senza il bollo: va ricaricato al prossimo collegamento
     setSaveStatus('offline');
     return obj.id;
   }
@@ -676,7 +719,7 @@ async function fsSet(collection, obj){
     // più risalito al collegamento successivo
     obj.syncedAt = payload.syncedAt;
     setSaveStatus('saved');
-    saveLocal();
+    saveLocal();   // con il bollo «sincronizzato» addosso
   } catch(e){
     console.error('Errore salvataggio', e);
     setSaveStatus('offline');
@@ -687,14 +730,99 @@ async function fsSet(collection, obj){
       __avvisoRifiuto = true;
       toast('⚠️ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
     }
+    // il bollo non è stato messo: la copia locale deve dirlo, o al
+    // prossimo collegamento questa modifica non risale
+    saveLocal();
   }
   return obj.id;
+}
+/* Cancellare tremila voci una alla volta è la stessa fila di prima al
+   contrario: anche le eliminazioni vanno a pacchetti. */
+async function fsDeleteMany(collection, ids){
+  const lista = (ids || []).filter(Boolean);
+  if (!lista.length) return;
+  saveLocalOra();
+  if (!currentUser || !firebaseReady) return;
+  setSaveStatus('saving');
+  try {
+    for (let i = 0; i < lista.length; i += FS_BLOCCO){
+      const pacco = db.batch();
+      lista.slice(i, i + FS_BLOCCO).forEach(id => pacco.delete(userCol(collection).doc(id)));
+      await pacco.commit();
+    }
+    // quello che è stato tolto dal server non va più considerato «visto»,
+    // o al prossimo aggiornamento sembrerebbe cancellato altrove
+    if (__vistiSulServer[collection]){
+      lista.forEach(id => __vistiSulServer[collection].delete(id));
+      salvaVisti();
+    }
+    setSaveStatus('saved');
+  } catch(e){
+    console.error('Eliminazione in blocco non riuscita', e);
+    setSaveStatus('offline');
+    toast('⚠️ Alcune eliminazioni non sono arrivate al tuo account');
+  }
 }
 async function fsDelete(collection, id){
   saveLocal();
   if (!currentUser || !firebaseReady) return;
   try { await userCol(collection).doc(id).delete(); }
   catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non sincronizzata'); }
+}
+
+/* Salvataggio in blocco. Aggiungendo tanta roba insieme (un bestiario
+   intero, un manuale di sottoclassi) la vecchia strada era una chiamata
+   di rete per oggetto, in fila: tremila andate e ritorni dal telefono,
+   più di mezz'ora con l'app ferma. Firestore accetta pacchetti da 500
+   scritture: qui se ne mandano 400 per volta, con l'avanzamento a
+   schermo, e l'archivio locale si riscrive una volta sola alla fine. */
+const FS_BLOCCO = 400;
+async function fsSetMany(collection, oggetti, avanzamento){
+  const lista = (oggetti || []).filter(Boolean);
+  if (!lista.length) return 0;
+  const ora = Date.now();
+  lista.forEach(o => { o.id = o.id || uid(); o.updatedAt = o.updatedAt || ora; });
+
+  // prima la copia locale: anche se la rete non c'è, la roba è tua e resta
+  if (!saveLocalOra()) return -1;
+
+  if (!currentUser || !firebaseReady){
+    lista.forEach(o => { delete o.syncedAt; });
+    saveLocalOra(); setSaveStatus('offline');
+    return lista.length;
+  }
+  setSaveStatus('saving');
+  let fatti = 0;
+  try {
+    for (let i = 0; i < lista.length; i += FS_BLOCCO){
+      const fetta = lista.slice(i, i + FS_BLOCCO);
+      const pacco = db.batch();
+      const bollo = Date.now();
+      fetta.forEach(o => {
+        const payload = perNuvola(JSON.parse(JSON.stringify(o)));
+        payload.syncedAt = bollo;
+        pacco.set(userCol(collection).doc(o.id), payload, { merge: true });
+      });
+      await pacco.commit();
+      // solo adesso si sa che sono arrivati davvero
+      fetta.forEach(o => { o.syncedAt = bollo; });
+      fatti += fetta.length;
+      if (typeof avanzamento === 'function') avanzamento(fatti, lista.length);
+    }
+    setSaveStatus('saved');
+  } catch(e){
+    console.error('Errore salvataggio in blocco', e);
+    setSaveStatus('offline');
+    const codice = (e && (e.code || e.message)) || '';
+    if (/invalid|nested|argument|permission/i.test(codice) && !__avvisoRifiuto){
+      __avvisoRifiuto = true;
+      toast('⚠️ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
+    } else if (fatti < lista.length){
+      toast('📴 ' + fatti + ' di ' + lista.length + ' sincronizzati: il resto sale al prossimo collegamento');
+    }
+  }
+  saveLocalOra();
+  return lista.length;
 }
 // Un timer di debounce per ogni oggetto: modificare due schede diverse
 // entro 600ms non fa "perdere" il salvataggio della prima.
@@ -782,11 +910,13 @@ function cambiaCassetto(uid){
     try { suo = localStorage.getItem(cassettoDi(uid)); } catch(e){}
     ['characters','npcs','customSpells','spellTags','homebrew','journal']
       .forEach(k => { state[k] = []; });
+    bestiarioScorda();
     if (suo){
       try {
         const d = JSON.parse(suo);
         ['characters','npcs','customSpells','spellTags','homebrew','journal']
           .forEach(k => { if (Array.isArray(d[k])) state[k] = d[k]; });
+        bestiarioScorda();
         localStorage.removeItem(cassettoDi(uid));
       } catch(e){ console.warn('Cassetto illeggibile', e); }
     }
@@ -3308,16 +3438,102 @@ function renderDM(){
     ${state.dmTab==='initiative' ? renderInitiativeTracker() : (state.dmTab==='journal' ? renderJournal() : renderBestiary())}
   `;
 }
+/* Con tremila creature dentro, l'elenco intero non si disegna: si cerca.
+   La ricerca lavora su tutte, il grado sfida si filtra al volo e le
+   schede escono un blocco per volta. L'ordinamento si fa una volta e si
+   tiene da parte: rifare tremila localeCompare a ogni tocco era metà
+   della lentezza. */
+let __bestiarioOrdinato = null, __bestiarioFirma = '';
+function bestiarioOrdinato(){
+  const firma = state.npcs.length + ':' + (state.npcs.length ? (state.npcs[state.npcs.length-1].id || '') : '');
+  if (__bestiarioOrdinato && __bestiarioFirma === firma) return __bestiarioOrdinato;
+  __bestiarioOrdinato = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'it'));
+  __bestiarioFirma = firma;
+  return __bestiarioOrdinato;
+}
+function bestiarioScorda(){ __bestiarioOrdinato = null; __bestiarioFirma = ''; }
+function combatCerca(v){ state.combatCercaQ = v; render(); }
+function bestiarioCerca(v){ state.bestiarioQ = v; listaAzzera('bestiario'); render(); }
+function bestiarioFiltraGs(v){ state.bestiarioGs = v; listaAzzera('bestiario'); render(); }
+/* Il grado sfida sta dentro «type» come «Grande drago, GS 8». */
+function npcGs(n){
+  const m = /GS\s+([0-9/]+)/i.exec(n.type || '');
+  return m ? m[1] : '';
+}
+function bestiarioFiltrato(){
+  let l = bestiarioOrdinato();
+  const q = (state.bestiarioQ || '').trim();
+  if (q){
+    const nq = norm(q);
+    l = l.filter(n => norm(n.name || '').includes(nq) || norm(n.type || '').includes(nq));
+  }
+  if (state.bestiarioGs) l = l.filter(n => npcGs(n) === state.bestiarioGs);
+  return l;
+}
 function renderBestiary(){
-  const npcs = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const tutti = bestiarioOrdinato();
+  const visti = bestiarioFiltrato();
+  const tanti = tutti.length > LISTA_PASSO;
+  const gsPresenti = tanti
+    ? [...new Set(tutti.map(npcGs).filter(Boolean))].sort((a,b)=> (typeof crValue==='function' ? crValue(a)-crValue(b) : 0))
+    : [];
   return `
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">🎒 Armi, armature ed equipaggiamento</button>
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">💍 Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
     <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openMostriPdf()">📖 Leggi i mostri dal tuo manuale</button>
-    ${npcs.length ? `<div class="stagger list-gap party-grid">${npcs.map(npcCardHTML).join('')}</div>` : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
+    ${tanti ? `
+      <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">🐉 Il tuo bestiario</b><span class="muted" style="font-size:.75rem">${tutti.length} creature</span></div>
+      ${cercaLista('bestiario-cerca', state.bestiarioQ, 'bestiarioCerca', 'Cerca per nome o tipo…')}
+      ${gsPresenti.length > 1 ? `<div class="filtro-riga">
+        <button class="chip ${state.bestiarioGs?'':'active'}" onclick="bestiarioFiltraGs('')">Tutti i GS</button>
+        ${gsPresenti.map(g=>`<button class="chip ${state.bestiarioGs===g?'active':''}" onclick="bestiarioFiltraGs('${jsStr(g)}')">GS ${escapeHtml(g)}</button>`).join('')}
+      </div>` : ''}` : ''}
+    ${tutti.length
+      ? (visti.length
+          ? bloccoLista('bestiario', visti, npcCardHTML, { classe:'stagger list-gap party-grid', nome:'creature' })
+            + (tanti ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px; color:var(--warn)" onclick="confermaEliminaMostrati()">🗑️ Elimina ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + visti.length + ' mostrate' : 'tutto il bestiario (' + visti.length + ')'}</button>` : '')
+          : `<div class="lista-vuota">Nessuna creatura con questi filtri.</div>`)
+      : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
     <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">✦ Nuovo PNG / Mostro</button>
   `;
+}
+
+/* Con tremila creature dentro, toglierne un pugno una per volta non è
+   una cosa che si può chiedere a nessuno: da qui si eliminano tutte
+   quelle che la ricerca sta mostrando. Il cestino tiene le prime
+   duecento, il resto se ne va davvero: dirlo prima è l'unico modo
+   onesto di offrire un pulsante così. */
+const CANC_IN_CESTINO = 200;
+function confermaEliminaMostrati(){
+  const lista = bestiarioFiltrato();
+  if (!lista.length) return;
+  const filtrato = !!((state.bestiarioQ||'').trim() || state.bestiarioGs);
+  const recuperabili = Math.min(lista.length, CANC_IN_CESTINO);
+  confirmDialog(
+    'Eliminare ' + lista.length + (lista.length===1?' creatura?':' creature?'),
+    (filtrato ? 'Sono quelle che stai vedendo adesso, con i filtri attivi. ' : 'Sono tutte quelle del tuo bestiario. ') +
+    (lista.length > CANC_IN_CESTINO
+      ? ('Le prime ' + recuperabili + ' finiscono nel cestino e le puoi rimettere a posto entro 30 giorni; le altre ' +
+         (lista.length - recuperabili) + ' spariscono davvero.')
+      : 'Finiscono nel cestino: puoi rimetterle a posto entro 30 giorni.'),
+    () => eliminaMostrati(lista), 'Elimina ' + lista.length);
+}
+async function eliminaMostrati(lista){
+  const ids = new Set(lista.map(n => n.id));
+  if (typeof nelCestino === 'function'){
+    lista.slice(0, CANC_IN_CESTINO).forEach(n => { try { nelCestino('npcs', n); } catch(e){} });
+  }
+  state.npcs = state.npcs.filter(n => !ids.has(n.id));
+  bestiarioScorda();
+  state.bestiarioQ = ''; state.bestiarioGs = '';
+  listaAzzera('bestiario');
+  saveLocalOra();
+  render();
+  toast('🗑️ ' + ids.size + (ids.size===1?' creatura eliminata':' creature eliminate'));
+  // il server dopo: la schermata non deve aspettare la rete
+  if (typeof fsDeleteMany === 'function') await fsDeleteMany('npcs', [...ids]);
+  else for (const id of ids) await fsDelete('npcs', id);
 }
 function npcCardHTML(n){
   return `<button class="char-card npc-card" onclick="openNpcForm('${n.id}')">
@@ -3375,6 +3591,7 @@ function saveNpcDraft(){
   if (draftNpc.hpCurrent == null) draftNpc.hpCurrent = draftNpc.hpMax;
   const idx = state.npcs.findIndex(n=>n.id===draftNpc.id);
   if (idx>=0) state.npcs[idx]=draftNpc; else state.npcs.push(draftNpc);
+  bestiarioScorda();
   if (!currentUser) state.offlineMode = true;
   fsSet('npcs', draftNpc);
   closeModal(); render();
@@ -3383,7 +3600,7 @@ function duplicateNpc(id){
   const n = state.npcs.find(x=>x.id===id); if (!n) return;
   const copy = JSON.parse(JSON.stringify(n));
   copy.id = uid(); copy.createdAt = Date.now(); copy.name = n.name + ' (copia)';
-  state.npcs.push(copy); fsSet('npcs', copy);
+  state.npcs.push(copy); bestiarioScorda(); fsSet('npcs', copy);
   closeModal(); render(); toast('⧉ Copia creata');
 }
 function addNpcToInitiative(npcId){
@@ -3395,7 +3612,7 @@ function confirmDeleteNpc(id){
   const n = state.npcs.find(x=>x.id===id);
   confirmDialog('Eliminare ' + (n?n.name:'questo PNG') + '?', 'Finisce nel cestino: puoi rimetterlo a posto entro 30 giorni.', () => {
     if (typeof nelCestino === 'function') nelCestino('npcs', n);
-    state.npcs = state.npcs.filter(x=>x.id!==id);
+    state.npcs = state.npcs.filter(x=>x.id!==id); bestiarioScorda();
     fsDelete('npcs', id);
     saveLocal(); render();
   }, 'Elimina');
@@ -3424,10 +3641,24 @@ function renderInitiativeTracker(){
 
     <div class="divider"><span class="flourish">❧</span><span>Aggiungi combattente</span></div>
     <div class="card">
-      ${(state.characters.length||state.npcs.length) ? `<div class="chip-row" style="margin-bottom:12px;">
-        ${state.characters.map(c=>`<button class="chip" onclick="addToCombat('${c.id}','pc')">${c.avatar||'⚔️'} ${escapeHtml(c.name)}</button>`).join('')}
-        ${state.npcs.map(n=>`<button class="chip" onclick="addToCombat('${n.id}','npc')">${n.avatar||'🐉'} ${escapeHtml(n.name)}</button>`).join('')}
-      </div>` : ''}
+      ${(state.characters.length||state.npcs.length) ? (()=>{
+        /* Con un bestiario grosso questa era una fila di tremila pulsanti:
+           adesso i personaggi restano sempre, le creature si cercano. */
+        const q = (state.combatCercaQ||'').trim();
+        const molti = state.npcs.length > 24;
+        let mostri = state.npcs;
+        if (molti){
+          const nq = norm(q);
+          mostri = q ? state.npcs.filter(n => norm(n.name||'').includes(nq) || norm(n.type||'').includes(nq)) : [];
+        }
+        return `${molti ? cercaLista('combat-cerca', q, 'combatCerca', 'Cerca fra le ' + state.npcs.length + ' creature del bestiario\u2026') : ''}
+        <div class="chip-row" style="margin-bottom:12px;">
+          ${state.characters.map(c=>`<button class="chip" onclick="addToCombat('${c.id}','pc')">${c.avatar||'⚔️'} ${escapeHtml(c.name)}</button>`).join('')}
+          ${mostri.slice(0,40).map(n=>`<button class="chip" onclick="addToCombat('${n.id}','npc')">${n.avatar||'🐉'} ${escapeHtml(n.name)}</button>`).join('')}
+        </div>
+        ${molti && q && !mostri.length ? `<div class="lista-vuota">Nessuna creatura con questo nome.</div>` : ''}
+        ${mostri.length > 40 ? `<div class="muted" style="font-size:.72rem; margin:-6px 0 12px">…e altre ${mostri.length-40}: restringi la ricerca.</div>` : ''}`;
+      })() : ''}
       <div style="display:flex; gap:8px;">
         <input id="quick-combatant-name" placeholder="Nome rapido…" onkeydown="if(event.key==='Enter') addQuickCombatant()"
                style="flex:1; padding:12px 13px; border-radius:11px; border:1px solid var(--line); background:var(--bg-1); font-family:var(--font-body); min-width:0;">

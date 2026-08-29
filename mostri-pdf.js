@@ -275,7 +275,13 @@ function mpScan(testo){
 
 /* ─── La schermata ─── */
 let mpStato = null;
-const MP_LIMITE = 400;   // oltre questo numero la memoria del telefono soffre
+/* Quanti se ne possono aggiungere in un colpo solo. Prima erano 400
+   perché ogni creatura riscriveva l'intero archivio locale e faceva un
+   viaggio di rete per conto suo. Adesso l'archivio si riscrive una volta
+   e le scritture partono a pacchetti di 400: tremila stanno in due
+   megabytes e in una manciata di secondi. Sopra questa soglia non è più
+   la lentezza il problema, ma lo spazio del telefono. */
+const MP_LIMITE = 3000;
 
 function openMostriPdf(){
   mpStato = { busy:false, trovati:null, scelti:new Set(), pag:0, tot:0, file:0, file_n:0, q:'', gs:'' };
@@ -318,6 +324,13 @@ function mostriPdfHTML(){
       </span>
     </button>`;
   };
+  if (s.salvando) return modalShell('🐉 Le metto nel bestiario', `
+    <p class="muted" style="margin-bottom:14px">Ci vuole qualche secondo. Tieni l'app aperta.</p>
+    <div class="card">
+      <div class="row-between"><span class="muted">Salvate</span><b style="color:var(--gold)">${s.salvando.fatti} di ${s.salvando.tot}</b></div>
+      <div class="barra" style="margin-top:10px"><div class="barra-piena" style="width:${Math.round(100*s.salvando.fatti/Math.max(1,s.salvando.tot))}%"></div></div>
+    </div>`);
+
   return modalShell('🐉 Cosa ho trovato', `
     <div class="card" style="margin-bottom:12px">
       <div class="row-between"><span class="muted">Riconosciuti</span><b>${s.trovati.length}</b></div>
@@ -340,8 +353,8 @@ function mostriPdfHTML(){
       <button class="chip" onclick="mpTutti(true)">Scegli i ${visibili.length} mostrati</button>
       <button class="chip" onclick="mpTutti(false)">Nessuno</button>
     </div>
-    <div class="list-gap">${visibili.slice(0,200).map(riga).join('')}</div>
-    ${visibili.length>200?`<p class="muted" style="font-size:.73rem; margin-top:8px">…e altri ${visibili.length-200}. Restringi con la ricerca, oppure «Scegli i ${visibili.length} mostrati» li prende tutti.</p>`:''}`
+    ${visibili.length ? bloccoLista('mp-trovati', visibili, riga, { modale:true, nome:'creature' })
+      : `<div class="lista-vuota">Nessuna creatura con questi filtri.</div>`}`
     : emptyState('🤔', mpSenzaStatistiche
         ? 'Nessuna voce di questo file ha le statistiche: è un catalogo di nomi e descrizioni, non un bestiario giocabile.'
         : 'Non ho riconosciuto nessun blocco statistica. Serve il formato standard, con CA e punti ferita.')}
@@ -354,8 +367,8 @@ function mostriPdfHTML(){
 function mpToggle(id){ if (mpStato.scelti.has(id)) mpStato.scelti.delete(id); else mpStato.scelti.add(id); renderModalRoot(); }
 /* «tutti» vale su quello che stai vedendo, non sull'intero catalogo */
 function mpTutti(on){ mpFiltrati().forEach(m => on ? mpStato.scelti.add(m.id) : mpStato.scelti.delete(m.id)); renderModalRoot(); }
-function mpCerca(v){ mpStato.q = v; renderModalRoot(); }
-function mpFiltraGs(v){ mpStato.gs = v; renderModalRoot(); }
+function mpCerca(v){ mpStato.q = v; listaAzzera('mp-trovati'); renderModalRoot(); }
+function mpFiltraGs(v){ mpStato.gs = v; listaAzzera('mp-trovati'); renderModalRoot(); }
 function mpFiltrati(){
   let l = mpStato.trovati || [];
   if (mpStato.q){
@@ -404,28 +417,60 @@ function mpConferma(){
   if (!scelti.length) return;
   if (scelti.length > MP_LIMITE){
     confirmDialog('Sono davvero tanti',
-      scelti.length + ' mostri insieme riempiono la memoria del telefono e rallentano l\'app. ' +
-      'Ne aggiungo i primi ' + MP_LIMITE + ': per gli altri restringi con la ricerca e ripeti.',
+      scelti.length + ' creature insieme non ci stanno nella memoria del telefono. ' +
+      'Ne aggiungo le prime ' + MP_LIMITE + ': per le altre restringi con la ricerca e ripeti.',
       () => mpAggiungi(scelti.slice(0, MP_LIMITE)), 'Aggiungi ' + MP_LIMITE);
+    return;
+  }
+  if (scelti.length > 300){
+    confirmDialog('Aggiungo ' + scelti.length + ' creature?',
+      'Ci vuole qualche secondo e occuperà circa ' + Math.ceil(scelti.length * 0.7) + ' KB sul telefono. ' +
+      'Tieni l\'app aperta finché non ho finito.',
+      () => mpAggiungi(scelti), 'Aggiungi tutte');
     return;
   }
   mpAggiungi(scelti);
 }
-function mpAggiungi(scelti){
+async function mpAggiungi(scelti){
   state.npcs = state.npcs || [];
-  scelti.forEach(m => {
+  const quantiPrima = state.npcs.length;
+  const nuovi = scelti.map(m => {
     // il bestiario usa hpMax/hpCurrent/speed/type: passando i campi grezzi
     // i mostri entravano con 0 PF e senza tipo
-    const v = (typeof monsterToNpc === 'function')
+    return (typeof monsterToNpc === 'function')
       ? Object.assign(monsterToNpc(m), { id: uid(), updatedAt: Date.now() })
       : { id: uid(), name: m.it, type: m.sz + ' ' + m.t + ', GS ' + m.cr, avatar: '🐉',
           ac: m.ac, hpMax: m.hp, hpCurrent: m.hp, speed: parseFloat(m.sp) || 9,
           notes: '', createdAt: Date.now(), updatedAt: Date.now() };
-    state.npcs.push(v);
-    fsSet('npcs', v);
   });
-  saveLocal();
+  nuovi.forEach(v => state.npcs.push(v));
+  if (typeof bestiarioScorda === 'function') bestiarioScorda();
+
+  // Tutto in un colpo solo: una riscrittura dell'archivio, non una per
+  // creatura, e le scritture sul server a pacchetti.
+  mpStato.salvando = { fatti: 0, tot: nuovi.length };
+  renderModalRoot();
+  const esito = await fsSetMany('npcs', nuovi, (fatti, tot) => {
+    if (mpStato && mpStato.salvando){ mpStato.salvando = { fatti, tot }; renderModalRoot(); }
+  });
+
+  if (esito === -1){
+    // memoria del telefono piena: si torna indietro invece di lasciare
+    // mezza importazione dentro e l'archivio in uno stato incerto
+    const ids = new Set(nuovi.map(n => n.id));
+    state.npcs = state.npcs.filter(n => !ids.has(n.id));
+    if (typeof bestiarioScorda === 'function') bestiarioScorda();
+    saveLocalOra();
+    if (mpStato) mpStato.salvando = null;
+    renderModalRoot();
+    confirmDialog('Non ci stanno tutte',
+      'La memoria del telefono è piena: ne hai già ' + quantiPrima + ' nel bestiario. ' +
+      'Non ho aggiunto niente per non lasciare l\'archivio a metà. ' +
+      'Svuota il cestino da Opzioni → Salute dei dati, oppure aggiungine meno per volta.',
+      () => {}, 'Ho capito');
+    return;
+  }
   mpStato = null;
   closeModal(); render();
-  toast('🐉 ' + scelti.length + (scelti.length===1?' mostro nel bestiario':' mostri nel bestiario'));
+  toast('🐉 ' + nuovi.length + (nuovi.length===1?' creatura nel bestiario':' creature nel bestiario'));
 }

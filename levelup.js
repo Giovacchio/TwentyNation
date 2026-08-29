@@ -21,8 +21,9 @@ function openLevelUp(charId){
   lvup = {
     charId, from: c.level||1, to: (c.level||1) + 1, classId,
     subclassId: (c.builder && c.builder.subclassId) || null,
-    hpMode: 'avg', hpRoll: null
+    hpMode: 'avg', hpRoll: null, subQ: ''
   };
+  listaAzzera('lv-sub');
   openModal({ render: levelUpHTML });
 }
 
@@ -107,11 +108,18 @@ function levelUpHTML(){
     ${g.needsSubclass ? `
       <div class="divider"><span class="flourish">❧</span><span>${escapeHtml(g.cl.subclassLabel)}</span></div>
       <p class="muted" style="margin-bottom:10px">Al ${g.cl.subclassLevel}° livello scegli la tua strada. Se la tua non c'è, creala tra le aggiunte personali.</p>
-      <div class="list-gap" style="margin-bottom:12px">
-        ${subclassesFor(g.cl.id).map(s=>`<button class="attack-row" style="width:100%; text-align:left; ${lvup.subclassId===s.id?'border-color:var(--gold)':''}" onclick="lvPickSubclass('${s.id}')">
+      ${(()=>{
+        const tutte = subclassesFor(g.cl.id);
+        const q = (lvup.subQ || '').trim();
+        const viste = q ? tutte.filter(s => norm(s.name||'').includes(norm(q))) : tutte;
+        const riga = (s) => `<button class="attack-row" style="width:100%; text-align:left; ${lvup.subclassId===s.id?'border-color:var(--gold)':''}" onclick="lvPickSubclass('${jsStr(s.id)}')">
           <span class="attack-main"><span class="attack-name">${escapeHtml(s.name)}${lvup.subclassId===s.id?' ✓':''}</span></span>
-        </button>`).join('')}
-      </div>` : ''}
+        </button>`;
+        return `${tutte.length > 12 ? cercaLista('lv-sub-cerca', q, 'lvCercaSub', 'Cerca fra ' + tutte.length + ' archetipi…') : ''}
+        <div style="margin-bottom:12px">${viste.length
+          ? bloccoLista('lv-sub', viste, riga, { modale:true, nome:'archetipi' })
+          : `<div class="lista-vuota">Nessun archetipo con questo nome.</div>`}</div>`;
+      })()}` : ''}
 
     <div class="divider"><span class="flourish">❧</span><span>Cosa guadagni</span></div>
     ${g.feats.length ? `<div class="list-gap">${g.feats.map(f=>`
@@ -153,6 +161,7 @@ function lvRollHp(){
   lvup.hpRoll = rollDie(g.hitDie);
   renderModalRoot();
 }
+function lvCercaSub(v){ lvup.subQ = v; listaAzzera('lv-sub'); renderModalRoot(); }
 function lvPickSubclass(id){ lvup.subclassId = (lvup.subclassId === id ? null : id); renderModalRoot(); }
 
 function confirmLevelUp(){

@@ -1,5 +1,37 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.7 — 29 agosto 2026
+**Tremila mostri, e l'app resta leggera. Stesso trattamento a razze, sottoclassi e background.**
+
+Il limite di 400 creature non era prudenza: era un cerotto su due difetti veri. Adesso sono risolti alla radice e il limite è **3.000**.
+
+**Cosa rallentava davvero**
+
+- **Salvataggio in blocco (`fsSetMany`).** Ogni creatura aggiunta riscriveva *l'intero* archivio locale — e lo faceva tre volte, una per ogni passaggio del salvataggio. Tremila mostri erano **novemila serializzazioni da un megabyte** più tremila viaggi di rete uno dopo l'altro: l'app restava piantata per decine di minuti. Ora l'archivio si riscrive **una volta sola** e le scritture partono a pacchetti da 400. Misurato: **3.000 creature entrate in 62 ms**.
+- **Liste che si disegnavano per intero.** Tremila schede sono 775 KB di HTML e quindicimila nodi nella pagina: qualche secondo di blocco a ogni tocco. Ora ogni elenco lungo mostra **60 righe per volta**, con «↓ Mostrane altri» in fondo e il conto di quante restano. Misurato: **bestiario aperto in 21 ms**, ricerca sotto i 10 ms.
+- **Eliminazioni** a pacchetti anche loro (`fsDeleteMany`).
+
+**Cercare invece di scorrere**
+
+- **Bestiario**: casella di ricerca per nome e tipo, filtro per grado sfida, conteggio in alto.
+- **Contenuti tuoi**: ricerca per nome, classe o libro, e filtri Sottoclasse / Razza / Background con il numero di ciascuno.
+- **Lettore dei mostri** e **lettore dei manuali**: ricerca su tutto quello che è stato riconosciuto — cercando, i gruppi per classe lasciano il posto a un elenco piatto, con «scegli i N trovati».
+- **Creazione guidata**: razze e background non sono più un muro di pastiglie. Oltre venti voci compare la ricerca, se ne mostrano 24 per volta e **quella già scelta resta sempre in vista**. Stessa cosa per gli archetipi, nella creazione e nel passaggio di livello.
+- **Pannello iniziativa**: con più di 24 creature nel bestiario si cercano invece di elencarle tutte.
+- **Condivisione col tavolo**: elenco paginato anche lì.
+
+**Fare spazio**
+
+- **🗑️ Elimina le mostrate** nel bestiario: toglie in un colpo tutte quelle che i filtri stanno mostrando — con 3.000 dentro, una per volta non era una cosa fattibile. Le prime 200 vanno nel cestino recuperabili per 30 giorni, e la finestra di conferma dice chiaramente che le altre spariscono davvero.
+- **💾 Spazio sul dispositivo** in Opzioni → Salute dei dati: quanto stai occupando, con la barra e l'avviso quando ti avvicini al limite. Riferimento reale: **3.000 creature + 300 voci tue = 2,9 MB**, il 58% dei circa 5 MB che i browser concedono a un sito.
+- **Se lo spazio finisce a metà importazione, non entra niente**: si torna indietro e ti si spiega cosa fare, invece di lasciare l'archivio a metà.
+
+**Una trappola evitata per un soffio**
+
+Avevo raggruppato i salvataggi locali ravvicinati con un ritardo di 40 ms — sembrava gratis. Il test del cambio account l'ha smascherato: chi rientra con un altro account legge l'archivio subito dopo aver toccato lo stato, e si sarebbe portato via la versione di prima. Il ritardo è stato tolto. Il peso non era mai il singolo salvataggio: era chiamarlo tremila volte di fila.
+
+> **Nuovo test `test-tremila.mjs` — 37 controlli, tutti verdi**, con tremila creature vere caricate da JSON e cinquecento voci fra razze, sottoclassi e background: tempi di lettura, di disegno, di salvataggio, peso dell'archivio, ricerca, paginazione, sopravvivenza al riavvio, eliminazione di massa. Le 28 suite precedenti restano verdi. Audit mobile su 99 schermate: nessun nuovo problema.
+
 ## v6.6 — 29 agosto 2026
 **Pronto per Open5e: 3.207 mostri con le statistiche complete.**
 

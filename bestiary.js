@@ -153,6 +153,7 @@ function addMonsterToBestiary(id){
   const m = MONSTER_BY_ID[id];
   const npc = monsterToNpc(m);
   state.npcs.push(npc);
+  if (typeof bestiarioScorda==='function') bestiarioScorda();
   fsSet('npcs', npc);
   if (!currentUser) state.offlineMode = true;
   render();

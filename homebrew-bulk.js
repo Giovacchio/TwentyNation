@@ -515,7 +515,8 @@ function hbScanText(raw){
 let hbBulk = null; /* { trovati, scelti:Set, condividi } */
 
 function openHomebrewBulk(){
-  hbBulk = { trovati: null, scelti: new Set(), condividi: false, busy: false };
+  hbBulk = { trovati: null, scelti: new Set(), condividi: false, busy: false, q: '' };
+  listaAzzeraTutte('hb');
   openModal({ render: hbBulkHTML });
 }
 /* Le guide elencano le razze già come varianti («Hill Dwarf», «Wood Elf»,
@@ -553,6 +554,13 @@ function hbBulkHTML(){
       <textarea id="hb-bulk-text" style="min-height:120px; font-family:var(--font-ui); font-size:.8rem" placeholder="Incolla il testo di una sottoclasse, di una razza o di un background."></textarea>
     </div>
     <div class="spell-source-note">Carica solo materiale di cui hai i diritti: i tuoi appunti, il tuo homebrew, o i manuali che possiedi. Resta sul tuo account e, se lo scegli, sul tavolo che hai creato tu.</div>`);
+
+  if (b.salvando) return modalShell('📚 Le metto fra le tue voci', `
+    <p class="muted" style="margin-bottom:14px">Ci vuole qualche secondo. Tieni l'app aperta.</p>
+    <div class="card">
+      <div class="row-between"><span class="muted">Salvate</span><b style="color:var(--gold)">${b.salvando.fatti} di ${b.salvando.tot}</b></div>
+      <div class="barra" style="margin-top:10px"><div class="barra-piena" style="width:${Math.round(100*b.salvando.fatti/Math.max(1,b.salvando.tot))}%"></div></div>
+    </div>`);
 
   const perTipo = { subclass:[], race:[], background:[] };
   b.trovati.forEach(x => { if (perTipo[x.kind]) perTipo[x.kind].push(x); });
@@ -614,7 +622,7 @@ function hbBulkHTML(){
             <button class="chip" onclick="${azione}(false,'${jsStr(k)}')">Nessuna</button>
           </div>
           ${extra ? extra(k) : ''}
-          <div class="list-gap">${voci.map(riga).join('')}</div>` : ''}
+          ${bloccoLista('hbg:'+titolo+':'+k, voci, riga, { modale:true, nome:'voci' })}` : ''}
       </div>`;
     }).join('');
     return `<div class="divider"><span class="flourish">❧</span><span>${titolo} (${lista.length})</span></div>
@@ -630,7 +638,7 @@ function hbBulkHTML(){
          <button class="chip" onclick="hbBulkAll('${kind}',true)">Scegli tutti</button>
          <button class="chip" onclick="hbBulkAll('${kind}',false)">Nessuno</button>
        </div>
-       <div class="list-gap">${perTipo[kind].map(riga).join('')}</div>` : '';
+       ${bloccoLista('hbs:'+kind, perTipo[kind], riga, { modale:true, nome:'voci' })}` : '';
 
   const nomeClasseDi = (k) => k
     ? ((typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[k]) ? CLASS_BY_ID[k].name : k)
@@ -649,16 +657,31 @@ function hbBulkHTML(){
   const sezioneRazze = () => gruppi(
     perTipo.race, 'Razze', x => hbStirpe(x.name), (k) => k || 'Altre', 'hbBulkTutteRazze');
 
+  /* Cercando, i gruppi lasciano il posto a un elenco piatto: quando sai
+     il nome non vuoi aprire la classe giusta, vuoi la riga. */
+  const q = (b.q || '').trim();
+  const cercati = q ? (()=>{ const nq = norm(q);
+      return b.trovati.filter(x => norm(x.name||'').includes(nq)
+        || norm(((typeof CLASS_BY_ID!=='undefined' && CLASS_BY_ID[x.classId])||{}).name || '').includes(nq)); })()
+    : null;
+
   const n = b.scelti.size;
   return modalShell('⤒ Cosa ho trovato', `
     <div class="card" style="margin-bottom:12px">
       <div class="row-between"><span class="muted">Riconosciuti</span><b>${b.trovati.length}</b></div>
       <div class="row-between" style="margin-top:4px"><span class="muted">Selezionati</span><b style="color:var(--gold)">${n}</b></div>
     </div>
+    ${b.trovati.length > LISTA_PASSO ? cercaLista('hb-bulk-cerca', b.q, 'hbBulkCerca', 'Cerca fra le ' + b.trovati.length + ' voci trovate\u2026') : ''}
     ${b.trovati.length ? '' : emptyState('🤔','Non ho riconosciuto niente. Prova con una porzione più piccola, o incolla il testo di una voce sola.')}
-    ${sezioneSottoclassi()}
+    ${cercati ? (cercati.length
+        ? `<div class="chip-row" style="margin-bottom:8px">
+             <button class="chip" onclick="hbBulkTuttiCercati(true)">Scegli i ${cercati.length} trovati</button>
+             <button class="chip" onclick="hbBulkTuttiCercati(false)">Nessuno</button>
+           </div>` + bloccoLista('hb-cercati', cercati, riga, { modale:true, nome:'voci' })
+        : `<div class="lista-vuota">Nessuna voce con questo nome.</div>`)
+      : `${sezioneSottoclassi()}
     ${sezioneRazze()}
-    ${sezione('background','Background')}
+    ${sezione('background','Background')}`}
     ${(typeof campaignReady === 'function' && campaignReady()) ? `
       <button class="switch-row" style="margin-top:14px" onclick="hbBulkShare()">
         <div class="track"><div class="knob" style="${b.condividi?'transform:translateX(21px)':''}"></div></div>
@@ -672,6 +695,14 @@ function hbBulkHTML(){
       <button class="btn btn-primary" ${n?'':'disabled'} onclick="hbBulkConfirm()">Aggiungi ${n||''}</button>
     </div>
     <div class="muted" style="font-size:.73rem; margin-top:10px">Quello che l'app riconosce è una bozza: apri ogni voce dopo e sistemala se serve. Le sottoclassi vanno legate alla classe giusta.</div>`);
+}
+function hbBulkCerca(v){ hbBulk.q = v; listaAzzera('hb-cercati'); renderModalRoot(); }
+function hbBulkTuttiCercati(on){
+  const nq = norm((hbBulk.q||'').trim());
+  hbBulk.trovati.filter(x => norm(x.name||'').includes(nq)
+      || norm(((typeof CLASS_BY_ID!=='undefined' && CLASS_BY_ID[x.classId])||{}).name || '').includes(nq))
+    .forEach(x => on ? hbBulk.scelti.add(x.id) : hbBulk.scelti.delete(x.id));
+  renderModalRoot();
 }
 function hbBulkToggle(id){
   if (hbBulk.scelti.has(id)) hbBulk.scelti.delete(id); else hbBulk.scelti.add(id);
@@ -727,6 +758,8 @@ function hbBulkAnalizza(testo){
   hbBulk.scelti = new Set(trovati.map(x => x.id));
   hbBulk.aperti = new Set();
   hbBulk.chiusi = new Set();
+  hbBulk.q = '';
+  listaAzzeraTutte('hb');
   renderModalRoot({ toTop:true });
   toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' voci') : '⚠️ Non ho riconosciuto niente');
 }
@@ -799,16 +832,41 @@ async function hbBulkConfirm(){
   const scelti = hbBulk.trovati.filter(x => hbBulk.scelti.has(x.id));
   if (!scelti.length) return;
   state.homebrew = state.homebrew || [];
+  const quantePrima = state.homebrew.length;
   let conEffetti = 0;
+  const ora = Date.now();
   scelti.forEach(x => {
     // se dal testo si capiscono gli effetti sulle regole, glieli si mette
     // già addosso: poi si aprono con ⚙️ e si sistemano.
     if (typeof proponiMeccaniche === 'function'){
       try { const m = proponiMeccaniche(x); if (m){ x.meccaniche = m; conEffetti++; } } catch(e){}
     }
-    x.updatedAt = Date.now(); state.homebrew.push(x); fsSet('homebrew', x);
+    x.updatedAt = ora;
+    state.homebrew.push(x);
   });
-  saveLocal();
+
+  // Un manuale intero sono centinaia di voci: una sola riscrittura
+  // dell'archivio e le scritture sul server a pacchetti, non una per voce.
+  hbBulk.salvando = { fatti: 0, tot: scelti.length };
+  renderModalRoot();
+  const esito = await fsSetMany('homebrew', scelti, (fatti, tot) => {
+    if (hbBulk && hbBulk.salvando){ hbBulk.salvando = { fatti, tot }; renderModalRoot(); }
+  });
+
+  if (esito === -1){
+    const ids = new Set(scelti.map(x => x.id));
+    state.homebrew = state.homebrew.filter(x => !ids.has(x.id));
+    saveLocalOra();
+    if (hbBulk) hbBulk.salvando = null;
+    renderModalRoot();
+    confirmDialog('Non ci stanno tutte',
+      'La memoria del telefono è piena: ne hai già ' + quantePrima + ' fra le tue voci. ' +
+      'Non ho aggiunto niente per non lasciare l\'archivio a metà. ' +
+      'Svuota il cestino da Opzioni → Salute dei dati, oppure aggiungine meno per volta.',
+      () => {}, 'Ho capito');
+    return;
+  }
+
   const condividi = hbBulk.condividi;
   closeModal(); render();
   toast('📚 ' + scelti.length + ' voci aggiunte ai tuoi contenuti' +

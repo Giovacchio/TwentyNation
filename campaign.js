@@ -416,6 +416,7 @@ function daCondividere(){
 /* Il clic solo: manda tutto quello che manca. */
 function condividiTutto(){
   if (!campaignReady()){ toast('Prima entra in una campagna'); return; }
+  listaAzzeraTutte('cond:');
   const m = mieCose();
   const sp = m.spells.filter(x => !giaSuTavolo('spells', x.id));
   const hb = m.homebrew.filter(x => !giaSuTavolo('homebrew', x.id));
@@ -504,8 +505,7 @@ function condivisioneHTML(){
         <button class="chip" onclick="condTutti('${kind}',true)">Scegli tutti</button>
         <button class="chip" onclick="condTutti('${kind}',false)">Nessuno</button>
       </div>` : '<p class="muted" style="font-size:.75rem; margin-bottom:8px">Sono già tutti sul tavolo.</p>'}
-      <div class="list-gap">${lista.slice(0,150).map(x => riga(kind, x, nomeDi(x), sottoDi(x))).join('')}</div>
-      ${lista.length>150?`<p class="muted" style="font-size:.73rem; margin-top:8px">…e altre ${lista.length-150}: usa «Condividi tutto».</p>`:''}`;
+      ${bloccoLista('cond:'+kind, lista, x => riga(kind, x, nomeDi(x), sottoDi(x)), { modale:true, nome:'voci' })}`;
   };
   const n = condScelti ? condScelti.size : 0;
   const nomeSp = (x) => (typeof spellName === 'function' ? spellName(x) : (x.name||''));

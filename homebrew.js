@@ -75,10 +75,52 @@ function deleteHomebrew(id){
 
 /* ─── Schermata di gestione ─── */
 function openHomebrew(){
+  state.hbQ = ''; state.hbKind = '';
+  listaAzzera('hb-lista');
   openModal({ render: homebrewListHTML });
 }
+/* Con un manuale intero caricato qui dentro ci sono centinaia di voci:
+   si cercano e si filtrano per tipo, e escono un blocco per volta. */
+function hbCerca(v){ state.hbQ = v; listaAzzera('hb-lista'); renderModalRoot(); }
+function hbFiltraTipo(k){ state.hbKind = (state.hbKind === k ? '' : k); listaAzzera('hb-lista'); renderModalRoot(); }
+function hbOrdinati(){
+  return (state.homebrew || []).slice()
+    .sort((a,b)=> (a.kind||'').localeCompare(b.kind||'') || (a.name||'').localeCompare(b.name||'', 'it'));
+}
+function hbFiltrati(){
+  let l = hbOrdinati();
+  if (state.hbKind) l = l.filter(h => h.kind === state.hbKind);
+  const q = (state.hbQ || '').trim();
+  if (q){
+    const nq = norm(q);
+    l = l.filter(h => norm(h.name || '').includes(nq)
+      || norm(h.source || '').includes(nq)
+      || norm(((CLASS_BY_ID[h.classId]||{}).name) || '').includes(nq));
+  }
+  return l;
+}
+function hbRigaHTML(h){
+  return `<div class="attack-row">
+    <button class="attack-main" onclick="editHomebrew('${h.id}')">
+      <div class="attack-name">${HB_KINDS[h.kind]?HB_KINDS[h.kind].icon:''} ${escapeHtml(h.name)}</div>
+      <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}${(typeof riassuntoMeccaniche==='function' && riassuntoMeccaniche(h))?' · ⚙️ '+escapeHtml(riassuntoMeccaniche(h)):''}</div>
+    </button>
+    ${h.kind==='subclass' ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙️</button>` : ''}
+    ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
+      const giaSu = (state.sharedHomebrew||[]).some(x => x.id === h.id);
+      return `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem;${giaSu?'border-color:var(--gold); color:var(--gold)':''}"
+        title="${giaSu?'Ritira dalla campagna':'Condividi con la campagna'}"
+        onclick="${giaSu?`unshareFromCampaign('homebrew','${h.id}')`:`shareOneHomebrew('${h.id}')`}">⚔️</button>`;
+    })() : ''}
+    <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" onclick="confirmDeleteHomebrew('${h.id}')" aria-label="Elimina">✕</button>
+  </div>`;
+}
 function homebrewListHTML(){
-  const list = (state.homebrew || []).slice().sort((a,b)=> (a.kind||'').localeCompare(b.kind) || a.name.localeCompare(b.name,'it'));
+  const tutti = hbOrdinati();
+  const visti = hbFiltrati();
+  const molti = tutti.length > LISTA_PASSO;
+  const conta = {};
+  tutti.forEach(h => { conta[h.kind] = (conta[h.kind]||0) + 1; });
   const inner = `
     <p class="muted" style="margin-bottom:14px">
       Qui aggiungi sottoclassi, razze e background che non sono nell'SRD, presi dai manuali che possiedi o inventati al tuo tavolo.
@@ -87,26 +129,22 @@ function homebrewListHTML(){
     <div class="btn-row" style="margin-bottom:14px">
       ${Object.keys(HB_KINDS).map(k=>`<button class="btn btn-ghost btn-sm" onclick="editHomebrew(null,'${k}')">${HB_KINDS[k].icon} ${HB_KINDS[k].label}</button>`).join('')}
     </div>
-    ${list.length ? `<div class="list-gap">${list.map(h=>`
-      <div class="attack-row">
-        <button class="attack-main" onclick="editHomebrew('${h.id}')">
-          <div class="attack-name">${HB_KINDS[h.kind]?HB_KINDS[h.kind].icon:''} ${escapeHtml(h.name)}</div>
-          <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}${(typeof riassuntoMeccaniche==='function' && riassuntoMeccaniche(h))?' · ⚙️ '+escapeHtml(riassuntoMeccaniche(h)):''}</div>
-        </button>
-        ${h.kind==='subclass' ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙️</button>` : ''}
-        ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
-          const giaSu = (state.sharedHomebrew||[]).some(x => x.id === h.id);
-          return `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem;${giaSu?'border-color:var(--gold); color:var(--gold)':''}"
-            title="${giaSu?'Ritira dalla campagna':'Condividi con la campagna'}"
-            onclick="${giaSu?`unshareFromCampaign('homebrew','${h.id}')`:`shareOneHomebrew('${h.id}')`}">⚔️</button>`;
-        })() : ''}
-        <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" onclick="confirmDeleteHomebrew('${h.id}')" aria-label="Elimina">✕</button>
-      </div>`).join('')}</div>`
+    ${molti ? `
+      <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">📚 Le tue voci</b><span class="muted" style="font-size:.75rem">${tutti.length} in tutto</span></div>
+      ${cercaLista('hb-cerca', state.hbQ, 'hbCerca', 'Cerca per nome, classe o libro…')}
+      <div class="filtro-riga">
+        <button class="chip ${state.hbKind?'':'active'}" onclick="hbFiltraTipo('')">Tutte</button>
+        ${Object.keys(HB_KINDS).filter(k=>conta[k]).map(k=>`<button class="chip ${state.hbKind===k?'active':''}" onclick="hbFiltraTipo('${k}')">${HB_KINDS[k].icon} ${HB_KINDS[k].label} (${conta[k]})</button>`).join('')}
+      </div>` : ''}
+    ${tutti.length
+      ? (visti.length
+          ? bloccoLista('hb-lista', visti, hbRigaHTML, { modale:true, nome:'voci' })
+          : `<div class="lista-vuota">Nessuna voce con questi filtri.</div>`)
       : emptyState('📚','Non hai ancora contenuti tuoi. Aggiungine uno con i pulsanti qui sopra.')}
     <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openHomebrewBulk()">📖 Leggi dal tuo manuale</button>
-    ${list.length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
-    ${(list.length && typeof campaignReady === 'function' && campaignReady() && daCondividere()) ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiTutto()">⚔️ Condividi tutto col tavolo (${daCondividere()})</button>` : ''}
-    ${list.length ? `<div class="btn-row" style="margin-top:10px">
+    ${tutti.length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
+    ${(tutti.length && typeof campaignReady === 'function' && campaignReady() && daCondividere()) ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiTutto()">⚔️ Condividi tutto col tavolo (${daCondividere()})</button>` : ''}
+    ${tutti.length ? `<div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" onclick="exportHomebrew()">⤓ Esporta</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-import-file').click()">⤒ Importa file</button>
     </div>` : `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="document.getElementById('hb-import-file').click()">⤒ Importa da file</button>`}

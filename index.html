@@ -508,6 +508,19 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .spell-detail-grid div span { font-size: .84rem; font-weight: 600; }
 .spell-detail-desc { font-size: .92rem; line-height: 1.7; color: var(--ink); }
 .spell-detail-desc p + p { margin-top: 9px; }
+/* ── liste lunghe ────────────────────────────────────────────── */
+.lista-piede { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--line); }
+.lista-conto { font-size:.72rem; margin-left:auto; }
+.lista-cerca { position:relative; margin-bottom:10px; }
+.lista-cerca input { padding-right:38px; }
+.lista-cerca-x { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:28px; height:28px; border:0; background:transparent; color:var(--ink-faint); font-size:.85rem; cursor:pointer; border-radius:50%; }
+.lista-cerca-x:hover { background:var(--surface-2); color:var(--ink); }
+.barra { height:8px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
+.barra-piena { height:100%; background:linear-gradient(90deg, var(--gold), var(--gold-2, var(--gold))); border-radius:99px; transition:width .2s ease; }
+.lista-vuota { text-align:center; padding:18px 10px; font-size:.8rem; color:var(--ink-faint); }
+.filtro-riga { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:10px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.filtro-riga::-webkit-scrollbar { display:none; }
+.filtro-riga .chip { flex:0 0 auto; }
 .spell-source-note { margin-top: 16px; font-size: .67rem; color: var(--ink-faint); font-style: italic; border-top: 1px dashed var(--line); padding-top: 10px; line-height: 1.5; }
 
 /* ────────────────── ZAINO ────────────────── */
@@ -832,6 +845,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./spell-pdf.js"></script>
 <script defer src="./homebrew-bulk.js"></script>
   <script defer src="./traduci.js"></script>
+  <script defer src="./liste.js"></script>
   <script defer src="./cestino.js"></script>
   <script defer src="./turno.js"></script>
   <script defer src="./meccaniche.js"></script>

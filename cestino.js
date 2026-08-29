@@ -128,6 +128,39 @@ function saluteDati(){
   return righe;
 }
 function openSaluteDati(){ openModal({ render: saluteHTML }); }
+
+/* Quanto spazio resta. I browser danno all'incirca 5 MB per sito
+   all'archivio locale: con tremila creature nel bestiario si arriva a
+   due, e conviene vederlo prima di riempirlo, non dopo. */
+const SPAZIO_STIMATO = 5 * 1024 * 1024;
+function spazioLocale(){
+  let usati = 0;
+  try {
+    // il conto vero è su tutto il sito, non solo sull'archivio principale:
+    // ci sono anche cestino, cassetti di altri account e cache varie
+    for (let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      usati += (k.length + (localStorage.getItem(k) || '').length) * 2;
+    }
+  } catch(e){ usati = (typeof pesoArchivioLocale === 'function' ? pesoArchivioLocale() : 0) * 2; }
+  const perc = Math.min(100, Math.round(100 * usati / SPAZIO_STIMATO));
+  return { usati, perc, mb: (usati / 1048576).toFixed(1) };
+}
+function spazioHTML(){
+  const sp = spazioLocale();
+  const colore = sp.perc >= 85 ? 'var(--danger, var(--warn))' : sp.perc >= 60 ? 'var(--warn)' : 'var(--gold)';
+  return `<div class="card" style="margin-bottom:12px">
+    <div class="row-between"><b style="font-size:.86rem">💾 Spazio sul dispositivo</b><b style="color:${colore}">${sp.mb} MB</b></div>
+    <div class="barra" style="margin-top:10px"><div class="barra-piena" style="width:${Math.max(2,sp.perc)}%; background:${colore}"></div></div>
+    <p class="muted" style="margin-top:8px; font-size:.76rem">
+      ${sp.perc >= 85
+        ? 'Sei quasi al limite: le prossime aggiunte potrebbero non entrare. Svuota il cestino qui sotto, o togli dal bestiario le creature che non usi.'
+        : sp.perc >= 60
+          ? 'Ancora spazio, ma non tantissimo. Il bestiario è quello che pesa di più: circa 0,7 KB a creatura.'
+          : 'Spazio in abbondanza. Il bestiario pesa circa 0,7 KB a creatura: ce ne stanno migliaia.'}
+    </p>
+  </div>`;
+}
 function saluteHTML(){
   const righe = saluteDati();
   const soloQui = righe.reduce((a,r)=>a+r.soloQui, 0);
@@ -143,6 +176,7 @@ function saluteHTML(){
                     : 'Ogni cosa ha una copia sul tuo account: la ritrovi da qualsiasi dispositivo.'}
       </p>
     </div>
+    ${spazioHTML()}
     ${righe.length ? `<div class="list-gap">${righe.map(r => `
       <div class="attack-row">
         <div class="attack-main" style="pointer-events:none">

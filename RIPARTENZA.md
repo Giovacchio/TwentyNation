@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 6.4** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 6.7** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -36,10 +36,11 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `homebrew-bulk.js` | legge interi manuali e ne ricava le voci |
 | `campaign.js` | campagne condivise col tavolo |
 | `traduci.js` | traduce in italiano i nomi di quello che importi |
-| `cestino.js` | cestino a 30 giorni e «salute dei dati» |
+| `cestino.js` | cestino a 30 giorni, «salute dei dati», spazio occupato |
 | `turno.js` | «Il tuo turno» |
 | `meccaniche.js` | effetti delle sottoclassi sulle regole, Dono del Patto |
 | `mostri-pdf.js` | legge i mostri da PDF, testo e **JSON** |
+| **`liste.js`** | **elenchi lunghi: paginazione, ricerca, scelta a pastiglie** |
 | `firestore.rules` | regole di sicurezza (già pubblicate, **non vanno cambiate**) |
 
 **Attenzione:** un file nuovo va aggiunto in **tre** posti — `index.html` (lo `<script>`),
@@ -68,8 +69,15 @@ PDF, testo e JSON delle raccolte SRD.
 **Campagne** — tavolo condiviso con codice d'invito: incantesimi e aggiunte in comune,
 in un clic. I personaggi restano privati. Regole di sicurezza vere.
 
-**Sicurezza dei dati** — cestino a 30 giorni, «salute dei dati», backup esportabile,
-freno che impedisce a un aggiornamento di cancellare mezza collezione.
+**Sicurezza dei dati** — cestino a 30 giorni, «salute dei dati» con **indicatore dello
+spazio occupato**, backup esportabile, freno che impedisce a un aggiornamento di
+cancellare mezza collezione.
+
+**Regge i grandi numeri (v6.7)** — fino a **3.000 creature** nel bestiario e centinaia
+di razze, sottoclassi e background. Misurato: 3.000 entrate in 62 ms, bestiario aperto
+in 21 ms, archivio 2,9 MB sui ~5 che i browser concedono. Ogni elenco lungo mostra
+60 righe per volta con «↓ Mostrane altri», e sopra c'è sempre la ricerca.
+`fsSetMany` / `fsDeleteMany` scrivono e cancellano a pacchetti da 400.
 
 ---
 
@@ -77,7 +85,8 @@ freno che impedisce a un aggiornamento di cancellare mezza collezione.
 
 1. **Costruttore di incontri** — scegli i mostri dal bestiario, l'app dice se l'incontro
    è facile/medio/difficile/mortale per il gruppo e quanti PX vale. Tutto SRD,
-   self-contained, nessun rischio. *È la cosa più utile che manca.*
+   self-contained, nessun rischio. *È la cosa più utile che manca* — e adesso che il
+   bestiario regge migliaia di creature ha molto più senso di prima.
 2. **Condizioni con durata nell'iniziativa** — effetti attivi che scalano da soli a ogni
    round, e avviso sulla concentrazione quando quel personaggio subisce danni.
 3. **Il master vede il gruppo** — PF, CA e percezione passiva dei giocatori visibili al
@@ -87,6 +96,9 @@ freno che impedisce a un aggiornamento di cancellare mezza collezione.
 5. **Traduzione dei nomi anche per il bestiario** (oggi copre solo le aggiunte).
 6. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
    da fermo — si liberano scorrendo, quindi non urgenti.
+7. **Oltre le 3.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo
+   bestiario di consultazione, separato da `state.npcs`. Non serve finché il contatore in
+   «Salute dei dati» resta sotto il 60% — guardalo prima di rimetterci mano.
 
 ---
 
@@ -94,6 +106,7 @@ freno che impedisce a un aggiornamento di cancellare mezza collezione.
 
 - **Ogni consegna è testata prima**: `/root/t/*.mjs` con Playwright, più `audit/audit.mjs`
   che scatta 99 schermate e cerca testo tagliato, elementi troppo piccoli e sovrapposizioni.
+  `test-tremila.mjs` è la prova di carico: 3.000 creature vere e 500 voci di contenuti.
 - **I test devono usare i modelli veri dell'app.** Nella v6.4 quattro difetti gravi erano
   passati perché i test seminavano la forma sbagliata dei dati: verificavano l'errore
   invece del comportamento. Prima di scrivere una prova, controlla com'è fatto davvero
@@ -102,6 +115,18 @@ freno che impedisce a un aggiornamento di cancellare mezza collezione.
   `slotsFor()` restituisce un **array che parte da 0** (posizione 0 = 1° livello);
   `concentration` è un **oggetto** `{name}`; i PNG usano `hpMax`/`hpCurrent`/`speed`/`type`;
   **Firestore rifiuta gli array dentro array** (per questo esistono `perNuvola`/`daNuvola`).
+- **`saveLocal()` dev'essere sincrono.** Nella v6.7 ho provato a raggrupparne le chiamate
+  con un ritardo di 40 ms: `test-v55` l'ha bocciato subito, perché `cambiaCassetto()` legge
+  `localStorage` appena dopo aver toccato lo stato e si sarebbe portato via la versione di
+  prima. Il costo non è mai il singolo salvataggio, sono le chiamate in ciclo.
+- **Aggiungere in ciclo è sempre l'errore.** `fsSet` riscrive l'intero archivio locale a
+  ogni chiamata: dentro un `forEach` su tremila oggetti sono novemila serializzazioni da
+  un megabyte. Per i gruppi si usa `fsSetMany(collezione, lista, avanzamento)`, che
+  restituisce `-1` se la memoria è piena — e **chi lo chiama deve tornare indietro**, non
+  lasciare l'importazione a metà.
+- **Ogni elenco che può superare le 60 righe passa da `bloccoLista()`** (`liste.js`), con
+  `cercaLista()` sopra. Le pastiglie di scelta (razze, background) usano `sceltaChip()`.
+  Ricordati di `listaAzzera(chiave)` quando cambia il filtro, o resti a mostrarne 600.
 - Consegna: `SendUserFile` → `device_commit_files` nella cartella del repo → `project_write`.
   Poi il push lo fa Giova. **Ricordagli sempre i file nuovi**, che `git add` può saltare.
 

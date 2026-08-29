@@ -21,6 +21,7 @@ function openBuilder(){
     rolled: null,
     cantrips: [], spells: [],
     spellFilter: '',
+    raceQ: '', bgQ: '', subQ: '',
     gear: {}, gearOn: true, weaponPick: {},
     name: '', sex: '', portrait: null, avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)]
   };
@@ -75,9 +76,8 @@ function stepRace(){
   const needBonus = race && race.bonusChoice && bld.raceBonusPick.length < race.bonusChoice.count;
   const needSkills = race && race.skillChoice && bld.raceSkills.length < race.skillChoice;
   return `
-    <div class="chip-row" style="margin-bottom:14px">
-      ${allRaces().map(r=>`<button class="chip ${bld.raceId===r.id?'active':''}" onclick="pickRace('${r.id}')">${escapeHtml(r.name)}${r.notSrd?' *':''}${r.fromCampaign?' ⚔️':(r.homebrew?' ✦':'')}</button>`).join('')}
-    </div>
+    ${sceltaChip(allRaces(), bld.raceId, 'pickRace', 'raceQ', 'Cerca fra le ' + allRaces().length + ' razze\u2026',
+        r => escapeHtml(r.name) + (r.notSrd?' *':'') + (r.fromCampaign?' ⚔️':(r.homebrew?' ✦':'')))}
     ${race ? `
       <div class="card" style="margin-bottom:12px">
         <div class="card-title">${escapeHtml(race.name)}</div>
@@ -121,6 +121,7 @@ function bonusLine(b){
   const parts = ABILITIES.filter(a=>b && b[a.key]).map(a=>`${a.abbr} +${b[a.key]}`);
   return parts.length ? `<div class="chip-row">${parts.map(p=>`<span class="badge gold">${p}</span>`).join('')}</div>` : '';
 }
+function pickBackground(id){ bldSet({ bgId: id }); }
 function pickRace(id){
   bld.raceId = id; bld.subraceId = null; bld.raceBonusPick = []; bld.raceSkills = [];
   const r = raceById(id);
@@ -252,7 +253,13 @@ function stepSubclass(){
 
     <div class="list-gap">
       ${srd.map(cardFor).join('')}
-      ${mine.length ? `<div class="divider"><span class="flourish">❧</span><span>${mine.some(x=>x.fromCampaign)?'I tuoi e quelli del tavolo':'I tuoi'}</span></div>${mine.map(cardFor).join('')}
+      ${mine.length ? `<div class="divider"><span class="flourish">❧</span><span>${mine.some(x=>x.fromCampaign)?'I tuoi e quelli del tavolo':'I tuoi'}</span></div>
+        ${mine.length > 12 ? cercaLista('bld-sub-cerca', bld.subQ, 'bldCercaSub', 'Cerca fra i ' + mine.length + ' tuoi\u2026') : ''}
+        ${(()=>{ const q = (bld.subQ||'').trim();
+            const visti = q ? mine.filter(x => norm(x.name||'').includes(norm(q))) : mine;
+            return visti.length
+              ? bloccoLista('bld-sub', visti, cardFor, { modale:true, nome:'archetipi' })
+              : `<div class="lista-vuota">Nessun archetipo con questo nome.</div>`; })()}
         <div class="muted" style="font-size:.72rem; text-align:center">✦ tuoi · ⚔️ condivisi nella campagna</div>` : ''}
     </div>
 
@@ -272,9 +279,8 @@ function stepSubclass(){
 function stepBackground(){
   const bg = allBackgrounds().find(b => b.id === bld.bgId);
   return `
-    <div class="chip-row" style="margin-bottom:14px">
-      ${allBackgrounds().map(b=>`<button class="chip ${bld.bgId===b.id?'active':''}" onclick="bldSet({bgId:'${b.id}'})">${escapeHtml(b.name)}${b.fromCampaign?' ⚔️':(b.homebrew?' ✦':'')}</button>`).join('')}
-    </div>
+    ${sceltaChip(allBackgrounds(), bld.bgId, 'pickBackground', 'bgQ', 'Cerca fra i ' + allBackgrounds().length + ' background\u2026',
+        x => escapeHtml(x.name) + (x.fromCampaign?' ⚔️':(x.homebrew?' ✦':'')))}
     <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('background')">📚 Aggiungi un background tuo</button>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="openHomebrewBulk()">📖 Leggili tutti dal tuo manuale</button>
     ${bg && bg.skills.some(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)) ? `
