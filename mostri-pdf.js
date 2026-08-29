@@ -41,6 +41,56 @@ function mpGradoSfida(v){
 }
 
 
+
+/* ─── Cataloghi con le statistiche dentro «properties» ───
+   Alcune raccolte tengono nome e descrizione in chiaro e tutto il resto
+   dentro un oggetto «properties», con tratti e azioni in JSON annidato.
+   In quei cataloghi la maggior parte delle voci è solo una scheda di
+   presentazione senza statistiche: quelle non servono a giocare. */
+function mpDaCatalogo(m){
+  const p = m && m.properties;
+  if (!p || typeof p !== 'object') return null;
+  if (p.AC == null && p.HP == null) return null;      // niente statistiche
+
+  const num = (v) => { const x = /-?\d+/.exec(String(v==null?'':v)); return x ? parseInt(x[0],10) : null; };
+  const dentro = (v) => {
+    // «data-Traits» e «data-Actions» sono JSON dentro una stringa
+    if (Array.isArray(v)) return v;
+    if (typeof v !== 'string' || !v.trim()) return [];
+    try { const d = JSON.parse(v); return Array.isArray(d) ? d : []; } catch(e){ return []; }
+  };
+  const coppie = (v, conColpo) => dentro(v).map(x => {
+    const nome = String(x.Name || x.name || '').trim();
+    let testo = String(x.Desc || x.desc || '').trim();
+    if (conColpo && x['Hit Bonus']){
+      const colpo = '+' + String(x['Hit Bonus']).replace(/^\+/,'');
+      const danno = [x.Damage, x['Damage Type']].filter(Boolean).join(' ');
+      return [nome, colpo, danno, testo.slice(0,300)];
+    }
+    return [nome, testo.slice(0,400)];
+  }).filter(x => x[0]);
+
+  const hd = (/\(([^)]*d[^)]*)\)/.exec(String(p.HP||'')) || [])[1] || '';
+  let cr = p['Challenge Rating'];
+  if (typeof cr === 'number') cr = cr === 0.5 ? '1/2' : cr === 0.25 ? '1/4' : cr === 0.125 ? '1/8' : String(cr);
+  else cr = mpGradoSfida(cr);
+
+  return {
+    id: uid(), n: String(m.name||''), it: String(m.name||''),
+    sz: MP_TAGLIE[String(p.Size||'').toLowerCase()] || 'Media',
+    t: MP_TIPI[String(p.Type||'').toLowerCase().split(/[ ,(]/)[0]] || 'bestia',
+    ac: p['data-AcNum'] != null ? num(p['data-AcNum']) : num(p.AC),
+    hp: p['data-HpNum'] != null ? num(p['data-HpNum']) : num(p.HP),
+    hd, sp: mpVelocita(p.Speed || ''),
+    ab: [p.STR, p.DEX, p.CON, p.INT, p.WIS, p.CHA].map(v => { const n = num(v); return n == null ? 10 : n; }),
+    sen: String(p.Senses || ''), lang: String(p.Languages || ''), cr,
+    tr: coppie(p['data-Traits'], false).slice(0,10),
+    act: coppie(p['data-Actions'], true).slice(0,10),
+    fonte: [m.book, m.publisher].filter(Boolean).join(' · '),
+    homebrew: true,
+  };
+}
+
 /* ─── Elenchi in JSON ───
    Le raccolte SRD che si trovano in rete usano due o tre forme ricorrenti.
    Le si riconosce e si portano al modello dell'app, senza pretendere che
@@ -63,8 +113,16 @@ function mpDaJson(testo){
   const primoDi = (o, chiavi) => { for (const k of chiavi) if (o[k] != null && o[k] !== '') return o[k]; return null; };
 
   const fuori = [];
+  let senzaStatistiche = 0;
   lista.forEach(m => {
     if (!m || typeof m !== 'object' || !m.name) return;
+
+    // forma «catalogo»: tutto dentro properties
+    if (m.properties && typeof m.properties === 'object'){
+      const c = mpDaCatalogo(m);
+      if (c) fuori.push(c); else senzaStatistiche++;
+      return;
+    }
 
     // taglia e tipo: campi propri, oppure la riga «Medium humanoid, neutral»
     let sz = MP_TAGLIE[String(primoDi(m,['size'])||'').toLowerCase()] || '';
@@ -133,8 +191,10 @@ function mpDaJson(testo){
       lang: testoDi(primoDi(m,['languages','Languages'])) || '',
       cr, tr, act, homebrew: true });
   });
-  return fuori.length ? fuori : null;
+  mpSenzaStatistiche = senzaStatistiche;
+  return fuori.length ? fuori : (senzaStatistiche ? [] : null);
 }
+let mpSenzaStatistiche = 0;
 
 /* Trova i blocchi statistica dentro il testo di un PDF. */
 function mpScan(testo){
@@ -211,9 +271,10 @@ function mpScan(testo){
 
 /* ─── La schermata ─── */
 let mpStato = null;
+const MP_LIMITE = 400;   // oltre questo numero la memoria del telefono soffre
 
 function openMostriPdf(){
-  mpStato = { busy:false, trovati:null, scelti:new Set(), pag:0, tot:0, file:0, file_n:0 };
+  mpStato = { busy:false, trovati:null, scelti:new Set(), pag:0, tot:0, file:0, file_n:0, q:'', gs:'' };
   openModal({ render: mostriPdfHTML });
 }
 function mostriPdfHTML(){
@@ -240,13 +301,16 @@ function mostriPdfHTML(){
     <div class="spell-source-note">Carica solo materiale di cui hai i diritti: i tuoi appunti o i manuali che possiedi. Resta sul tuo account.</div>`);
 
   const n = s.scelti.size;
+  const visibili = mpFiltrati();
+  const gsPresenti = [...new Set((s.trovati||[]).map(m => String(m.cr)))]
+    .sort((a,b) => crValue(a) - crValue(b));
   const riga = (m) => {
     const on = s.scelti.has(m.id);
     return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':''}" onclick="mpToggle('${jsStr(m.id)}')">
       <span style="flex-shrink:0; margin-right:10px; font-size:1.05rem">${on?'☑️':'⬜'}</span>
       <span class="attack-main">
         <span class="attack-name">🐉 ${escapeHtml(m.it)}</span>
-        <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(m.sz)} ${escapeHtml(m.t)} · GS ${escapeHtml(m.cr)} · CA ${m.ac} · ${m.hp} PF${m.act.length?' · '+m.act.length+' azioni':''}</span>
+        <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(m.sz)} ${escapeHtml(m.t)} · GS ${escapeHtml(m.cr)} · CA ${m.ac} · ${m.hp} PF${m.act.length?' · '+m.act.length+' azioni':''}${m.fonte?' · '+escapeHtml(m.fonte):''}</span>
       </span>
     </button>`;
   };
@@ -255,13 +319,28 @@ function mostriPdfHTML(){
       <div class="row-between"><span class="muted">Riconosciuti</span><b>${s.trovati.length}</b></div>
       <div class="row-between" style="margin-top:4px"><span class="muted">Selezionati</span><b style="color:var(--gold)">${n}</b></div>
     </div>
-    ${s.trovati.length ? `<div class="chip-row" style="margin-bottom:8px">
-      <button class="chip" onclick="mpTutti(true)">Scegli tutti</button>
+    ${mpSenzaStatistiche ? `<div class="card" style="margin-bottom:12px; border-color:var(--warn)">
+      <b style="font-size:.86rem">⚠️ ${mpSenzaStatistiche} voci senza statistiche</b>
+      <p class="muted" style="margin-top:6px; font-size:.79rem">In questo file hanno solo nome, descrizione e qualche etichetta:
+      niente CA, punti ferita o azioni. Non si possono giocare, quindi le ho lasciate fuori.</p>
+    </div>` : ''}
+    ${s.trovati.length ? `
+    <div class="field" style="margin-bottom:8px">
+      <input id="mp-cerca" value="${attr(s.q)}" placeholder="Cerca per nome, tipo o libro…" oninput="mpCerca(this.value)" autocomplete="off">
+    </div>
+    ${gsPresenti.length > 1 ? `<div class="chip-row" style="margin-bottom:8px">
+      <button class="chip ${s.gs?'':'active'}" onclick="mpFiltraGs('')">Tutti i GS</button>
+      ${gsPresenti.slice(0,14).map(g=>`<button class="chip ${s.gs===g?'active':''}" onclick="mpFiltraGs('${jsStr(g)}')">GS ${escapeHtml(g)}</button>`).join('')}
+    </div>` : ''}
+    <div class="chip-row" style="margin-bottom:8px">
+      <button class="chip" onclick="mpTutti(true)">Scegli i ${visibili.length} mostrati</button>
       <button class="chip" onclick="mpTutti(false)">Nessuno</button>
     </div>
-    <div class="list-gap">${s.trovati.slice(0,200).map(riga).join('')}</div>
-    ${s.trovati.length>200?`<p class="muted" style="font-size:.73rem; margin-top:8px">…e altri ${s.trovati.length-200}: usa «Scegli tutti».</p>`:''}`
-    : emptyState('🤔','Non ho riconosciuto nessun blocco statistica. Serve il formato standard, con CA e punti ferita.')}
+    <div class="list-gap">${visibili.slice(0,200).map(riga).join('')}</div>
+    ${visibili.length>200?`<p class="muted" style="font-size:.73rem; margin-top:8px">…e altri ${visibili.length-200}. Restringi con la ricerca, oppure «Scegli i ${visibili.length} mostrati» li prende tutti.</p>`:''}`
+    : emptyState('🤔', mpSenzaStatistiche
+        ? 'Nessuna voce di questo file ha le statistiche: è un catalogo di nomi e descrizioni, non un bestiario giocabile.'
+        : 'Non ho riconosciuto nessun blocco statistica. Serve il formato standard, con CA e punti ferita.')}
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-ghost" onclick="openMostriPdf()">← Ricomincia</button>
       <button class="btn btn-primary" ${n?'':'disabled'} onclick="mpConferma()">Aggiungi ${n||''}</button>
@@ -269,7 +348,19 @@ function mostriPdfHTML(){
     <div class="muted" style="font-size:.73rem; margin-top:10px">Quello che l'app riconosce è una bozza: apri ogni mostro dal bestiario e sistemalo se serve.</div>`);
 }
 function mpToggle(id){ if (mpStato.scelti.has(id)) mpStato.scelti.delete(id); else mpStato.scelti.add(id); renderModalRoot(); }
-function mpTutti(on){ mpStato.trovati.forEach(m => on ? mpStato.scelti.add(m.id) : mpStato.scelti.delete(m.id)); renderModalRoot(); }
+/* «tutti» vale su quello che stai vedendo, non sull'intero catalogo */
+function mpTutti(on){ mpFiltrati().forEach(m => on ? mpStato.scelti.add(m.id) : mpStato.scelti.delete(m.id)); renderModalRoot(); }
+function mpCerca(v){ mpStato.q = v; renderModalRoot(); }
+function mpFiltraGs(v){ mpStato.gs = v; renderModalRoot(); }
+function mpFiltrati(){
+  let l = mpStato.trovati || [];
+  if (mpStato.q){
+    const q = norm(mpStato.q);
+    l = l.filter(m => norm(m.it).includes(q) || norm(m.t).includes(q) || norm(m.fonte||'').includes(q));
+  }
+  if (mpStato.gs) l = l.filter(m => String(m.cr) === mpStato.gs);
+  return l;
+}
 function mpAnalizza(testo){
   if (!String(testo||'').trim()){ mpStato.busy = false; renderModalRoot(); toast('Non c’è niente da leggere'); return; }
   // un elenco in JSON si riconosce subito; altrimenti si cercano i blocchi
@@ -307,6 +398,16 @@ async function mpFile(input){
 function mpConferma(){
   const scelti = mpStato.trovati.filter(m => mpStato.scelti.has(m.id));
   if (!scelti.length) return;
+  if (scelti.length > MP_LIMITE){
+    confirmDialog('Sono davvero tanti',
+      scelti.length + ' mostri insieme riempiono la memoria del telefono e rallentano l\'app. ' +
+      'Ne aggiungo i primi ' + MP_LIMITE + ': per gli altri restringi con la ricerca e ripeti.',
+      () => mpAggiungi(scelti.slice(0, MP_LIMITE)), 'Aggiungi ' + MP_LIMITE);
+    return;
+  }
+  mpAggiungi(scelti);
+}
+function mpAggiungi(scelti){
   state.npcs = state.npcs || [];
   scelti.forEach(m => {
     // il bestiario usa hpMax/hpCurrent/speed/type: passando i campi grezzi

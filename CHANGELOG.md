@@ -1,5 +1,17 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.5 — 29 agosto 2026
+**Il lettore dei mostri capisce anche i cataloghi, e non si fa mettere in ginocchio da 11.000 voci.**
+
+Il file `monsters_5e.json` (29 MB) ha una forma tutta sua: nome e descrizione in chiaro, e tutto il resto dentro un oggetto `properties`, con tratti e azioni in JSON annidato dentro una stringa. Non veniva letto.
+
+- **Forma «catalogo» riconosciuta**: legge CA, punti ferita, velocità, i sei punteggi, sensi, lingue, grado sfida, e apre i tratti e le azioni annidati — bonus per colpire e danni compresi. Ogni mostro si porta dietro **il libro da cui viene**.
+- **Le voci senza statistiche restano fuori, e te lo dico.** In quel file **su 11.173 voci solo 379 hanno le statistiche**: le altre 10.794 sono schede di presentazione con nome, descrizione e qualche etichetta — niente CA, punti ferita o azioni. Importarle darebbe mostri a 0 PF, inutili in gioco. Ora un riquadro te ne dà il conto e spiega perché sono state escluse.
+- **Ricerca e filtro per grado sfida** nell'elenco: con centinaia di mostri servivano. «Scegli i N mostrati» vale su quello che stai vedendo, non sull'intero catalogo.
+- **Freno sul volume**: oltre 400 mostri in una volta l'app chiede conferma e ne aggiunge 400, spiegando come prendere gli altri. Riempire `localStorage` con migliaia di creature bloccherebbe tutti i salvataggi.
+
+> Provato sul file vero: 29 MB letti e analizzati in **97 millisecondi**, 379 mostri riconosciuti, e cercando «dragon» ne restano 44 che entrano nel bestiario col modello giusto — Adult Black Dragon con CA 19, 195 PF, `12 m, volare 24 m, nuotare 12 m` e 6 azioni. 8 prove nuove (22 in tutto sul lettore JSON), suite completa e regressioni verdi.
+
 ## v6.4 — 29 agosto 2026
 **Revisione delle novità: sei difetti veri, quattro dei quali rendevano inutile metà di quello che avevo appena costruito.**
 
