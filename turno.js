@@ -35,7 +35,8 @@ function incantesimiDelTurno(c){
   const fuori = { azione:[], bonus:[], reazione:[] };
   (c.knownSpells || []).forEach(ref => {
     const sp = spellByRef(ref); if (!sp) return;
-    const preparato = !sp.level || (c.preparedSpells || []).some(x => x.id === ref.id && x.source === ref.source);
+    // preparedSpells contiene gli identificativi, non oggetti
+    const preparato = !sp.level || (c.preparedSpells || []).includes(ref.id);
     if (!preparato && sp.level) return;      // i non preparati non li puoi lanciare
     const q = turnoTempo(sp);
     if (fuori[q]) fuori[q].push({ ref, sp });
@@ -57,7 +58,7 @@ function turnoHTML(){
   const vel = c.speed || 9;
 
   const voce = (icona, nome, sotto, azione) => `
-    <button class="attack-row" style="width:100%; text-align:left" ${azione?`onclick="${azione}"`:'style="width:100%; text-align:left"'}>
+    <button class="attack-row" style="width:100%; text-align:left" ${azione?`onclick="${azione}"`:''}>
       <span style="flex-shrink:0; margin-right:11px; font-size:1.15rem">${icona}</span>
       <span class="attack-main">
         <span class="attack-name">${escapeHtml(nome)}</span>
@@ -81,12 +82,14 @@ function turnoHTML(){
   const sezione = (titolo, contenuto) => contenuto
     ? `<div class="divider"><span class="flourish">❧</span><span>${titolo}</span></div><div class="list-gap">${contenuto}</div>` : '';
 
-  const slots = (typeof slotsFor === 'function') ? slotsFor(c) : null;
-  const rigaSlot = slots ? Object.keys(slots).filter(l => /^[1-9]$/.test(l) && slots[l] > 0).map(l => {
-    const tot = slots[l], usati = (c.slotsUsed||{})[l] || 0;
-    return `<button class="chip" onclick="turnoSpendiSlot('${c.id}',${l})" style="min-height:40px">
-      ${l}° <b style="color:${usati>=tot?'var(--ink-soft)':'var(--gold)'}">${tot-usati}/${tot}</b></button>`;
-  }).join('') : '';
+  const slots = (typeof slotsFor === 'function') ? (slotsFor(c) || []) : [];
+  const rigaSlot = slots.map((tot, i) => {
+    const liv = i + 1;                       // l'array parte da 0, i livelli da 1
+    if (!tot) return '';
+    const usati = (c.slotsUsed||{})[liv] || 0;
+    return `<button class="chip" onclick="turnoSpendiSlot('${c.id}',${liv})" style="min-height:40px">
+      ${liv}° <b style="color:${usati>=tot?'var(--ink-soft)':'var(--gold)'}">${tot-usati}/${tot}</b></button>`;
+  }).join('');
 
   const risorse = (c.resources || []).map(r => {
     const tot = Number(r.total)||0, left = clamp(r.left==null?tot:r.left, 0, Math.max(tot,99));
@@ -118,7 +121,7 @@ function turnoHTML(){
     ${c.concentration ? `<div class="card" style="margin-bottom:12px; border-color:var(--arcane)">
       <div class="row-between">
         <div><b style="font-size:.86rem">🌀 Concentrazione</b>
-          <div class="muted" style="font-size:.74rem">${escapeHtml(c.concentration)}</div></div>
+          <div class="muted" style="font-size:.74rem">${escapeHtml((c.concentration && c.concentration.name) || String(c.concentration||''))}</div></div>
         <button class="btn btn-ghost btn-sm" onclick="turnoInterrompiConc('${c.id}')">Interrompi</button>
       </div>
     </div>` : ''}
@@ -160,8 +163,8 @@ function turnoHTML(){
 function turnoSpendiSlot(charId, livello){
   const c = charById(charId); if (!c) return;
   c.slotsUsed = c.slotsUsed || {};
-  const slots = (typeof slotsFor === 'function') ? slotsFor(c) : {};
-  const tot = (slots && slots[livello]) || 0;
+  const slots = (typeof slotsFor === 'function') ? (slotsFor(c) || []) : [];
+  const tot = slots[livello - 1] || 0;       // l'array parte da 0, i livelli da 1
   const usati = c.slotsUsed[livello] || 0;
   if (usati >= tot){ toast('Niente più slot di ' + livello + '° livello'); return; }
   c.slotsUsed[livello] = usati + 1;

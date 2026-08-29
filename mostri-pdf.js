@@ -309,7 +309,13 @@ function mpConferma(){
   if (!scelti.length) return;
   state.npcs = state.npcs || [];
   scelti.forEach(m => {
-    const v = Object.assign({}, m, { name: m.it, updatedAt: Date.now() });
+    // il bestiario usa hpMax/hpCurrent/speed/type: passando i campi grezzi
+    // i mostri entravano con 0 PF e senza tipo
+    const v = (typeof monsterToNpc === 'function')
+      ? Object.assign(monsterToNpc(m), { id: uid(), updatedAt: Date.now() })
+      : { id: uid(), name: m.it, type: m.sz + ' ' + m.t + ', GS ' + m.cr, avatar: '🐉',
+          ac: m.ac, hpMax: m.hp, hpCurrent: m.hp, speed: parseFloat(m.sp) || 9,
+          notes: '', createdAt: Date.now(), updatedAt: Date.now() };
     state.npcs.push(v);
     fsSet('npcs', v);
   });

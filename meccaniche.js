@@ -196,21 +196,37 @@ function openMeccaniche(hbId){
   meccDraft = JSON.parse(JSON.stringify(h.meccaniche || {}));
   openModal({ render: meccanicheHTML });
 }
-function meccSet(percorso, valore){
+/* `ridisegna` sta a false quando la modifica arriva da un campo di testo:
+   ricostruire il modale a ogni lettera faceva perdere il fuoco e si
+   riusciva a scrivere un carattere per volta. */
+function meccSet(percorso, valore, ridisegna){
   const p = percorso.split('.');
   let o = meccDraft;
   for (let i = 0; i < p.length - 1; i++){ o[p[i]] = o[p[i]] || {}; o = o[p[i]]; }
   const ultimo = p[p.length-1];
   if (valore === '' || valore == null) delete o[ultimo]; else o[ultimo] = valore;
-  renderModalRoot();
+  if (ridisegna) renderModalRoot();
+}
+/* «1/2» si scrive un carattere per volta: allo stato intermedio «1/»
+   il vecchio calcolo dava Infinity, che poi veniva salvato come 0. */
+function meccGsDaTesto(v, precedente){
+  const t = String(v==null?'':v).trim().replace(',', '.');
+  if (!t) return precedente;
+  const fr = /^(\d+)\s*\/\s*(\d+)$/.exec(t);
+  if (fr){
+    const a = Number(fr[1]), b = Number(fr[2]);
+    return b ? a / b : precedente;
+  }
+  if (/\/$/.test(t)) return precedente;      // sta ancora scrivendo
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : precedente;
 }
 function meccRigaGs(i, campo, v){
   meccDraft.forma = meccDraft.forma || {};
   meccDraft.forma.gsPerLivello = meccDraft.forma.gsPerLivello || [];
   const r = meccDraft.forma.gsPerLivello[i] || [1, 0.25];
-  r[campo] = campo === 0 ? (parseInt(v)||1) : (String(v).includes('/') ? Number(v.split('/')[0])/Number(v.split('/')[1]) : Number(v)||0);
+  r[campo] = campo === 0 ? (parseInt(v)||1) : meccGsDaTesto(v, r[1]);
   meccDraft.forma.gsPerLivello[i] = r;
-  renderModalRoot();
 }
 function meccAggiungiGs(){
   meccDraft.forma = meccDraft.forma || {};
@@ -227,10 +243,10 @@ function meccAggiungiAzione(){
   meccDraft.azioni = (meccDraft.azioni || []).concat([{ nome:'', quando:'bonus', testo:'' }]);
   renderModalRoot();
 }
-function meccAzione(i, campo, v){
+function meccAzione(i, campo, v, ridisegna){
   meccDraft.azioni = meccDraft.azioni || [];
   meccDraft.azioni[i] = Object.assign({ quando:'bonus' }, meccDraft.azioni[i], { [campo]: v });
-  renderModalRoot();
+  if (ridisegna) renderModalRoot();
 }
 function meccTogliAzione(i){
   (meccDraft.azioni || []).splice(i,1);
@@ -269,10 +285,10 @@ function meccanicheHTML(){
     </div>`).join('')}
     <button class="btn btn-ghost btn-block btn-sm" onclick="meccAggiungiGs()">＋ Aggiungi una riga</button>
     <div class="form-row" style="margin-top:10px">
-      <div class="field"><label>Oppure: GS = livello ÷</label><input inputmode="numeric" value="${attr(f.divisore==null?'':f.divisore)}" placeholder="3" oninput="meccSet('forma.divisore', this.value===''?'':parseInt(this.value)||0)"></div>
-      <div class="field"><label>…dal livello</label><input inputmode="numeric" value="${attr(f.divisoreDa==null?'':f.divisoreDa)}" placeholder="6" oninput="meccSet('forma.divisoreDa', this.value===''?'':parseInt(this.value)||0)"></div>
+      <div class="field"><label>Oppure: GS = livello ÷</label><input inputmode="numeric" value="${attr(f.divisore==null?'':f.divisore)}" placeholder="3" oninput="meccSet('forma.divisore', this.value===''?'':parseInt(this.value)||0, false)"></div>
+      <div class="field"><label>…dal livello</label><input inputmode="numeric" value="${attr(f.divisoreDa==null?'':f.divisoreDa)}" placeholder="6" oninput="meccSet('forma.divisoreDa', this.value===''?'':parseInt(this.value)||0, false)"></div>
     </div>
-    <button class="switch-row" style="margin-top:6px" onclick="meccSet('forma.azioneBonus', ${f.azioneBonus?"''":'true'})">
+    <button class="switch-row" style="margin-top:6px" onclick="meccSet('forma.azioneBonus', ${f.azioneBonus?"''":'true'}, true)">
       <div class="track"><div class="knob" style="${f.azioneBonus?'transform:translateX(21px)':''}"></div></div>
       <div style="flex:1; text-align:left; font-family:var(--font-ui)">
         <b style="font-size:.84rem">Trasformazione come azione bonus</b>
@@ -280,8 +296,8 @@ function meccanicheHTML(){
       </div>
     </button>
     <div class="form-row" style="margin-top:10px">
-      <div class="field"><label>Nuoto dal livello</label><input inputmode="numeric" value="${attr(f.nuotoDa==null?'':f.nuotoDa)}" placeholder="4" oninput="meccSet('forma.nuotoDa', this.value===''?'':parseInt(this.value)||0)"></div>
-      <div class="field"><label>Volo dal livello</label><input inputmode="numeric" value="${attr(f.voloDa==null?'':f.voloDa)}" placeholder="8" oninput="meccSet('forma.voloDa', this.value===''?'':parseInt(this.value)||0)"></div>
+      <div class="field"><label>Nuoto dal livello</label><input inputmode="numeric" value="${attr(f.nuotoDa==null?'':f.nuotoDa)}" placeholder="4" oninput="meccSet('forma.nuotoDa', this.value===''?'':parseInt(this.value)||0, false)"></div>
+      <div class="field"><label>Volo dal livello</label><input inputmode="numeric" value="${attr(f.voloDa==null?'':f.voloDa)}" placeholder="8" oninput="meccSet('forma.voloDa', this.value===''?'':parseInt(this.value)||0, false)"></div>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Famigli</span></div>
@@ -302,13 +318,13 @@ function meccanicheHTML(){
     <p class="muted" style="font-size:.76rem; margin-bottom:8px">Cose che questa sottoclasse ti fa fare nel turno. Compaiono in «Il tuo turno» sotto la voce giusta.</p>
     ${(d.azioni||[]).map((a,i)=>`<div class="card" style="margin-bottom:8px">
       <div class="form-row">
-        <div class="field"><label>Nome</label><input value="${attr(a.nome||'')}" oninput="meccAzione(${i},'nome',this.value)"></div>
+        <div class="field"><label>Nome</label><input value="${attr(a.nome||'')}" oninput="meccAzione(${i},'nome',this.value,false)"></div>
         <div class="field"><label>Quando</label>
-          <select onchange="meccAzione(${i},'quando',this.value)">
+          <select onchange="meccAzione(${i},'quando',this.value,true)">
             ${['azione','bonus','reazione'].map(q=>`<option value="${q}" ${a.quando===q?'selected':''}>${q==='bonus'?'Azione bonus':q==='reazione'?'Reazione':'Azione'}</option>`).join('')}
           </select></div>
       </div>
-      <div class="field"><label>In una riga</label><input value="${attr(a.testo||'')}" placeholder="Es. spendi uno slot per curarti 1d8 per livello" oninput="meccAzione(${i},'testo',this.value)"></div>
+      <div class="field"><label>In una riga</label><input value="${attr(a.testo||'')}" placeholder="Es. spendi uno slot per curarti 1d8 per livello" oninput="meccAzione(${i},'testo',this.value,false)"></div>
       <button class="btn btn-ghost btn-block btn-sm" onclick="meccTogliAzione(${i})">Togli</button>
     </div>`).join('')}
     <button class="btn btn-ghost btn-block btn-sm" onclick="meccAggiungiAzione()">＋ Aggiungi un'azione</button>

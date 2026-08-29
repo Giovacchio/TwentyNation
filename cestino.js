@@ -26,24 +26,33 @@ function caricaCestino(){
   if (cestino.length !== prima) salvaCestino();
 }
 function salvaCestino(){
-  try { localStorage.setItem(CESTINO_KEY, JSON.stringify(cestino.slice(0, CESTINO_MAX))); }
-  catch(e){ console.warn('Cestino non salvabile', e); }
+  try { localStorage.setItem(CESTINO_KEY, JSON.stringify(cestino.slice(0, CESTINO_MAX))); return true; }
+  catch(e){ console.warn('Cestino non salvabile', e); return false; }
 }
 /* Chiamata PRIMA di togliere qualcosa: conserva una copia. */
 function nelCestino(collezione, obj){
   if (!obj || !obj.id) return;
   try {
+    const copia = JSON.parse(JSON.stringify(obj));
+    // il ritratto è un'immagine intera dentro il testo: nel cestino
+    // riempirebbe la memoria del telefono e farebbe fallire i salvataggi
+    const senzaRitratto = !!copia.portrait;
+    delete copia.portrait;
     cestino.unshift({
-      id: obj.id, collezione, at: Date.now(),
+      chiave: uid(), id: obj.id, collezione, at: Date.now(), senzaRitratto,
       nome: obj.name || obj.titolo || obj.title || '(senza nome)',
-      copia: JSON.parse(JSON.stringify(obj)),
+      copia,
     });
     cestino = cestino.slice(0, CESTINO_MAX);
-    salvaCestino();
+    if (!salvaCestino()){
+      // niente spazio: meglio dirlo che promettere un recupero che non c'è
+      cestino.shift();
+      toast('⚠️ Memoria piena: non ho potuto conservare la copia');
+    }
   } catch(e){ console.warn('Non riesco a conservare la copia', e); }
 }
-function ripristinaDalCestino(id){
-  const i = cestino.findIndex(v => v.id === id);
+function ripristinaDalCestino(chiave){
+  const i = cestino.findIndex(v => (v.chiave || v.id) === chiave);
   if (i < 0) return;
   const v = cestino[i];
   const coll = v.collezione;
@@ -62,12 +71,12 @@ function ripristinaDalCestino(id){
   renderModalRoot(); render();
   toast('↩︎ «' + (v.nome || '') + '» è tornato al suo posto');
 }
-function buttaDefinitivamente(id){
-  const v = cestino.find(x => x.id === id);
+function buttaDefinitivamente(chiave){
+  const v = cestino.find(x => (x.chiave || x.id) === chiave);
   confirmDialog('Eliminare per sempre?',
     '«' + ((v && v.nome) || '') + '» non sarà più recuperabile.',
     () => {
-      cestino = cestino.filter(x => x.id !== id);
+      cestino = cestino.filter(x => (x.chiave || x.id) !== chiave);
       salvaCestino(); renderModalRoot();
       toast('Eliminato definitivamente');
     }, 'Elimina');
@@ -95,7 +104,7 @@ function cestinoHTML(){
       return `<div class="attack-row">
         <div class="attack-main" style="pointer-events:none">
           <div class="attack-name">${k.icona} ${escapeHtml(v.nome)}</div>
-          <div class="muted" style="font-size:.72rem">${k.label} · ancora ${g} ${g===1?'giorno':'giorni'}</div>
+          <div class="muted" style="font-size:.72rem">${k.label} · ancora ${g} ${g===1?'giorno':'giorni'}${v.senzaRitratto?' · senza ritratto':''}</div>
         </div>
         <button class="btn btn-sm btn-gold" style="min-width:auto; padding:7px 11px" onclick="ripristinaDalCestino('${jsStr(v.id)}')">Ripristina</button>
         <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Elimina per sempre" onclick="buttaDefinitivamente('${jsStr(v.id)}')">✕</button>

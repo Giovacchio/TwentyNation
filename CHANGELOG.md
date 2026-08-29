@@ -1,5 +1,19 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.4 — 29 agosto 2026
+**Revisione delle novità: sei difetti veri, quattro dei quali rendevano inutile metà di quello che avevo appena costruito.**
+
+I moduli nuovi (turno, cestino, effetti, lettore dei mostri) avevano test verdi, ma **i test seminavano la forma sbagliata dei dati** — quindi verificavano il mio errore invece del comportamento vero. Riscritti sui modelli reali dell'app, hanno subito trovato quattro difetti gravi.
+
+- **Nessun incantesimo di livello compariva in «Il tuo turno».** I preparati sono identificativi, non oggetti: il controllo falliva sempre e restavano solo trucchetti e attacchi. Metà della schermata era inutilizzabile.
+- **Gli slot erano tutti sbagliati.** L'app li tiene in un elenco che parte da zero (posizione 0 = 1° livello), il turno li leggeva come se fossero indicizzati per livello: un mago di 1°-2° non vedeva nessuno slot, uno di 5° vedeva i numeri del 2° e 3° livello sotto le etichette 1° e 2°, e il tasto accanto a un incantesimo diceva «niente più slot» con tutti gli slot pieni.
+- **I mostri importati entravano con 0 PF.** Il bestiario usa `hpMax`/`hpCurrent`/`speed`/`type`, l'importazione passava i campi grezzi: in iniziativa entravano già marcati morti, e aprendo la scheda comparivano valori inventati.
+- **La concentrazione mostrava `[object Object]`** invece del nome dell'incantesimo.
+- **Nell'editor degli effetti si scriveva un carattere per volta**: ogni lettera ricostruiva la schermata e il campo perdeva il fuoco. E «GS 1/2» non era digitabile: allo stato intermedio «1/» il calcolo dava infinito, che veniva salvato come 0.
+- **Il cestino poteva riempire la memoria del telefono.** Conservava anche i ritratti, che sono immagini intere: una decina di personaggi bastavano a far fallire i salvataggi veri. Ora il ritratto resta fuori (e la voce lo dice), e se la scrittura non riesce te lo dico invece di promettere un recupero che non c'è. Ogni voce ha una chiave sua, così due copie con lo stesso identificativo non si cancellano a vicenda.
+
+> Due delle otto segnalazioni della revisione erano sbagliate e le ho scartate dopo verifica. 6 prove nuove e le vecchie riscritte sui modelli veri: 14 sul turno, 13 sul cestino, 16 sui mostri. Suite completa e regressioni da v40 a v48 verdi, zero errori a runtime.
+
 ## v6.3 — 28 agosto 2026
 **Il lettore dei mostri accetta anche gli elenchi in JSON.**
 
