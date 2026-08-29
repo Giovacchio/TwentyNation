@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 6.9** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.0** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -50,7 +50,10 @@ in `localStorage` e funzionamento completo anche scollegati.
 
 ## Cosa sa fare, oggi
 
-**Personaggi** — creazione guidata, scheda completa con tiri, PF, condizioni, riposi,
+**Personaggi** — schermata iniziale a carte grandi: il ritratto si vede intero (4:3, con
+lo stesso ritratto sfocato dietro al posto delle bande), livello, PF e i segni di
+concentrazione, condizioni e forma selvatica; tutta la carta apre la scheda.
+Creazione guidata, scheda completa con tiri, PF, condizioni, riposi,
 passaggio di livello, esportazione e importazione PDF, ritratto, multiclasse parziale.
 **«Il tuo turno»**: una schermata con attacchi, incantesimi divisi per tempo di lancio,
 slot e risorse da spendere, senza aprire la scheda. **Scorrimento laterale** fra le sezioni.
@@ -130,6 +133,9 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
   un megabyte. Per i gruppi si usa `fsSetMany(collezione, lista, avanzamento)`, che
   restituisce `-1` se la memoria è piena — e **chi lo chiama deve tornare indietro**, non
   lasciare l'importazione a metà.
+- **`resizeImageFile()` non ritaglia più.** Fino alla 6.9 tagliava a quadrato dal centro
+  appena caricata l'immagine, distruggendo l'originale. Adesso riduce e basta, con due
+  tetti (lato lungo 480, area 190.000 px). Se un giorno serve un cerchio, lo fa il CSS.
 - **Il ponte fra le tue cose e il resto sta in `homebrew.js`**: `trovaRazza()`,
   `trovaSottoclasse()`, `sottoclassiSenzaCasa()`, `adottaSottoclasse()`. Quando aggiungi
   un punto dell'app che deve conoscere il materiale caricato, passa da lì — e ricordati

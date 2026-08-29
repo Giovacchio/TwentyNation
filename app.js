@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '6.9';
+const APP_VERSION = '7.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -317,8 +317,10 @@ function scrollTop(){ window.scrollTo({top:0, behavior:'auto'}); }
 
 /* ─── Ritratto ───────────────────────────────────────────────────
    Se c'è una foto la si mostra dentro il sigillo, altrimenti resta
-   il simbolo. L'immagine viene ridotta a 320px e salvata insieme al
-   personaggio, quindi si sincronizza su tutti i dispositivi.
+   il simbolo. L'immagine viene ridotta a 480px sul lato lungo —
+   intera, non ritagliata — e salvata insieme al personaggio, quindi
+   si sincronizza su tutti i dispositivi. Nella pastiglia tonda la
+   ritaglia il CSS; sulla carta grande del party si vede tutta.
 */
 function avatarHTML(e, size, extra){
   const s = size || 54;
@@ -328,6 +330,12 @@ function avatarHTML(e, size, extra){
   }
   return `<span class="${cls}" style="width:${s}px;height:${s}px;font-size:${Math.round(s*0.44)}px">${(e && e.avatar) || '⚔️'}</span>`;
 }
+/* Il ritratto si conserva intero. Prima veniva ritagliato a quadrato
+   dal centro appena caricato: nella pastiglia tonda non si notava, ma
+   l'immagine originale era persa per sempre — e chi carica il disegno
+   del suo personaggio vuole vederlo tutto, non la sua faccia ritagliata.
+   Adesso si riduce e basta, tenendo le proporzioni; a ritagliare, dove
+   serve un cerchio, ci pensa il CSS, che non distrugge niente. */
 function resizeImageFile(file, max){
   return new Promise((resolve, reject) => {
     const fr = new FileReader();
@@ -335,13 +343,22 @@ function resizeImageFile(file, max){
       const img = new Image();
       img.onload = () => {
         try {
-          const side = Math.min(img.width, img.height);
-          const sx = (img.width - side)/2, sy = (img.height - side)/2;
+          /* Due tetti, non uno. Il lato lungo tiene l'immagine nitida
+             sulla carta grande; l'area totale impedisce che un ritratto
+             molto allungato pesi il doppio di uno quadrato — con la
+             memoria del telefono già impegnata dal bestiario, un
+             ritratto da 90 KB per personaggio si sente. */
+          const AREA_MAX = 190000;   // ~440×430, o 355×535 in verticale
+          let scala = Math.min(1, max / Math.max(img.width, img.height));
+          const area = img.width * img.height * scala * scala;
+          if (area > AREA_MAX) scala *= Math.sqrt(AREA_MAX / area);
+          const w = Math.max(1, Math.round(img.width * scala));
+          const h = Math.max(1, Math.round(img.height * scala));
           const cv = document.createElement('canvas');
-          cv.width = cv.height = max;
+          cv.width = w; cv.height = h;
           const ctx = cv.getContext('2d');
-          ctx.drawImage(img, sx, sy, side, side, 0, 0, max, max);
-          resolve(cv.toDataURL('image/jpeg', 0.82));
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(cv.toDataURL('image/jpeg', 0.8));
         } catch(e){ reject(e); }
       };
       img.onerror = () => reject(new Error('immagine non leggibile'));
@@ -367,7 +384,7 @@ function choosePortrait(onDone){
     if (!f) return;
     if (f.size > 20*1024*1024){ toast('⚠️ Immagine troppo grande (oltre 20 MB)'); return; }
     try {
-      const url = await resizeImageFile(f, 320);
+      const url = await resizeImageFile(f, 480);
       onDone(url);
     } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a leggere l\'immagine'); }
   };
@@ -1615,17 +1632,43 @@ function campaignCardHTML(){
   }
   return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:16px" onclick="openCampaign()">⚔️ Entra in una campagna</button>`;
 }
+/* La carta del personaggio nella schermata iniziale. È la prima cosa
+   che si vede aprendo l'app, e per mesi è stata una riga con una
+   pastiglia da 56 pixel: il ritratto che avevi caricato si intravedeva
+   appena. Adesso il ritratto è la carta — intero, non ritagliato — e
+   toccarla in qualunque punto apre la scheda. */
 function charCardHTML(c){
   const pct = hpPctFor(c);
+  const pf = (c.hp && c.hp.max) ? ((c.hp.current ?? 0) + ' / ' + c.hp.max) : '';
+  const sotto = [escapeHtml(c.classField || 'Avventuriero') + ' · Lv ' + (c.level || 1),
+                 c.race ? escapeHtml(c.race) : ''].filter(Boolean).join(' · ');
+  // due segni che in gioco contano, leggibili senza aprire nulla
+  const segni = [];
+  if (c.concentration) segni.push('<span class="hero-card-segno" title="Sta concentrando">🌀</span>');
+  if ((c.conditions || []).length) segni.push('<span class="hero-card-segno" title="' +
+    attr((c.conditions||[]).map(x => (typeof x === 'string' ? x : x.name || '')).filter(Boolean).join(', ')) +
+    '">⚠️ ' + c.conditions.length + '</span>');
+  if (c.activeForm) segni.push('<span class="hero-card-segno" title="In forma selvatica">🐾</span>');
+
   return `
-    <button class="char-card" onclick="openSheet('${c.id}')">
-      ${avatarHTML(c, 56)}
-      <div class="char-card-body">
-        <div class="char-card-name">${escapeHtml(c.name||'Senza nome')}</div>
-        <div class="char-card-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
-        <div class="hp-mini"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
+    <button class="hero-card" onclick="openSheet('${c.id}')" aria-label="Apri la scheda di ${attr(c.name||'questo personaggio')}">
+      <div class="hero-card-ritratto">
+        ${c.portrait
+          ? `<img class="hero-card-sfondo" src="${attr(c.portrait)}" alt="" aria-hidden="true">
+             <img class="hero-card-img" src="${attr(c.portrait)}" alt="">`
+          : `<div class="hero-card-glifo">${escapeHtml(c.avatar || '⚔️')}</div>`}
+        <div class="hero-card-velo"></div>
+        ${segni.length ? `<div class="hero-card-segni">${segni.join('')}</div>` : ''}
+        <div class="hero-card-livello">LIV ${c.level || 1}</div>
+        <div class="hero-card-testo">
+          <div class="hero-card-nome">${escapeHtml(c.name || 'Senza nome')}</div>
+          <div class="hero-card-sotto">${sotto}</div>
+        </div>
       </div>
-      <div class="char-card-chevron">›</div>
+      <div class="hero-card-pf">
+        <div class="hp-mini"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
+        ${pf ? `<span class="hero-card-pf-num">${pf} PF</span>` : ''}
+      </div>
     </button>
   `;
 }

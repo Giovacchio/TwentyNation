@@ -1,5 +1,20 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.0 — 29 agosto 2026
+**I personaggi diventano la schermata iniziale, e il ritratto si vede tutto.**
+
+Erano righe alte 82 pixel con una pastiglia tonda da 56: il disegno che avevi caricato si intravedeva appena, e la prima cosa che vedevi aprendo l'app era un elenco.
+
+- **Il ritratto non viene più ritagliato.** Questo era il difetto vero, e stava nel salvataggio, non nella grafica: appena caricavi una foto veniva **tagliata a quadrato dal centro** e l'originale spariva per sempre. Nella pastiglia tonda non si notava, ma l'immagine intera non esisteva più. Ora si riduce e basta, tenendo le proporzioni. *I ritratti caricati prima d'ora restano quadrati: quelli sono già stati tagliati, e non c'è modo di riaverli interi — se ci tieni, ricaricali.*
+- **La carta grande.** Il ritratto occupa la carta per intero, in formato 4:3, e si vede **tutto** — niente ritagli. Dietro, al posto delle bande vuote, c'è lo stesso ritratto sfocato e ingrandito: il fondo nasce dall'immagine stessa. Nome e classe stanno sopra una velatura scura, sempre leggibili qualunque sia la foto.
+- **Tutta la carta è il pulsante**: la tocchi dove vuoi ed entri nella scheda.
+- **Quello che serve a colpo d'occhio**: livello in alto a destra, punti ferita con barra e numeri in fondo (rossi quando sei sotto un quarto), e in alto a sinistra i segni che contano al tavolo — 🌀 stai concentrando, ⚠️ le condizioni attive col numero, 🐾 sei in forma selvatica.
+- **Chi non ha un ritratto** non resta indietro: il suo simbolo campeggia grande sullo stesso fondo.
+
+> **Il peso è sceso, non salito.** Il ritratto ora ha due tetti — lato lungo e area totale — così un'immagine molto allungata non pesa il doppio di una quadrata. Misurato su immagini realistiche: **19-21 KB l'una**, contro i circa 25 KB del quadrato ritagliato di prima. Più grande sullo schermo e più leggero in memoria.
+
+> Suite completa e regressioni verdi, audit mobile su 99 schermate invariato. La prova sulla versione non controlla più un numero fisso (invecchiava a ogni rilascio): controlla che `app.js` e il service worker dicano la stessa cosa — è la disallineatura che una volta ti ha lasciato la 6.4 addosso mentre credevi di avere la 6.6.
+
 ## v6.9 — 29 agosto 2026
 **Quello che carichi tu adesso arriva davvero fin dentro la creazione e la lettura delle schede.**
 
