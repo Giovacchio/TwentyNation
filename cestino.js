@@ -156,8 +156,8 @@ function spazioHTML(){
       ${sp.perc >= 85
         ? 'Sei quasi al limite: le prossime aggiunte potrebbero non entrare. Svuota il cestino qui sotto, o togli dal bestiario le creature che non usi.'
         : sp.perc >= 60
-          ? 'Ancora spazio, ma non tantissimo. Il bestiario è quello che pesa di più: circa 0,7 KB a creatura.'
-          : 'Spazio in abbondanza. Il bestiario pesa circa 0,7 KB a creatura: ce ne stanno migliaia.'}
+          ? 'Ancora spazio, ma non tantissimo. Il bestiario è quello che pesa di più: circa 0,9 KB a creatura.'
+          : 'Spazio in abbondanza. Il bestiario pesa circa 0,9 KB a creatura: ce ne stanno migliaia.'}
     </p>
   </div>`;
 }

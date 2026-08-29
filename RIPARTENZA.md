@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 6.7** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 6.8** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -73,9 +73,9 @@ in un clic. I personaggi restano privati. Regole di sicurezza vere.
 spazio occupato**, backup esportabile, freno che impedisce a un aggiornamento di
 cancellare mezza collezione.
 
-**Regge i grandi numeri (v6.7)** — fino a **3.000 creature** nel bestiario e centinaia
-di razze, sottoclassi e background. Misurato: 3.000 entrate in 62 ms, bestiario aperto
-in 21 ms, archivio 2,9 MB sui ~5 che i browser concedono. Ogni elenco lungo mostra
+**Regge i grandi numeri (v6.8)** — fino a **4.000 creature** nel bestiario e centinaia
+di razze, sottoclassi e background. Misurato: 4.000 entrate in 255 ms, bestiario aperto
+in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo mostra
 60 righe per volta con «↓ Mostrane altri», e sopra c'è sempre la ricerca.
 `fsSetMany` / `fsDeleteMany` scrivono e cancellano a pacchetti da 400.
 
@@ -96,7 +96,7 @@ in 21 ms, archivio 2,9 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 5. **Traduzione dei nomi anche per il bestiario** (oggi copre solo le aggiunte).
 6. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
    da fermo — si liberano scorrendo, quindi non urgenti.
-7. **Oltre le 3.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo
+7. **Oltre le 4.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo
    bestiario di consultazione, separato da `state.npcs`. Non serve finché il contatore in
    «Salute dei dati» resta sotto il 60% — guardalo prima di rimetterci mano.
 

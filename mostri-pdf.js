@@ -278,10 +278,13 @@ let mpStato = null;
 /* Quanti se ne possono aggiungere in un colpo solo. Prima erano 400
    perché ogni creatura riscriveva l'intero archivio locale e faceva un
    viaggio di rete per conto suo. Adesso l'archivio si riscrive una volta
-   e le scritture partono a pacchetti di 400: tremila stanno in due
-   megabytes e in una manciata di secondi. Sopra questa soglia non è più
-   la lentezza il problema, ma lo spazio del telefono. */
-const MP_LIMITE = 3000;
+   e le scritture partono a pacchetti di 400: la lentezza non è più il
+   limite, lo è lo spazio del telefono. Quattromila creature occupano
+   circa 3,8 MB dei 5 che i browser concedono a un sito — resta margine
+   per personaggi, incantesimi e contenuti tuoi, ma non tantissimo:
+   il contatore in «Salute dei dati» dice a che punto sei, e sopra
+   l'80% conviene guardarlo prima di caricarne altre. */
+const MP_LIMITE = 4000;
 
 function openMostriPdf(){
   mpStato = { busy:false, trovati:null, scelti:new Set(), pag:0, tot:0, file:0, file_n:0, q:'', gs:'' };
@@ -423,8 +426,12 @@ function mpConferma(){
     return;
   }
   if (scelti.length > 300){
+    const kb = Math.ceil(scelti.length * 0.9);
+    const spazio = (typeof spazioLocale === 'function') ? spazioLocale() : null;
     confirmDialog('Aggiungo ' + scelti.length + ' creature?',
-      'Ci vuole qualche secondo e occuperà circa ' + Math.ceil(scelti.length * 0.7) + ' KB sul telefono. ' +
+      'Ci vuole qualche secondo e occuperà circa ' +
+      (kb >= 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB') + ' sul telefono' +
+      (spazio && spazio.perc >= 50 ? ' — dove sei già al ' + spazio.perc + '%' : '') + '. ' +
       'Tieni l\'app aperta finché non ho finito.',
       () => mpAggiungi(scelti), 'Aggiungi tutte');
     return;

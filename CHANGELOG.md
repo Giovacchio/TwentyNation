@@ -1,5 +1,14 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.8 — 29 agosto 2026
+**Il tetto sale a 4.000 creature in una volta.**
+
+- **`MP_LIMITE` da 3.000 a 4.000.** Misurato con quattromila creature vere: **255 ms** per farle entrare, archivio locale a **1,82 MB**, bestiario che si apre in **16 ms** e in **13 ms** dopo un riavvio. Le 37 prove di carico restano tutte verdi.
+- **La conferma dice quanto pesano davvero.** Sopra le 300 creature la finestra stima lo spazio in MB invece che in KB, e **se sei già oltre metà memoria te lo dice lì** («occuperà circa 3,6 MB — dove sei già al 62%»), invece di scoprirlo dopo.
+- Il peso per creatura indicato in «Salute dei dati» passa da 0,7 a **0,9 KB**: era il conto sui caratteri, non sullo spazio vero occupato dal browser.
+
+> Riferimento onesto: 4.000 creature occupano circa **2,8 MB dei ~5** che i browser concedono a un sito — poco più della metà. Sopra questa soglia il problema non è più la lentezza ma lo spazio, e se finisce a metà importazione non entra niente: si torna indietro invece di lasciare l'archivio a metà.
+
 ## v6.7 — 29 agosto 2026
 **Tremila mostri, e l'app resta leggera. Stesso trattamento a razze, sottoclassi e background.**
 
