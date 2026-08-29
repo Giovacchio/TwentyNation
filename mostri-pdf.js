@@ -146,7 +146,9 @@ function mpDaJson(testo){
     if (sp && typeof sp === 'object'){
       const nomi = { walk:'', fly:'volare', swim:'nuotare', climb:'scalare', burrow:'scavare', hover:'fluttuare' };
       sp = Object.keys(sp).filter(k => sp[k] && k !== 'hover')
-        .map(k => (nomi[k] ? nomi[k] + ' ' : '') + sp[k]).join(', ');
+        // alcune raccolte scrivono «30», altre «30 ft.»: senza unità sono piedi
+        .map(k => (nomi[k] ? nomi[k] + ' ' : '') + (typeof sp[k] === 'number' ? sp[k] + ' ft.' : sp[k]))
+        .join(', ');
     }
     sp = mpVelocita(sp || '');
 
@@ -189,7 +191,9 @@ function mpDaJson(testo){
       sp: sp || '9 m', ab,
       sen: testoDi(primoDi(m,['senses','Senses'])) || '',
       lang: testoDi(primoDi(m,['languages','Languages'])) || '',
-      cr, tr, act, homebrew: true });
+      cr, tr, act,
+      fonte: String(primoDi(m, ['document__title','source','book']) || ''),
+      homebrew: true });
   });
   mpSenzaStatistiche = senzaStatistiche;
   return fuori.length ? fuori : (senzaStatistiche ? [] : null);

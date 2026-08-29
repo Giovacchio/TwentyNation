@@ -1,5 +1,13 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.6 — 29 agosto 2026
+**Pronto per Open5e: 3.207 mostri con le statistiche complete.**
+
+- **Velocità scritte come numeri nudi.** Alcune raccolte scrivono `"30 ft."`, altre `30`: senza unità venivano prese per metri, e un mostro da 30 piedi risultava capace di correre 30 metri. Ora quando manca l'unità si intendono piedi, come da formato.
+- **Il libro di provenienza** compare anche per questa forma di raccolta, accanto al mostro nell'elenco.
+
+> Verificato sul formato reale di Open5e: A-mi-kuk letto con CA 14, 115 PF, `9 m, nuotare 12 m, scavare 6 m`, i sei punteggi, GS 7 e la fonte «Tome of Beasts 2».
+
 ## v6.5 — 29 agosto 2026
 **Il lettore dei mostri capisce anche i cataloghi, e non si fa mettere in ginocchio da 11.000 voci.**
 
