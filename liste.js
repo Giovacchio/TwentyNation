@@ -120,3 +120,4 @@ function sceltaChip(lista, sceltoId, azione, campoQ, segnaposto, etichetta){
 function bldCercaScelta_raceQ(v){ bld.raceQ = v; renderModalRoot(); }
 function bldCercaScelta_bgQ(v){ bld.bgQ = v; renderModalRoot(); }
 function bldCercaSub(v){ bld.subQ = v; listaAzzera('bld-sub'); renderModalRoot(); }
+function bldCercaOrfane(v){ bld.orfaneQ = v; listaAzzera('bld-orfane'); renderModalRoot(); }

@@ -565,3 +565,102 @@ function chiediSeCondividere(id, nome){
       () => { shareOneHomebrew(id); closeModal(); }, 'Condividi');
   }, 700);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   RICONOSCERE LE TUE COSE — v6.9
+   Il creatore le mostrava già, il lettore di schede no: leggeva un
+   PDF e riconosceva soltanto l'SRD. Chi aveva caricato mezzo manuale
+   si vedeva la razza restare una scritta morta, la sottoclasse
+   sparire e gli incantesimi che possedeva già rientrare in copia.
+   Queste funzioni cercano in tutto quello che hai — di serie, tuo e
+   del tavolo — e restituiscono la voce vera, non il nome.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Vale un nome inglese, uno italiano, una sottorazza, o il nome con
+   la variante fra parentesi: sulle schede si trova di tutto. */
+const RAZZE_EN = {
+  human:'human', dwarf:'dwarf', elf:'elf', halfling:'halfling', dragonborn:'dragonborn',
+  gnome:'gnome', 'half-elf':'half elf', 'half-orc':'half orc', tiefling:'tiefling',
+  'human-variant':'variant human'
+};
+function trovaRazza(testo){
+  const q = norm(String(testo||'').trim());
+  if (!q) return null;
+  const lista = allRaces();
+  // per prima cosa il nome intero, poi la sola parte prima della parentesi
+  const varianti = [q, norm(String(testo).replace(/[(\[].*$/, ''))].filter(Boolean);
+
+  for (const v of varianti){
+    let r = lista.find(x => norm(x.name) === v);
+    if (r) return { razza: r, sotto: null, come: 'esatto' };
+    // sottorazze: «Nano delle Colline» sta dentro Nano
+    for (const x of lista){
+      const sr = (x.subraces||[]).find(s => norm(s.name) === v);
+      if (sr) return { razza: x, sotto: sr, come: 'sottorazza' };
+    }
+    const enId = Object.keys(RAZZE_EN).find(k => norm(RAZZE_EN[k]) === v);
+    if (enId){
+      r = lista.find(x => x.id === enId);
+      if (r) return { razza: r, sotto: null, come: 'inglese' };
+    }
+  }
+  // «Alto Elfo di Neverwinter» → Alto Elfo: si tiene il nome più lungo
+  // che compare per intero, così una variante non viene scambiata per
+  // la razza base solo perché è più corta.
+  let best = null;
+  for (const x of lista){
+    for (const cand of [{ n: x.name, sr: null }].concat((x.subraces||[]).map(s => ({ n: s.name, sr: s })))){
+      const c = norm(cand.n);
+      if (c.length < 3) continue;
+      if (q.includes(c) && (!best || c.length > best.len)){
+        best = { razza: x, sotto: cand.sr, come: 'contenuto', len: c.length };
+      }
+    }
+  }
+  return best;
+}
+
+/* Le sottoclassi si scrivono ovunque: «Druido (Circolo della Luna)»,
+   «Warlock 5 / Patto della Catena», oppure solo dentro i privilegi.
+   Si cerca fra quelle della classe giusta, e se la classe non si sa,
+   fra tutte. */
+function trovaSottoclasse(testo, classId){
+  const q = norm(String(testo||''));
+  if (!q) return null;
+  const candidate = classId
+    ? subclassesFor(classId).map(s => ({ s, classId }))
+    : (typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : [])
+        .flatMap(cl => subclassesFor(cl.id).map(s => ({ s, classId: cl.id })));
+  let best = null;
+  candidate.forEach(({ s, classId: cid }) => {
+    const n = norm(s.name);
+    if (n.length < 4) return;
+    if (q === n) { best = { sotto: s, classId: cid, come: 'esatto', len: 99 }; return; }
+    if (best && best.come === 'esatto') return;
+    // il nome per intero dentro il testo, il più lungo vince: fra
+    // «Circolo della Terra» e «Circolo della Luna» non si sbaglia
+    if (q.includes(n) && (!best || n.length > best.len)){
+      best = { sotto: s, classId: cid, come: 'contenuto', len: n.length };
+    }
+  });
+  return best;
+}
+
+/* Le sottoclassi che hai caricato per una classe che l'app non ha
+   (Artefice, Cacciatore di Sangue, Mistico) resterebbero invisibili:
+   non appartengono a nessuna classe conosciuta, quindi nessun passo
+   della creazione le mostra. Qui si raccolgono per poterle offrire
+   lo stesso, con un tocco per legarle alla classe che stai creando. */
+function sottoclassiSenzaCasa(){
+  const noti = new Set((typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : []).map(c => c.id));
+  return homebrewOf('subclass').filter(h => !h.classId || !noti.has(h.classId));
+}
+function adottaSottoclasse(idSottoclasse, classId){
+  const h = (state.homebrew || []).find(x => x.id === idSottoclasse);
+  if (!h || !classId) return;
+  h.classId = classId;
+  saveHomebrew(h);
+  toast('📚 «' + h.name + '» ora è ' + ((CLASS_BY_ID[classId]||{}).subclassLabel || 'sottoclasse') +
+        ' di ' + ((CLASS_BY_ID[classId]||{}).name || ''));
+  renderModalRoot();
+}

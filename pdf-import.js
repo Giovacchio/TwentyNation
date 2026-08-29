@@ -172,7 +172,14 @@ function matchSpellText(text){
   const raw = String(text||'').trim();
   if (!raw) return null;
   const t = norm(raw);
-  const spells = (typeof SRD_SPELLS !== 'undefined') ? SRD_SPELLS : [];
+  /* Prima cercava solo nell'SRD: chi aveva già importato i suoi
+     incantesimi dai manuali se li vedeva rientrare in copia a ogni
+     scheda letta, e quelli fuori SRD non venivano mai riconosciuti.
+     allSpells() mette per primi i tuoi, poi quelli del tavolo, poi
+     l'SRD — quindi a parità di nome vince la tua versione. */
+  const spells = (typeof allSpells === 'function')
+    ? allSpells()
+    : ((typeof SRD_SPELLS !== 'undefined') ? SRD_SPELLS : []);
   let best = null;
 
   for (const sp of spells){
@@ -221,12 +228,28 @@ function matchSpellText(text){
 function analyzeSheet(fields){
   const idx = fieldIndex(fields);
   const warn = [];
+  // Quello che l'app ha riconosciuto fra le TUE cose: non è un avviso,
+  // è una buona notizia, e va detta a parte.
+  const info = [];
+  let __razzaLetta = null, __bgLetto = null;
   const c = newCharacter();
 
   // ── anagrafica ──
   c.name = pickField(idx, ['CharacterName','CharacterName 2','Nome','Nome personaggio']) || 'Senza nome';
   c.playerName = pickField(idx, ['PlayerName','Giocatore']);
   c.race = pickField(idx, ['Race ','Race','Razza']);
+  /* La razza era solo una scritta: ora si cerca fra quelle di serie
+     E fra le tue, così velocità, lingue e tratti arrivano da soli e la
+     scheda resta legata alla voce anche se poi la rinomini. */
+  if (c.race && typeof trovaRazza === 'function'){
+    const rz = trovaRazza(c.race);
+    if (rz){
+      c.raceId = rz.razza.id;
+      c.race = rz.sotto ? rz.sotto.name : rz.razza.name;
+      __razzaLetta = rz;
+      if (rz.razza.homebrew) info.push('Razza «' + rz.razza.name + '» riconosciuta fra i tuoi contenuti.');
+    } else warn.push('Razza "' + c.race + '" non è fra quelle note: resta scritta così com\'è. Se ce l\'hai fra i tuoi contenuti, controlla che il nome coincida.');
+  }
   // molte schede scrivono "NB", "-" o una nota al posto del numero
   const xpRaw = pickField(idx, ['XP','EXP','Punti esperienza','Esperienza']);
   const xpNum = parseInt(String(xpRaw||'').replace(/[.\s]/g,'').replace(/[^\d]/g,''), 10);
@@ -254,6 +277,11 @@ function analyzeSheet(fields){
   const cls = classFromAny(classText) || classFromAny(classText.split(/[\s/,]+/)[0]);
   if (cls) c.classField = CLASSES_IT[cls] || cls;
   else if (classText) { c.classField = classText; warn.push('Classe "'+classText+'" non riconosciuta: impostala a mano.'); }
+  /* La classe come identificativo, non solo come scritta: senza questo
+     l'app non sa che sei un druido, e gli effetti ⚙️ delle sottoclassi
+     (forma selvatica del Cerchio della Luna, famigli del Patto della
+     Catena) non si accendono su un personaggio importato. */
+  if (cls && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[cls.toLowerCase()]) c.classId = cls.toLowerCase();
 
   // background / allineamento (alcune schede li invertono)
   let background = /^\s*\d+\s*$/.test(bgRaw) ? '' : bgRaw;
@@ -263,8 +291,18 @@ function analyzeSheet(fields){
   // "Urchin", "monello", "Folk hero"… tutti finiscono sul nome giusto
   const bgHit = matchBackground(background);
   if (bgHit) background = bgHit;
-  else if (background) warn.push('Background "' + background + '" non è fra quelli noti: resta scritto così com\'è.');
+  else if (background) warn.push('Background "' + background + '" non è fra quelli noti: resta scritto così com\'è. Se ce l\'hai fra i tuoi contenuti, controlla che il nome coincida.');
   c.background = background; c.alignment = alignment;
+  /* Anche il background resta legato alla sua voce, e se è uno dei tuoi
+     lo si dice: è la prova che il manuale caricato sta servendo. */
+  if (background && typeof allBackgrounds === 'function'){
+    const bgv = allBackgrounds().find(b => norm(b.name) === norm(background));
+    if (bgv){
+      c.bgId = bgv.id;
+      if (bgv.homebrew) info.push('Background «' + bgv.name + '» riconosciuto fra i tuoi contenuti.');
+      __bgLetto = bgv;
+    }
+  }
 
   // sesso: le schede lo scrivono in mille modi
   c.sex = matchSex(pickField(idx, ['Sesso','Sex','Gender','Genere']));
@@ -352,6 +390,30 @@ function analyzeSheet(fields){
   c.notesRace = pickField(idx, ['Testo2']);
   c.features = pickField(idx, ['Testo3','Features and Traits','Privilegi']);
   c.notesExtra = pickField(idx, ['Testo6','Note']);
+
+  /* La sottoclasse sulle schede non ha quasi mai un campo suo: sta fra
+     parentesi accanto alla classe, o dentro i privilegi. Si cerca in
+     entrambi, fra quelle di serie e fra le tue. */
+  if (typeof trovaSottoclasse === 'function'){
+    const campoSub = pickField(idx, ['Sottoclasse','Subclass','Archetipo','Archetype','Specializzazione']);
+    const dove = [campoSub, classLevelRaw, c.features, c.notesExtra].filter(Boolean);
+    for (const testo of dove){
+      const t = trovaSottoclasse(testo, c.classId || null);
+      if (t){
+        c.subclassId = t.sotto.id;
+        if (!c.classId) c.classId = t.classId;
+        const eff = (typeof riassuntoMeccaniche === 'function') ? riassuntoMeccaniche(t.sotto) : '';
+        info.push((t.sotto.homebrew ? 'Sottoclasse «' : 'Sottoclasse «') + t.sotto.name + '» riconosciuta' +
+                  (t.sotto.homebrew ? ' fra i tuoi contenuti' : '') +
+                  (eff ? ' — cambia le regole: ' + eff : '') + '.');
+        break;
+      }
+    }
+    if (!c.subclassId && c.classId && subclassesFor(c.classId).length){
+      warn.push('Non ho capito quale ' + ((CLASS_BY_ID[c.classId]||{}).subclassLabel || 'sottoclasse').toLowerCase() +
+                ' hai: sceglila dalla scheda, in Storia. Serve perché gli effetti sulle regole si accendano.');
+    }
+  }
 
   // ── personalità e legami ──
   c.traits = pickField(idx, ['Tratti car','PersonalityTraits ','PersonalityTraits','Tratti']);
@@ -463,7 +525,29 @@ function analyzeSheet(fields){
   if (passive != null && passive !== passivePerception(c)) diffs.push('Percezione passiva ' + passive + ' (calcolo ' + passivePerception(c) + ')');
   if (diffs.length) warn.push('Valori diversi da quelli calcolati, di solito bonus da talenti o oggetti: ' + diffs.slice(0,6).join(' · ') + (diffs.length>6 ? ' …' : ''));
 
-  return { character: c, spells: spellResult.entries, warnings: warn, fieldsFilled: fields.filter(f=>f.value||f.checked).length };
+  /* I buchi lasciati dalla scheda li riempie quello che hai caricato tu.
+     Solo i buchi: se sulla scheda c'è scritto un numero, quello vince —
+     è il tuo personaggio, non il manuale, ad avere l'ultima parola. */
+  if (__razzaLetta){
+    const r = __razzaLetta.razza, sr = __razzaLetta.sotto;
+    if (!c.speed || c.speed === 9) c.speed = r.speed || c.speed;
+    if (!c.languages && (r.languages||[]).length) c.languages = r.languages.join(', ');
+    if (!String(c.notesRace||'').trim()){
+      const tr = (r.traits||[]).concat((sr && sr.traits) || []);
+      if (tr.length) c.notesRace = tr.map(t => t.name + ': ' + t.desc).join('\n');
+    }
+    // le competenze concesse dalla razza, se la scheda non le aveva spuntate
+    (r.grantSkills || []).forEach(k => { if (!c.skillProf.includes(k) && !c.skillExpert.includes(k)) c.skillProf.push(k); });
+  }
+  if (__bgLetto){
+    const b = __bgLetto;
+    if (!c.tools && b.tools && b.tools !== '—') c.tools = b.tools;
+    (b.skills || []).forEach(k => { if (!c.skillProf.includes(k) && !c.skillExpert.includes(k)) c.skillProf.push(k); });
+    if (b.feature && !norm(String(c.notesExtra||'')).includes(norm(b.feature))){
+      c.notesExtra = [c.notesExtra, b.feature + ' (' + b.name + ')' + (b.desc ? ': ' + b.desc : '')].filter(Boolean).join('\n\n');
+    }
+  }
+  return { character: c, spells: spellResult.entries, warnings: warn, riconosciute: info, fieldsFilled: fields.filter(f=>f.value||f.checked).length };
 }
 
 /* ─── Incantesimi: usa la posizione dei riquadri per capire il livello ─── */
@@ -529,7 +613,8 @@ function extractSpells(fields, idx, c){
       box,
       text,
       level: level != null ? level : (match ? match.sp.level : 1),
-      match: match ? { id: match.sp.id, name: spellName(match.sp), level: match.sp.level, how: match.how } : null,
+      match: match ? { id: match.sp.id, name: spellName(match.sp), level: match.sp.level,
+                       how: match.how, source: match.sp.source || 'srd' } : null,
       note: match ? (match.rest || '') : ''
     });
   });
@@ -639,6 +724,9 @@ function pdfPreviewHTML(){
       ${line('Risorse', c.resources.length || '')}
       ${line('Monete', COINS.map(co=>c.coins[co.key]?c.coins[co.key]+' '+co.label:'').filter(Boolean).join(' · '))}
       ${line('Background', c.background)}
+      ${line('Sottoclasse', (()=>{ if(!c.subclassId||!c.classId) return '';
+        const sc = subclassesFor(c.classId).find(x=>x.id===c.subclassId);
+        return sc ? sc.name + (sc.homebrew?' ✦':'') : ''; })())}
       ${line('Sesso', sexLabel(c.sex))}
       ${line('Esperienza', c.xp)}
       ${line('Fazione', c.faction)}
@@ -655,11 +743,19 @@ function pdfPreviewHTML(){
           <span class="spell-item-body">
             <span class="spell-item-name">${escapeHtml(s.match ? s.match.name : s.text)}</span>
             <span class="spell-item-meta">${s.match
-              ? (s.match.how === 'somiglianza' ? '≈ da verificare · ' : '✓ ') + escapeHtml(s.text)
+              ? (s.match.how === 'somiglianza' ? '≈ da verificare · ' : '✓ ')
+                + (s.match.source === 'custom' ? '<b style="color:var(--gold)">dai tuoi</b> · '
+                   : s.match.source === 'shared' ? '<b style="color:var(--gold)">dal tavolo</b> · ' : '')
+                + escapeHtml(s.text)
               : 'nuovo incantesimo personalizzato'}</span>
           </span>
         </div>`).join('')}
       </div>` : ''}
+
+    ${(p.riconosciute && p.riconosciute.length) ? `<div class="card" style="margin-bottom:12px; border-color:var(--gold)">
+      <div class="card-title" style="margin-bottom:6px">📚 Dalle tue cose</div>
+      ${p.riconosciute.map(w=>`<div class="muted" style="font-size:.78rem">✓ ${escapeHtml(w)}</div>`).join('')}
+    </div>` : ''}
 
     ${p.warnings.length ? `<div class="card" style="margin-bottom:12px; border-color:var(--warn)">
       ${p.warnings.map(w=>`<div class="muted" style="font-size:.78rem">⚠️ ${escapeHtml(w)}</div>`).join('')}
@@ -680,7 +776,8 @@ function confirmSheetImport(){
   p.spells.forEach(s => {
     const note = (s.note || '').trim();
     if (s.match){
-      if (!c.knownSpells.some(k => k.id === s.match.id && k.source === 'srd')) c.knownSpells.push({ id: s.match.id, source: 'srd' });
+      const orig = s.match.source || 'srd';
+      if (!c.knownSpells.some(k => k.id === s.match.id && k.source === orig)) c.knownSpells.push({ id: s.match.id, source: orig });
       if (note) c.spellNotes[s.match.id] = note;
       if (s.prepared && s.match.level > 0 && !c.preparedSpells.includes(s.match.id)) c.preparedSpells.push(s.match.id);
     } else {

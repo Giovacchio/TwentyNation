@@ -21,7 +21,7 @@ function openBuilder(){
     rolled: null,
     cantrips: [], spells: [],
     spellFilter: '',
-    raceQ: '', bgQ: '', subQ: '',
+    raceQ: '', bgQ: '', subQ: '', orfaneQ: '',
     gear: {}, gearOn: true, weaponPick: {},
     name: '', sex: '', portrait: null, avatar: AVATAR_GLYPHS[Math.floor(Math.random()*AVATAR_GLYPHS.length)]
   };
@@ -234,6 +234,10 @@ function stepSubclass(){
         <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.fromCampaign?' ⚔️':(x.homebrew?' ✦':'')}</b>
         <span class="badge">${on ? 'scelto' : 'scegli'}</span>
       </div>
+      ${(()=>{ const r = (typeof riassuntoMeccaniche === 'function') ? riassuntoMeccaniche(x) : '';
+        // gli effetti dichiarati con ⚙️ si vedono qui: è la differenza fra
+        // una scheda di testo e una sottoclasse che cambia il gioco
+        return r ? `<div class="muted" style="font-size:.73rem; margin-top:4px; color:var(--gold)">⚙️ ${escapeHtml(r)}</div>` : ''; })()}
       ${feats.length ? `<div class="list-gap" style="margin-top:9px">${feats.map(f=>`
         <div>
           <div class="row-between"><b style="font-size:.83rem">${escapeHtml(f[0])}</b><span class="muted" style="font-size:.72rem">${f[2]}° liv.</span></div>
@@ -262,6 +266,28 @@ function stepSubclass(){
               : `<div class="lista-vuota">Nessun archetipo con questo nome.</div>`; })()}
         <div class="muted" style="font-size:.72rem; text-align:center">✦ tuoi · ⚔️ condivisi nella campagna</div>` : ''}
     </div>
+
+    ${(()=>{
+      /* Le sottoclassi caricate per una classe che l'app non ha (Artefice,
+         Cacciatore di Sangue, Mistico) sparivano: non appartengono a
+         nessuna classe conosciuta, quindi nessun passo le mostrava. Qui
+         si offrono lo stesso, con un tocco per legarle a questa classe. */
+      const orfane = (typeof sottoclassiSenzaCasa === 'function') ? sottoclassiSenzaCasa() : [];
+      if (!orfane.length) return '';
+      const q = (bld.orfaneQ||'').trim();
+      const viste = q ? orfane.filter(x => norm(x.name||'').includes(norm(q))) : orfane;
+      const riga = (h) => `<button class="attack-row" style="width:100%; text-align:left" onclick="adottaSottoclasse('${jsStr(h.id)}','${c.id}')">
+        <span class="attack-main">
+          <span class="attack-name">✦ ${escapeHtml(h.name)}</span>
+          <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(h.source || 'senza classe assegnata')} · tocca per farne ${escapeHtml((c.subclassLabel||'una sottoclasse').toLowerCase())} da ${escapeHtml(c.name)}</span>
+        </span>
+      </button>`;
+      return `<div class="divider"><span class="flourish">❧</span><span>Tue, senza classe (${orfane.length})</span></div>
+        <p class="muted" style="font-size:.75rem; margin-bottom:8px">Le hai caricate da un manuale ma appartengono a una classe che l'app non ha. Toccane una per legarla a ${escapeHtml(c.name)}: da lì in poi compare sempre qui.</p>
+        ${orfane.length > 12 ? cercaLista('bld-orfane-cerca', q, 'bldCercaOrfane', 'Cerca fra le ' + orfane.length + '…') : ''}
+        ${viste.length ? bloccoLista('bld-orfane', viste, riga, { modale:true, nome:'voci' })
+          : `<div class="lista-vuota">Nessuna voce con questo nome.</div>`}`;
+    })()}
 
     <button class="card sub-card ${bld.subclassId==='none'?'on':''}" style="width:100%; text-align:left; margin-top:10px" onclick="bldSet({subclassId:'none'})">
       <div class="row-between" style="align-items:center">
@@ -443,10 +469,27 @@ function stepSpells(){
   const maxLv = maxSpellLevel();
   const enName = Object.keys(CLASSES_IT).find(k => CLASSES_IT[k] === c.name) || c.name;
   const q = norm(bld.spellFilter);
-  let list = allSpells().filter(s => spellClasses(s).includes(enName));
-  list = list.filter(s => s.level === 0 ? budget.cantrips > 0 : s.level <= maxLv);
-  if (q) list = list.filter(s => norm(s.name).includes(q) || norm(spellItName(s)).includes(q));
-  list.sort((a,b)=> a.level-b.level || spellName(a).localeCompare(spellName(b),'it'));
+  const tutti = allSpells();
+  /* Un incantesimo importato da te può avere la classe scritta in
+     italiano, o non averla affatto: cercando solo «Druid» sparivano
+     tutti. Qui vale l'una o l'altra. */
+  const dellaClasse = (sp) => {
+    const cl = spellClasses(sp) || [];
+    return cl.includes(enName) || cl.some(x => norm(x) === norm(c.name) || norm(x) === norm(enName));
+  };
+  const dentroLivello = (sp) => sp.level === 0 ? budget.cantrips > 0 : sp.level <= maxLv;
+  const cerca = (sp) => !q || norm(sp.name).includes(q) || norm(spellItName(sp)).includes(q);
+  const perLivello = (a,b) => a.level-b.level || spellName(a).localeCompare(spellName(b),'it');
+
+  let list = tutti.filter(s => dellaClasse(s) && dentroLivello(s) && cerca(s)).sort(perLivello);
+  /* I tuoi che non sono legati a nessuna classe: erano invisibili qui
+     dentro, e chi aveva importato un manuale non li ritrovava mai al
+     momento di creare il personaggio. Si mostrano a parte, perché sono
+     una scelta tua, non una lista ufficiale. */
+  const senzaClasse = tutti
+    .filter(s => (s.source === 'custom' || s.source === 'shared')
+      && !(spellClasses(s) || []).length && dentroLivello(s) && cerca(s))
+    .sort(perLivello);
   const cantripList = list.filter(s=>s.level===0), spellList = list.filter(s=>s.level>0);
   return `
     <div class="card" style="margin-bottom:12px">
@@ -465,6 +508,10 @@ function stepSpells(){
     <div class="list-gap">${cantripList.map(s=>bldSpellRow(s,true)).join('') || '<p class="muted">Nessun trucchetto trovato.</p>'}</div>` : ''}
     <div class="divider"><span class="flourish">❧</span><span>Incantesimi</span></div>
     <div class="list-gap">${spellList.map(s=>bldSpellRow(s,false)).join('') || '<p class="muted">Nessun incantesimo trovato.</p>'}</div>
+    ${senzaClasse.length ? `
+      <div class="divider"><span class="flourish">❧</span><span>I tuoi, senza classe (${senzaClasse.length})</span></div>
+      <p class="muted" style="font-size:.75rem; margin-bottom:8px">Li hai importati tu ma non dicono a quale classe appartengono, quindi non compaiono nella lista qui sopra. Se sono di ${escapeHtml(c.name)} prendili pure: con 🏷️ nel grimorio puoi assegnarli una volta per tutte e non ricapita.</p>
+      ${bloccoLista('bld-senza-classe', senzaClasse, (s)=>bldSpellRow(s, s.level===0), { modale:true, nome:'incantesimi' })}` : ''}
     ${bldNav(bld.cantrips.length<=budget.cantrips && bld.spells.length<=budget.spells)}
   `;
 }
@@ -485,7 +532,7 @@ function toggleBldSpell(id, source, isCantrip){
   if (i >= 0) arr.splice(i,1); else arr.push({ id, source });
   renderModalRoot();
 }
-const bldFilterSpells = debounce((v)=>{ bld.spellFilter = v; renderModalRoot(); const el = document.querySelector('.search-wrap input'); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250);
+const bldFilterSpells = debounce((v)=>{ bld.spellFilter = v; listaAzzera("bld-senza-classe"); renderModalRoot(); const el = document.querySelector('.search-wrap input'); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250);
 
 /* ─── 7. RIEPILOGO E CREAZIONE ─── */
 function buildCharacterFromBuilder(){
@@ -509,6 +556,8 @@ function buildCharacterFromBuilder(){
   ch.avatar = bld.avatar;
   ch.portrait = bld.portrait;
   ch.race = race ? (sub ? sub.name : race.name) : '';
+  ch.raceId = race ? race.id : '';
+  ch.bgId = bg ? bg.id : '';
   ch.classField = c.name;
   ch.classId = c.id;
   ch.subclassId = (sc && sc.id !== 'none') ? sc.id : '';

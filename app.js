@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '6.8';
+const APP_VERSION = '6.9';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1145,6 +1145,10 @@ function newCharacter(){
     hitDie: 8, hitDiceUsed: 0,
     deathSaves: { win: 0, fail: 0 },
     classId: '', subclassId: '',
+    // Il legame con le tue razze e i tuoi background, non solo il nome
+    // scritto: serve perché la scheda sappia da dove vengono tratti,
+    // velocità e privilegi anche dopo che li hai rinominati.
+    raceId: '', bgId: '',
     casterType: 'none', spellAbility: 'int',
     slotsUsed: {}, knownSpells: [], preparedSpells: [], concentration: null, spellNotes: {},
     inventory: [], coins: { pp:0, gp:0, ep:0, sp:0, cp:0 },

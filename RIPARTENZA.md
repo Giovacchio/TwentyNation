@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 6.8** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 6.9** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -63,6 +63,12 @@ il lettore ne ha riconosciuti 116 e 48 da due guide reali. Traduzione automatica
 **⚙️ Effetti sul gioco**: una sottoclasse può cambiare le regole (forma selvatica per
 livello o per formula, famigli in più, azioni extra nel turno).
 
+**E sono integrati davvero (v6.9)** — il creatore mostra i tuoi incantesimi anche
+quando non dicono la classe, e adotta le sottoclassi di classi che l'app non ha; il
+lettore di schede riconosce le tue razze, i tuoi background e la tua sottoclasse, e
+aggancia gli incantesimi a quelli che possiedi già invece di duplicarli. Il personaggio
+tiene `raceId`/`bgId`/`classId`/`subclassId`, non solo i nomi scritti.
+
 **Tavolo del master** — bestiario SRD, PNG, iniziativa, diario. Lettore dei mostri da
 PDF, testo e JSON delle raccolte SRD.
 
@@ -124,6 +130,10 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
   un megabyte. Per i gruppi si usa `fsSetMany(collezione, lista, avanzamento)`, che
   restituisce `-1` se la memoria è piena — e **chi lo chiama deve tornare indietro**, non
   lasciare l'importazione a metà.
+- **Il ponte fra le tue cose e il resto sta in `homebrew.js`**: `trovaRazza()`,
+  `trovaSottoclasse()`, `sottoclassiSenzaCasa()`, `adottaSottoclasse()`. Quando aggiungi
+  un punto dell'app che deve conoscere il materiale caricato, passa da lì — e ricordati
+  che `matchSpellText()` in `pdf-import.js` cerca in `allSpells()`, non nell'SRD.
 - **Ogni elenco che può superare le 60 righe passa da `bloccoLista()`** (`liste.js`), con
   `cercaLista()` sopra. Le pastiglie di scelta (razze, background) usano `sceltaChip()`.
   Ricordati di `listaAzzera(chiave)` quando cambia il filtro, o resti a mostrarne 600.

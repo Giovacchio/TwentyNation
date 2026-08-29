@@ -1,5 +1,27 @@
 # TwentyNation — lista dei cambiamenti
 
+## v6.9 — 29 agosto 2026
+**Quello che carichi tu adesso arriva davvero fin dentro la creazione e la lettura delle schede.**
+
+Il creatore le mostrava a metà, il lettore di schede non le vedeva affatto: leggeva un PDF e conosceva soltanto l'SRD. Chi aveva caricato mezzo manuale si vedeva la razza restare una scritta morta, la sottoclasse sparire e gli incantesimi che possedeva già rientrare in copia.
+
+### 📄 Il lettore di schede
+
+- **Gli incantesimi che hai già non rientrano in copia.** Cercava solo nell'SRD: leggendo una scheda con *Hex* te ne creava un altro accanto a quello che avevi importato tu. Ora cerca fra **i tuoi, quelli del tavolo e l'SRD** — e a parità di nome vince la tua versione. Nell'anteprima ogni incantesimo dice da dove viene: **dai tuoi**, **dal tavolo**, o dall'SRD.
+- **La razza viene riconosciuta**, comprese le tue: «Genasi del Vento» non è più una scritta, è la voce vera. Nomi italiani, inglesi, sottorazze e nomi con la variante fra parentesi.
+- **La sottoclasse viene riconosciuta.** Non ha quasi mai un campo suo: sta fra parentesi accanto alla classe («Druido 5 (Circolo della Luna)») o dentro i privilegi, e l'app la cerca in entrambi. **È quello che mancava perché gli effetti ⚙️ si accendessero su un personaggio importato**: prima un druido della luna letto da PDF restava un druido qualunque. Se non la capisce te lo dice, invece di lasciarti scoprire dopo che la forma selvatica è quella di serie.
+- **I buchi lasciati dalla scheda li riempie quello che hai caricato tu**: velocità, lingue, tratti e competenze dalla razza, strumenti e privilegio dal background. Solo i buchi — se sulla scheda c'è scritto un numero, quello vince.
+- **Un riquadro dorato «📚 Dalle tue cose»** elenca cosa ha riconosciuto del tuo materiale, invece di farlo di nascosto.
+
+### ✦ Il creatore di personaggi
+
+- **Le sottoclassi di classi che l'app non ha smettono di sparire.** Le 12 caricate dalla guida per Artefice, Cacciatore di Sangue e Mistico non appartenevano a nessuna classe conosciuta, quindi nessun passo le mostrava: erano dentro l'app e irraggiungibili. Ora compaiono in fondo al passo della sottoclasse sotto **«Tue, senza classe»**, e **un tocco le lega alla classe che stai creando** — da lì in poi stanno con le altre.
+- **I tuoi incantesimi senza classe adesso si possono prendere.** Quelli importati spesso non dicono a quale classe appartengono, e la lista li saltava: avevi 147 incantesimi e al momento di creare il personaggio non ce n'era uno. Ora hanno una sezione loro, con la spiegazione e il rimando a 🏷️ per assegnarli una volta per tutte. E quelli con la classe scritta **in italiano** («Druido» invece di «Druid») ora entrano nella lista normale.
+- **Gli effetti ⚙️ si vedono mentre scegli**: sotto il nome dell'archetipo compare «forma GS = liv ÷ 3 · forma come bonus». Scegli sapendo cosa cambia nelle regole, non solo cosa dice il testo.
+- **Il personaggio resta legato alle tue voci**, non solo al nome scritto: nuovi campi `raceId` e `bgId` accanto a `classId` e `subclassId`. Rinominare una razza non scollega più le schede che la usano.
+
+> **Nuovo test `test-integrazione.mjs` — 23 controlli, tutti verdi**, con un manuale finto caricato: razza, background, due sottoclassi, due orfane e tre incantesimi. Verifica il giro intero, dalla voce caricata fino alla forma selvatica che cambia. Le 29 suite precedenti restano verdi, audit mobile su 99 schermate invariato.
+
 ## v6.8 — 29 agosto 2026
 **Il tetto sale a 4.000 creature in una volta.**
 
