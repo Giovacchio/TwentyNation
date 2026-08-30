@@ -857,6 +857,39 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   transition: border-color .16s ease;
 }
 .comp-sigillo.con-foto { border-color: var(--gold-dim); box-shadow: inset 0 0 0 2px var(--card); }
+/* ── La carta a manifesto del compagno ──────────────────────────
+   Stessa forma delle carte dei personaggi nella schermata iniziale:
+   l'immagine si vede intera, dietro c'è sé stessa sfocata al posto
+   delle bande, e il nome sta sopra la velatura. I due tasti (foto e
+   trasformazione) stanno fuori dal pulsante grande — un pulsante
+   dentro un altro non è HTML valido e su alcuni browser non risponde. */
+.comp-card.con-manifesto { padding: 0; overflow: hidden; }
+.comp-card.con-manifesto .comp-hp,
+.comp-card.con-manifesto .comp-details { padding: 0 12px; }
+.comp-card.con-manifesto .comp-hp { padding-top: 10px; }
+.comp-card.con-manifesto .comp-details { padding-bottom: 12px; }
+.comp-poster-wrap { position: relative; }
+.comp-poster { display: block; width: 100%; padding: 0; border: 0; background: var(--bg-0);
+  position: relative; aspect-ratio: 4 / 3; overflow: hidden; text-align: left; cursor: pointer; }
+.comp-poster:active { opacity: .93; }
+.comp-poster-testo { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 13px 11px; }
+/* Il sottotitolo di un compagno è più lungo di quello di un personaggio
+   (tipo, CA, grado sfida, taglia): può andare a capo invece di
+   troncarsi a metà parola. E la velatura si alza un po' meno, così
+   resta scoperta più immagine. */
+.comp-poster .hero-card-velo { height: 52%; }
+.comp-poster .hero-card-sotto { white-space: normal; line-height: 1.35; }
+.comp-poster .hero-card-nome { font-size: 1.18rem; }
+.comp-card.active .comp-poster { box-shadow: inset 0 0 0 2px var(--good); }
+.comp-poster-foto, .comp-poster-azione {
+  position: absolute; top: 9px; z-index: 2; width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  background: rgba(8,6,14,.66); border: 1px solid var(--line); backdrop-filter: blur(4px); cursor: pointer;
+}
+.comp-poster-foto { left: 9px; }
+.comp-poster-azione { right: 9px; border-color: var(--gold-dim); }
+.comp-poster-foto:active, .comp-poster-azione:active { transform: scale(.93); }
+@media (max-width: 380px) { .comp-poster { aspect-ratio: 3 / 2; } }
 .comp-sigillo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .comp-sigillo:active { transform: scale(.94); }
 .comp-card.active .comp-sigillo { border-color: var(--good); }

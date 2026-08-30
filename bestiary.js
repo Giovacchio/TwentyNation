@@ -356,15 +356,37 @@ function companionsBlockHTML(c){
       const active = c.activeForm === comp.cid;
       const open = active || !!expandedComp[comp.cid];
       const kind = COMPANION_KINDS[comp.kind];
-      return `<div class="comp-card ${active?'active':''}">
-        <div class="comp-head">
-          ${compSigilloHTML(c, comp, kind, 44)}
-          <button class="comp-title" onclick="toggleCompanionDetails('${comp.cid}')">
-            <div class="attack-name">${escapeHtml(comp.name)}${active?' · in forma':''} <span class="muted" style="font-size:.72rem">${open?'▴':'▾'}</span></div>
-            <div class="muted" style="font-size:.72rem; margin-top:2px">${kind?kind.label:''}${m?(' · CA '+m.ac+' · GS '+m.cr+' · '+m.sz+' '+m.t):''}</div>
-          </button>
-          ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:46px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
-        </div>
+      const sotto = (kind?kind.label:'') + (m?(' · CA '+m.ac+' · GS '+m.cr+' · '+m.sz+' '+m.t):'');
+      /* Con una foto la carta diventa un manifesto, come quelle dei
+         personaggi nella schermata iniziale: l'immagine intera, il nome
+         sopra una velatura. Senza foto resta la riga compatta — un
+         druido con otto forme non deve ritrovarsi otto riquadri vuoti
+         alti trecento pixel. */
+      const testa = comp.portrait
+        ? `<div class="comp-poster-wrap">
+            <button class="comp-poster" onclick="toggleCompanionDetails('${comp.cid}')"
+                    aria-label="Apri ${attr(comp.name)}">
+              <img class="hero-card-sfondo" src="${attr(comp.portrait)}" alt="" aria-hidden="true">
+              <img class="hero-card-img" src="${attr(comp.portrait)}" alt="">
+              <div class="hero-card-velo"></div>
+              <div class="comp-poster-testo">
+                <div class="hero-card-nome">${escapeHtml(comp.name)}${active?' · in forma':''} <span style="font-size:.8rem; opacity:.8">${open?'▴':'▾'}</span></div>
+                <div class="hero-card-sotto">${escapeHtml(sotto)}</div>
+              </div>
+            </button>
+            <button class="comp-poster-foto" onclick="scegliFotoCompagno('${c.id}','${comp.cid}')" title="Cambia la foto" aria-label="Cambia la foto">📷</button>
+            ${comp.kind==='wildshape' ? `<button class="comp-poster-azione" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
+          </div>`
+        : `<div class="comp-head">
+            ${compSigilloHTML(c, comp, kind, 44)}
+            <button class="comp-title" onclick="toggleCompanionDetails('${comp.cid}')">
+              <div class="attack-name">${escapeHtml(comp.name)}${active?' · in forma':''} <span class="muted" style="font-size:.72rem">${open?'▴':'▾'}</span></div>
+              <div class="muted" style="font-size:.72rem; margin-top:2px">${escapeHtml(sotto)}</div>
+            </button>
+            ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:46px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
+          </div>`;
+      return `<div class="comp-card ${active?'active':''} ${comp.portrait?'con-manifesto':''}">
+        ${testa}
         <div class="comp-hp">
           <button class="stepper-btn sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',-5)">−5</button>
           <button class="stepper-btn sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',-1)">−</button>

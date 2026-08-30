@@ -1,5 +1,17 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.6 — 30 agosto 2026
+**La carta del compagno diventa grande come quella dei personaggi.**
+
+Il famiglio, il compagno animale, la cavalcatura e la forma selvatica avevano la foto in un cerchietto da 44 pixel. Adesso, **quando una foto c'è**, la carta è un manifesto come quelle della schermata iniziale: immagine in 4:3 che si vede **intera**, dietro sé stessa sfocata al posto delle bande, nome e statistiche sopra una velatura scura.
+
+- Il tasto **📷** per cambiare la foto e quello **🐾** per trasformarsi stanno sopra l'immagine, agli angoli — **fuori** dal pulsante grande: un pulsante dentro un altro non è HTML valido e su certi browser semplicemente non risponde.
+- Toccando il manifesto si apre la scheda del compagno, come prima toccando il nome.
+- Il sottotitolo (tipo, CA, grado sfida, taglia) va a capo invece di troncarsi a metà parola: per un compagno è più lungo che per un personaggio.
+- **Senza foto resta la riga compatta di prima.** Un druido con otto forme selvatiche non deve ritrovarsi otto riquadri vuoti alti trecento pixel: la carta cresce dove c'è qualcosa da vedere.
+
+> 5 prove nuove (17 in tutto su `test-v72.mjs`): la carta che diventa manifesto con le misure vere prese a schermo, l'immagine non ritagliata (`object-fit: contain`), **i due tasti verificati fuori dal pulsante grande**, il tocco che apre la scheda e la riga compatta che resta quando la foto non c'è. Suite completa, controllo delle interazioni e audit mobile verdi.
+
 ## v7.5 — 30 agosto 2026
 **«Il tuo turno» adesso fa il turno, non lo elenca soltanto.**
 
