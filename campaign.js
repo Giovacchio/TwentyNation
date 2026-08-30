@@ -354,6 +354,16 @@ function campaignHTML(){
           ${n ? ('Hai <b>' + n + '</b> fra incantesimi, aggiunte e creature che il tavolo non vede ancora.')
               : 'Il tavolo vede già tutto quello che hai.'}
         </p>
+        ${(()=>{ const sinc = bestiarioSincronizzato();
+          return `<button class="switch-row" style="margin-bottom:10px" onclick="apriSincroniaBestiario()">
+            <div class="track"><div class="knob" style="${sinc?'transform:translateX(21px)':''}"></div></div>
+            <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+              <b style="font-size:.84rem">🔄 Bestiario sincronizzato</b>
+              <div class="muted" style="font-size:.73rem; font-weight:600">${sinc
+                ? 'Ogni creatura che aggiungi o togli va sul tavolo da sola.'
+                : 'Accendila e il tuo bestiario resta sempre uguale a quello del tavolo.'}</div>
+            </div>
+          </button>`; })()}
         <button class="btn btn-gold btn-block" ${n?'':'disabled'} onclick="condividiTutto()">⚔️ Condividi tutto${n?' ('+n+')':''}</button>
         <div class="btn-row" style="margin-top:8px">
           <button class="btn btn-ghost btn-sm" onclick="openCondivisione()">Scegli cosa</button>
@@ -615,8 +625,10 @@ function apriMostroCondiviso(id){
     </div>
     ${n.notes ? `<div class="card" style="margin-bottom:12px"><div class="muted" style="font-size:.82rem; white-space:pre-wrap; line-height:1.6">${escapeHtml(n.notes)}</div></div>` : ''}
     ${giaMio ? `<div class="muted" style="font-size:.78rem; margin-bottom:10px">Ne hai già una tua con questo nome.</div>` : ''}
-    <button class="btn btn-primary btn-block" onclick="copiaMostroDalTavolo('${jsStr(n.id)}')">✦ Copia nel tuo bestiario</button>
-    ${(typeof addToCombat === 'function') ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:8px" onclick="copiaMostroDalTavolo('${jsStr(n.id)}', true)">⚔️ Copia e metti all'iniziativa</button>` : ''}
+    <button class="btn btn-gold btn-block" onclick="closeModal(); addToCombat('${jsStr(n.id)}','npc'); toast('⚔️ ' + ${JSON.stringify(n.name || 'La creatura')} + ' è all\'iniziativa')">⚔️ Metti all'iniziativa</button>
+    ${bestiarioSincronizzato()
+      ? `<div class="muted" style="font-size:.78rem; margin-top:10px; text-align:center">🔄 Il tuo bestiario è sincronizzato col tavolo: questa creatura la hai già, non serve copiarla.</div>`
+      : `<button class="btn btn-primary btn-block" style="margin-top:8px" onclick="copiaMostroDalTavolo('${jsStr(n.id)}')">✦ Copia nel tuo bestiario</button>`}
     ${canUnshare(n) ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="closeModal(); unshareFromCampaign('npcs','${jsStr(n.id)}')">↩︎ Ritira dal tavolo</button>` : ''}
     <div class="spell-source-note">Quella sul tavolo resta di chi ce l'ha messa: la copia che prendi è tua e la modifichi come vuoi.</div>`) });
 }
@@ -661,4 +673,76 @@ async function shareOneNpc(id){
   const fatti = await shareToCampaign('npcs', [n]);
   if (fatti) toast('⚔️ ' + (n.name||'La creatura') + ' è ora del tavolo');
   renderModalRoot(); render();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BESTIARIO SINCRONIZZATO — v7.4
+   Scegliere quali creature mandare va bene quando ne mandi tre. Se
+   il tavolo lavora sullo stesso bestiario — il master prepara, i
+   giocatori consultano — sceglierle ogni volta è solo lavoro in più.
+   Con la sincronia accesa tutto quello che entra nel tuo bestiario
+   va sul tavolo da solo, e quello che togli se ne va.
+
+   Resta una scelta per dispositivo, non una regola della campagna:
+   ognuno decide se riversare il proprio archivio o no. Chi non la
+   accende continua a condividere a mano come prima.
+   ═══════════════════════════════════════════════════════════════ */
+function bestiarioSincronizzato(){
+  return !!(campaignReady() && state.campaign && state.campaign.sincBestiario);
+}
+function apriSincroniaBestiario(){
+  if (!campaignReady()){ toast('Prima entra in una campagna'); return; }
+  if (bestiarioSincronizzato()){ spegniSincroniaBestiario(); return; }
+  const mancano = (state.npcs || []).filter(n => n && n.id && !giaSuTavolo('npcs', n.id)).length;
+  confirmDialog('Sincronizzare il bestiario col tavolo?',
+    'Da adesso ogni creatura che aggiungi, modifichi o elimini va sul tavolo da sola, senza chiedertelo.' +
+    (mancano ? ' Per cominciare ne salgono ' + mancano + '.' : '') +
+    (mancano > 300 ? ' ⚠️ Sono tante: ogni membro del tavolo se le scaricherà.' : '') +
+    ' Puoi spegnerla quando vuoi.',
+    () => accendiSincroniaBestiario(), 'Sincronizza');
+}
+async function accendiSincroniaBestiario(){
+  state.campaign.sincBestiario = true;
+  saveCampaignLocal();
+  render();
+  const mancano = (state.npcs || []).filter(n => n && n.id && !giaSuTavolo('npcs', n.id));
+  if (!mancano.length){ toast('🔄 Bestiario sincronizzato col tavolo'); return; }
+  toast('🔄 Mando ' + mancano.length + (mancano.length===1?' creatura…':' creature…'));
+  const n = await shareToCampaign('npcs', mancano);
+  render();
+  toast(n ? ('🔄 Bestiario sincronizzato · ' + n + ' sul tavolo') : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
+}
+function spegniSincroniaBestiario(){
+  const mie = (state.sharedNpcs || []).filter(canUnshare);
+  const spegni = (ritira) => async () => {
+    state.campaign.sincBestiario = false;
+    saveCampaignLocal();
+    if (ritira && mie.length) await ritiraMolti('npcs', mie.map(x => x.id));
+    render();
+    toast(ritira && mie.length ? ('🔄 Sincronia spenta · ' + mie.length + ' ritirate') : '🔄 Sincronia spenta');
+  };
+  if (!mie.length){ spegni(false)(); return; }
+  confirmDialog('Spegnere la sincronia?',
+    'Le ' + mie.length + ' creature che hai già messo restano sul tavolo. Se vuoi toglierle anche quelle, ' +
+    'usa «Ritira tutto» qui sopra dopo aver spento.',
+    spegni(false), 'Spegni');
+}
+
+/* Il riflesso automatico. Lo chiamano i salvataggi dei mostri: se la
+   sincronia è accesa, quello che è appena entrato nel tuo archivio
+   arriva anche sul tavolo. Silenzioso: nessun messaggio a ogni mostro,
+   o con un'importazione da tremila l'app farebbe solo quello. */
+function rispecchiaTavolo(collezione, oggetti){
+  if (collezione !== 'npcs' || !bestiarioSincronizzato()) return;
+  const lista = (Array.isArray(oggetti) ? oggetti : [oggetti]).filter(x => x && x.id);
+  if (!lista.length) return;
+  Promise.resolve().then(() => shareToCampaign('npcs', lista)).catch(e => console.warn('Riflesso sul tavolo non riuscito', e));
+}
+function rispecchiaTavoloElimina(collezione, ids){
+  if (collezione !== 'npcs' || !bestiarioSincronizzato()) return;
+  const lista = (Array.isArray(ids) ? ids : [ids]).filter(Boolean)
+    // si toglie solo quello che hai messo tu: il resto lo rifiuterebbe il server
+    .filter(id => { const x = (state.sharedNpcs||[]).find(y => y.id === id); return x && canUnshare(x); });
+  if (!lista.length) return;
+  Promise.resolve().then(() => ritiraMolti('npcs', lista)).catch(e => console.warn('Ritiro dal tavolo non riuscito', e));
 }

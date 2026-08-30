@@ -1,5 +1,22 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.4 — 30 agosto 2026
+**🔄 Bestiario sincronizzato: tutto il tuo bestiario sul tavolo, senza più sceglierlo ogni volta.**
+
+Scegliere quali creature mandare va bene quando ne mandi tre. Se il tavolo lavora sullo stesso bestiario — tu prepari, i giocatori consultano — sceglierle ogni volta è solo lavoro in più.
+
+- **Un interruttore nella schermata della campagna.** Acceso: **tutto** il tuo bestiario sale sul tavolo, e da lì in poi ogni creatura che aggiungi, importi da un manuale o elimini ci arriva **da sola**, senza chiedere e senza messaggi a ogni mostro (con un'importazione da migliaia l'app farebbe solo quello).
+- Vale per ogni strada d'ingresso: creata a mano, letta da PDF, importata da JSON, copiata. Il riflesso è agganciato al salvataggio, non ai singoli pulsanti — quindi non ci sono buchi.
+- **Eliminando una creatura sparisce anche dal tavolo**, e solo se l'avevi messa tu: quelle degli altri non si toccano.
+- **Le creature del tavolo si portano all'iniziativa direttamente**, senza doverne prima fare una copia.
+- **Niente doppioni**: con la sincronia accesa il tasto «Copia nel tuo bestiario» sparisce, perché copiare quello che è già tuo lo rimanderebbe su come voce nuova. Al suo posto una riga che spiega perché.
+- L'interruttore è **per dispositivo, non per campagna**: ognuno decide se riversare il proprio archivio. Chi non lo accende continua a condividere a mano come prima, e la scelta sopravvive alla chiusura dell'app.
+- Spegnendola le creature già mandate **restano** sul tavolo (te lo dice), e per toglierle c'è «Ritira tutto».
+
+> Detto una volta e chiaramente, all'accensione: quante ne salgono, e — sopra le 300 — che ogni membro del tavolo se le scaricherà. È una cosa che va saputa prima, non scoperta dopo.
+
+> 10 prove nuove (36 in tutto su `test-campagna.mjs`): l'accensione che riversa l'arretrato, la creatura aggiunta dopo che sale da sola, un'importazione da 25 che sale tutta insieme, l'eliminazione che si propaga, il giocatore che vede l'intero bestiario e lo porta all'iniziativa senza copiare, **il giocatore senza sincronia che non riflette niente per sbaglio**, l'assenza del tasto copia, lo spegnimento che smette davvero e la scelta che sopravvive al riavvio. Suite completa, controllo delle interazioni e audit mobile verdi.
+
 ## v7.3 — 30 agosto 2026
 **Anche i mostri vanno sul tavolo, come tutto il resto.**
 

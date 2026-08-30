@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.3** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.4** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -81,7 +81,12 @@ Le tre collezioni condivisibili stanno in un elenco solo, `COND_TIPI` in `campai
 conteggi, preselezione, condividi-tutto e ritira-tutto lo attraversano, così la prossima
 si aggiunge in un posto invece che in otto. Le regole Firestore hanno un jolly
 (`match /{sezione}/{docId}`) che copre già qualunque collezione nuova: **non vanno
-toccate**.
+toccate**. Il **bestiario sincronizzato** (`state.campaign.sincBestiario`, per
+dispositivo) riversa tutto e tiene aggiornato: il riflesso è agganciato a `fsSet`,
+`fsSetMany`, `fsDelete` e `fsDeleteMany` tramite `rispecchiaTavolo()` /
+`rispecchiaTavoloElimina()` in `campaign.js` — così ogni strada d'ingresso è coperta
+senza toccare i singoli pulsanti. Con la sincronia accesa il tasto «copia nel tuo
+bestiario» va nascosto, o la copia risale come voce nuova e si vede doppia.
 
 **Sicurezza dei dati** — cestino a 30 giorni, «salute dei dati» con **indicatore dello
 spazio occupato**, backup esportabile, freno che impedisce a un aggiornamento di

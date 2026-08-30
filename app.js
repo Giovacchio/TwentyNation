@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.3';
+const APP_VERSION = '7.4';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -737,6 +737,8 @@ async function fsSet(collection, obj){
     obj.syncedAt = payload.syncedAt;
     setSaveStatus('saved');
     saveLocal();   // con il bollo «sincronizzato» addosso
+    // col bestiario sincronizzato, quello che entra qui va anche al tavolo
+    if (typeof rispecchiaTavolo === 'function') rispecchiaTavolo(collection, obj);
   } catch(e){
     console.error('Errore salvataggio', e);
     setSaveStatus('offline');
@@ -759,6 +761,7 @@ async function fsDeleteMany(collection, ids){
   const lista = (ids || []).filter(Boolean);
   if (!lista.length) return;
   saveLocalOra();
+  if (typeof rispecchiaTavoloElimina === 'function') rispecchiaTavoloElimina(collection, lista);
   if (!currentUser || !firebaseReady) return;
   setSaveStatus('saving');
   try {
@@ -782,6 +785,7 @@ async function fsDeleteMany(collection, ids){
 }
 async function fsDelete(collection, id){
   saveLocal();
+  if (typeof rispecchiaTavoloElimina === 'function') rispecchiaTavoloElimina(collection, id);
   if (!currentUser || !firebaseReady) return;
   try { await userCol(collection).doc(id).delete(); }
   catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non sincronizzata'); }
@@ -827,6 +831,7 @@ async function fsSetMany(collection, oggetti, avanzamento){
       if (typeof avanzamento === 'function') avanzamento(fatti, lista.length);
     }
     setSaveStatus('saved');
+    if (typeof rispecchiaTavolo === 'function') rispecchiaTavolo(collection, lista);
   } catch(e){
     console.error('Errore salvataggio in blocco', e);
     setSaveStatus('offline');
@@ -3551,8 +3556,10 @@ function renderBestiary(){
       ? (visti.length
           ? bloccoLista('bestiario', visti, npcCardHTML, { classe:'stagger list-gap party-grid', nome:'creature' })
             + ((typeof campaignReady === 'function' && campaignReady())
-                ? (()=>{ const daDare = visti.filter(n => !n.__dalTavolo && !giaSuTavolo('npcs', n.id)).length;
-                    return daDare ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiMostrati()">⚔️ Condividi col tavolo ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + daDare + ' mostrate' : '(' + daDare + ')'}</button>` : ''; })()
+                ? (typeof bestiarioSincronizzato === 'function' && bestiarioSincronizzato()
+                    ? `<div class="muted" style="font-size:.73rem; text-align:center; margin-top:10px">🔄 Sincronizzato con «${escapeHtml((state.campaign||{}).name || 'il tavolo')}»: quello che aggiungi qui ci arriva da solo.</div>`
+                    : (()=>{ const daDare = visti.filter(n => !n.__dalTavolo && !giaSuTavolo('npcs', n.id)).length;
+                        return daDare ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiMostrati()">⚔️ Condividi col tavolo ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + daDare + ' mostrate' : '(' + daDare + ')'}</button>` : ''; })())
                 : '')
             + (tanti ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px; color:var(--warn)" onclick="confermaEliminaMostrati()">🗑️ Elimina ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + visti.length + ' mostrate' : 'tutto il bestiario (' + visti.length + ')'}</button>` : '')
           : `<div class="lista-vuota">Nessuna creatura con questi filtri.</div>`)
@@ -3767,7 +3774,10 @@ function uniqueCombatName(base){
   return base + ' #' + (same.length + 1);
 }
 function addToCombat(refId, kind){
-  const src = kind==='pc' ? charById(refId) : state.npcs.find(n=>n.id===refId);
+  // le creature messe in comune dal tavolo si portano all'iniziativa
+  // come le tue, senza doverne prima fare una copia
+  const src = kind==='pc' ? charById(refId)
+    : (state.npcs.find(n=>n.id===refId) || (state.sharedNpcs||[]).find(n=>n.id===refId));
   if (!src) return;
   const dexMod = kind==='pc' ? mod(getPath(src,'abilities.dex',10)) : 0;
   const init = rollDie(20) + (kind==='pc' ? (src.initiative ?? dexMod) : dexMod);
