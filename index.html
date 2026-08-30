@@ -840,7 +840,26 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 /* Compagni animali, famigli e forme selvatiche */
 .comp-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
 .comp-card.active { border-color: var(--good); background: rgba(89,168,125,.08); }
-.comp-head { display: flex; align-items: center; gap: 8px; }
+.comp-head { display: flex; align-items: center; gap: 10px; }
+/* Il volto del compagno: se non c'è una foto resta l'icona del tipo,
+   dentro lo stesso cerchio, così la riga non cambia forma. */
+.comp-sigillo {
+  flex-shrink: 0; border-radius: 50%; overflow: hidden; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-1); border: 1px solid var(--line); cursor: pointer;
+  transition: border-color .16s ease;
+}
+.comp-sigillo.con-foto { border-color: var(--gold-dim); box-shadow: inset 0 0 0 2px var(--card); }
+.comp-sigillo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.comp-sigillo:active { transform: scale(.94); }
+.comp-card.active .comp-sigillo { border-color: var(--good); }
+/* Nella scheda intera la foto si vede grande e per intero, come quella
+   del personaggio: dietro la stessa immagine sfocata al posto delle bande. */
+.comp-ritratto { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
+  border-radius: var(--radius); border: 1px solid var(--line); margin-bottom: 10px; background: var(--bg-0); }
+.comp-ritratto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.comp-ritratto::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 50% 30%, var(--card-2), var(--bg-0)); }
 .comp-title { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
 .comp-hp { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
 .comp-hp-mid { flex: 1; min-width: 0; text-align: center; }

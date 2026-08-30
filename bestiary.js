@@ -83,6 +83,7 @@ function monsterSheetHTML(m, pickKind, companionRef){
       <div class="score">${modStr(m.ab[i])}</div>
     </div>`).join('');
   const inner = `
+    ${(comp && comp.c.portrait) ? `<div class="comp-ritratto"><img src="${attr(comp.c.portrait)}" alt=""></div>` : ''}
     <div class="muted" style="font-style:italic; margin-bottom:10px">${m.sz} · ${m.t} · GS ${m.cr}${state.spellLang==='en'?'':' · '+escapeHtml(m.n)}</div>
     ${comp ? companionHpBlock(comp) : ''}
     <div class="combat-grid" style="margin-bottom:10px">
@@ -188,6 +189,10 @@ function companionHpBlock(found){
       <div><span class="hp-num">${comp.hp.current}</span> <span class="hp-max">/ ${comp.hp.max} PF</span></div>
       <span class="badge">${COMPANION_KINDS[comp.kind]?COMPANION_KINDS[comp.kind].label:''}</span>
     </div>
+    <div class="btn-row" style="margin:8px 0 4px">
+      <button class="btn btn-ghost btn-sm" onclick="scegliFotoCompagno('${found.charId}','${comp.cid}')">📷 ${comp.portrait?'Cambia foto':'Carica una foto'}</button>
+      ${comp.portrait?`<button class="btn btn-ghost btn-sm" onclick="togliFotoCompagno('${found.charId}','${comp.cid}')">Togli</button>`:''}
+    </div>
     <div class="hp-bar-lg"><div class="hp-bar-lg-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
     <div class="hp-controls">
       <button class="stepper-btn" onclick="bumpCompanionHp('${found.charId}','${comp.cid}',-5)">−5</button>
@@ -197,6 +202,40 @@ function companionHpBlock(found){
       <button class="stepper-btn" onclick="bumpCompanionHp('${found.charId}','${comp.cid}',5)">+5</button>
     </div>
   </div>`;
+}
+/* Il volto del compagno.
+   Il famiglio e il compagno animale stanno in gioco quanto il
+   personaggio, e chi se ne disegna uno vuole vederlo: finora c'era solo
+   l'icona del tipo, uguale per tutti. La foto si carica come quella del
+   personaggio — intera, ridotta, tenuta dentro il compagno — e compare
+   nella riga, nella scheda intera e nella fascia della forma attiva.
+   Senza foto resta l'icona di sempre, non cambia niente. */
+function compSigilloHTML(c, comp, kind, lato){
+  const s = lato || 44;
+  const dentro = comp.portrait
+    ? `<img src="${attr(comp.portrait)}" alt="">`
+    : `<span style="font-size:${Math.round(s*0.46)}px">${kind ? kind.icon : '🐾'}</span>`;
+  return `<button class="comp-sigillo ${comp.portrait?'con-foto':''}" style="width:${s}px;height:${s}px"
+      onclick="scegliFotoCompagno('${c.id}','${comp.cid}')"
+      title="${comp.portrait?'Cambia la foto':'Carica una foto'}"
+      aria-label="Foto di ${attr(comp.name||'questo compagno')}">${dentro}</button>`;
+}
+function scegliFotoCompagno(charId, cid){
+  if (typeof choosePortrait !== 'function') return;
+  choosePortrait((url) => {
+    const c = charById(charId); if (!c) return;
+    const comp = (c.companions||[]).find(x => x.cid === cid); if (!comp) return;
+    comp.portrait = url;
+    scheduleSave('characters', c);
+    renderModalRoot(); render();
+  });
+}
+function togliFotoCompagno(charId, cid){
+  const c = charById(charId); if (!c) return;
+  const comp = (c.companions||[]).find(x => x.cid === cid); if (!comp) return;
+  delete comp.portrait;
+  scheduleSave('characters', c);
+  renderModalRoot(); render();
 }
 function bumpCompanionHp(charId, cid, delta){
   const c = charById(charId); if (!c) return;
@@ -299,6 +338,8 @@ function companionDetailHTML(c, comp, m){
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-ghost btn-sm" onclick="openCompanion('${c.id}','${comp.cid}')">Scheda intera</button>
         <button class="btn btn-ghost btn-sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',999)">Cura tutto</button>
+        <button class="btn btn-ghost btn-sm" onclick="scegliFotoCompagno('${c.id}','${comp.cid}')">📷 ${comp.portrait?'Cambia foto':'Foto'}</button>
+        ${comp.portrait?`<button class="btn btn-ghost btn-sm" onclick="togliFotoCompagno('${c.id}','${comp.cid}')">Togli la foto</button>`:''}
       </div>
     </div>`;
 }
@@ -317,8 +358,9 @@ function companionsBlockHTML(c){
       const kind = COMPANION_KINDS[comp.kind];
       return `<div class="comp-card ${active?'active':''}">
         <div class="comp-head">
+          ${compSigilloHTML(c, comp, kind, 44)}
           <button class="comp-title" onclick="toggleCompanionDetails('${comp.cid}')">
-            <div class="attack-name">${kind?kind.icon:'🐾'} ${escapeHtml(comp.name)}${active?' · in forma':''} <span class="muted" style="font-size:.72rem">${open?'▴':'▾'}</span></div>
+            <div class="attack-name">${escapeHtml(comp.name)}${active?' · in forma':''} <span class="muted" style="font-size:.72rem">${open?'▴':'▾'}</span></div>
             <div class="muted" style="font-size:.72rem; margin-top:2px">${kind?kind.label:''}${m?(' · CA '+m.ac+' · GS '+m.cr+' · '+m.sz+' '+m.t):''}</div>
           </button>
           ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:46px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}

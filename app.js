@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.1';
+const APP_VERSION = '7.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1985,10 +1985,10 @@ function renderSheetOverview(c){
       <div class="combat-grid">
         <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.ac??10}" aria-label="Classe Armatura" oninput="updateCharField('${c.id}','ac',parseInt(this.value)||0)"><div class="l">CA</div></div>
         <div class="combat-stat"><input type="number" inputmode="numeric" class="v" id="cs-init" value="${c.initiative ?? mod(getPath(c,'abilities.dex',10))}" aria-label="Iniziativa" oninput="updateCharField('${c.id}','initiative',parseInt(this.value)||0)"><div class="l">Iniziativa</div></div>
-        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.speed??9}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
+        <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
       </div>
       <div class="combat-grid">
-        <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.speed??9}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
         <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
         <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
       </div>
@@ -2418,7 +2418,9 @@ function activeFormBanner(c){
   const m = (typeof MONSTER_BY_ID !== 'undefined') ? MONSTER_BY_ID[comp.monsterId] : null;
   const pct = comp.hp.max ? clamp(100*comp.hp.current/comp.hp.max,0,100) : 0;
   return `<div class="conc-banner" style="border-color:var(--good); background:rgba(89,168,125,.14); flex-wrap:wrap">
-    <span style="font-size:1.1rem">🐾</span>
+    ${comp.portrait
+      ? `<span class="comp-sigillo con-foto" style="width:32px;height:32px;flex-shrink:0"><img src="${attr(comp.portrait)}" alt=""></span>`
+      : `<span style="font-size:1.1rem">🐾</span>`}
     <span class="t" style="flex:1 1 120px">Forma di ${escapeHtml(comp.name)} · ${m?`CA ${m.ac} · `:''}${comp.hp.current}/${comp.hp.max} PF</span>
     <button class="btn btn-sm btn-ghost" onclick="openCompanion('${c.id}','${comp.cid}')">Scheda</button>
     <button class="btn btn-sm btn-ghost" onclick="toggleWildShape('${c.id}','${comp.cid}')">Torna normale</button>

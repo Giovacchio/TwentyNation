@@ -1,5 +1,16 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.2 — 30 agosto 2026
+**Il dado dell'iniziativa accanto all'iniziativa, e famigli e compagni hanno una faccia.**
+
+- **Iniziativa e velocità si scambiano di posto.** Il dado stava sotto la CA, due caselle lontano dal numero che tira: ora la prima riga è **CA · Iniziativa · 🎲 Tira iniziativa**, e la velocità scende accanto a percezione passiva e dadi vita, dove sta bene — è un numero che si guarda, non uno che si tira. (Suggerimento arrivato da chi ci gioca: aveva ragione.)
+- **La foto del famiglio, del compagno animale, della cavalcatura e della forma selvatica.** Nella riga di ogni compagno c'è un cerchio: toccalo e carichi l'immagine, come per il personaggio. Compare lì, nella **scheda intera** della creatura (grande e per intero, non ritagliata) e nella **fascia verde** quando sei in forma selvatica. Senza foto resta l'icona del tipo di sempre, nello stesso cerchio: chi non la carica non vede cambiare niente.
+- Il tipo di compagno non è più scritto due volte: l'icona sta nel cerchio, il nome accanto.
+
+> 12 prove nuove in `test-v72.mjs` — posizione del dado, velocità ancora modificabile, il tiro che parte davvero; e per la foto: il caricamento, il salvataggio che sopravvive alla ricarica, la rimozione, la scheda intera e la fascia della forma. Suite completa, controllo delle interazioni e audit mobile verdi.
+
+> Una prova sullo scorrimento laterale è stata sistemata: il suo tocco preparatorio cadeva proprio dove adesso c'è il dado, quindi apriva il tiro e lo scorrimento risultava — giustamente — disattivato. Il difetto era nella prova, non nell'app.
+
 ## v7.1 — 30 agosto 2026
 **Ho toccato ogni cosa toccabile dell'app, una per una: 1.426 elementi su 37 schermate.**
 
