@@ -111,10 +111,15 @@ function addMagicItemToChar(charId, itemId){
   const c = charById(charId), m = MAGIC_ITEM_BY_ID[itemId];
   if (!c || !m) return;
   c.inventory = c.inventory || [];
+  /* Se l'oggetto ha delle cariche, il contatore nasce già pieno invece
+     di restare una frase nelle note: quasi tutti si ricaricano all'alba,
+     e da lì si cambia con due tocchi. */
+  const cariche = Number(m.ch) || 0;
   c.inventory.push({
     name: miName(m), qty: 1, weight: '', attuned: false, equipped: false,
-    notes: [m.r, miNeedsAttunement(m) ? miAttunementLabel(m) : '', m.ch ? (m.ch + ' cariche') : ''].filter(Boolean).join(' · '),
+    notes: [m.r, miNeedsAttunement(m) ? miAttunementLabel(m) : ''].filter(Boolean).join(' · '),
     magicId: m.id,
+    caricheMax: cariche, cariche: cariche, recupero: cariche ? 'dn' : '',
   });
   scheduleSave('characters', c);
   closeModal(); render();

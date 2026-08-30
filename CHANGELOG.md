@@ -1,5 +1,26 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.8 — 30 agosto 2026
+**Tre buchi della scheda chiusi: effetti a tempo, cariche degli oggetti, multiclasse completo.**
+
+### ⏳ Effetti temporanei sulla scheda
+«Benedizione 10 round» adesso si segna dalla scheda, sotto le condizioni. Con i round scala da sola quando il master fa avanzare l'iniziativa; senza, resta finché non la togli (o ci scrivi «fino al riposo lungo»).
+
+**È lo stesso elenco che vede il master.** Per un personaggio del party gli effetti stanno sulla *sua scheda*, non sulla riga del combattente: quello che il master segna al tavolo il giocatore se lo ritrova aprendo la scheda, e viceversa. Due elenchi separati sarebbero state due verità diverse sulla stessa cosa.
+
+### 💍 Le cariche degli oggetti magici sono un contatore vero
+Una bacchetta con 7 cariche te lo diceva **nelle note** e basta. Adesso ha il suo contatore sotto la riga dello zaino: −/+ col dito, non va sotto zero né sopra il massimo, e **torna piena col riposo giusto** — all'alba, col lungo o col breve, come decidi tu. Prendendo un oggetto magico dall'SRD le cariche nascono già piene e impostate all'alba.
+
+### 🎓 Il multiclasse adesso è completo
+La v7.7 aveva sistemato gli slot. Mancava tutto il resto:
+
+- **La salita di livello chiede in quale classe sali.** Il livello va in una sola delle due, e da lì arrivano i privilegi, il dado vita e la sottoclasse. Prima ne conosceva una sola.
+- **Il bonus di competenza segue il livello totale**, non quello nella singola classe — è la regola, e prima era sbagliato per chiunque multiclassasse.
+- **I privilegi finiscono in scheda** con la classe da cui vengono, e la seconda sottoclasse si ricorda separatamente.
+- **«Aggiungi i privilegi di ‹classe› fino al N°»** nel modulo del personaggio, per chi la seconda classe l'ha messa dopo o ha importato una scheda già multiclasse. Si può premere due volte: quelli già in scheda non si ripetono.
+
+> 20 prove nuove in `test-v78.mjs`, fra cui quella che contava di più: **l'elenco degli effetti dev'essere lo stesso oggetto** letto dalla scheda e dal tracker — non due copie che sembrano uguali. E tre prove della v7.7 sono state riscritte, perché davano per scontato che gli effetti stessero sul combattente: adesso stanno sul personaggio. Suite completa, **1.445 interazioni ripercorse una per una con zero errori**, audit mobile invariato.
+
 ## v7.7 — 30 agosto 2026
 **Costruttore di incontri, multiclasse che finalmente dà i numeri giusti, effetti a tempo, promemoria del backup e traduzione su tutto.**
 

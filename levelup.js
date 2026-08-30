@@ -13,17 +13,54 @@ function levelUpClassId(c){
   return byName ? byName.id : null;
 }
 
+/* L'identificativo di classe dal nome, per la seconda classe. */
+function classIdDaNome(nome){
+  const cl = (typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : [])
+    .find(x => x.name.toLowerCase() === String(nome||'').trim().toLowerCase());
+  return cl ? cl.id : null;
+}
+function livelloTotale(c){ return (Number(c.level)||1) + (Number(c.level2)||0); }
+
 function openLevelUp(charId){
   const c = charById(charId); if (!c) return;
-  if ((c.level||1) >= 20){ toast('👑 Sei già al 20° livello'); return; }
+  if (livelloTotale(c) >= 20){ toast('👑 Sei già al 20° livello'); return; }
+  /* Con due classi la domanda viene prima di tutto: in quale sali?
+     Da lì dipendono i privilegi, il dado vita e la sottoclasse. */
+  if (typeof haMulticlasse === 'function' && haMulticlasse(c)){ apriSceltaClasseLivello(charId); return; }
   const classId = levelUpClassId(c);
   if (!classId){ openLevelUpClassPicker(charId); return; }
+  avviaSalita(charId, 1, classId);
+}
+function apriSceltaClasseLivello(charId){
+  const c = charById(charId); if (!c) return;
+  const id1 = levelUpClassId(c), id2 = classIdDaNome(c.class2);
+  const riga = (quale, nome, id, lv) => `<button class="attack-row" style="width:100%; text-align:left"
+      onclick="avviaSalita('${charId}',${quale},'${jsStr(id||'')}')" ${id?'':'disabled'}>
+      <span class="attack-main">
+        <span class="attack-name">${escapeHtml(nome||'—')} ${lv}° → ${lv+1}°</span>
+        <span class="muted" style="font-size:.74rem; display:block">${id ? ('Dado vita d' + (CLASS_BY_ID[id]||{}).hitDie + ' · privilegi di questa classe') : 'classe non riconosciuta'}</span>
+      </span>
+    </button>`;
+  openModal({ render: () => modalShell('📈 In quale classe sali?', `
+    <p class="muted" style="margin-bottom:12px">${escapeHtml(c.name||'')} è di ${livelloTotale(c)}° livello in tutto. Il livello che prendi va in una sola delle due classi: da quella arrivano i privilegi e il dado vita.</p>
+    <div class="list-gap">
+      ${riga(1, c.classField, id1, Number(c.level)||1)}
+      ${riga(2, c.class2, id2, Number(c.level2)||0)}
+    </div>`) });
+}
+function avviaSalita(charId, quale, classId){
+  const c = charById(charId); if (!c || !classId) return;
+  const da = quale === 2 ? (Number(c.level2)||0) : (Number(c.level)||1);
+  if (da >= 20){ toast('👑 Questa classe è già al 20°'); return; }
   lvup = {
-    charId, from: c.level||1, to: (c.level||1) + 1, classId,
-    subclassId: (c.builder && c.builder.subclassId) || null,
+    charId, quale, classId,
+    from: da, to: da + 1,
+    totDa: livelloTotale(c), totA: livelloTotale(c) + 1,
+    subclassId: quale === 1 ? ((c.builder && c.builder.subclassId) || null) : ((c.builder && c.builder.subclassId2) || null),
     hpMode: 'avg', hpRoll: null, subQ: ''
   };
   listaAzzera('lv-sub');
+  closeModal();
   openModal({ render: levelUpHTML });
 }
 
@@ -59,14 +96,16 @@ function levelUpGains(){
 
   const abMod = mod(getPath(c, 'abilities.' + (c.spellAbility || cl.spellAbility || 'int'), 10));
   const before = {
-    prof: profBonus(lvup.from),
+    // con due classi la competenza dipende dal livello totale, non da
+    // quello nella singola classe
+    prof: profBonus(lvup.totDa || lvup.from),
     slots: slotsForCharacter(c.casterType || cl.caster, lvup.from),
     cantrips: (CANTRIPS_KNOWN[cl.id] || [])[lvup.from - 1] || 0,
     known: SPELLS_KNOWN[cl.id] ? (SPELLS_KNOWN[cl.id][lvup.from - 1] || 0) : 0,
     prepared: preparedCount(cl.id, lvup.from, abMod),
   };
   const after = {
-    prof: profBonus(lv),
+    prof: profBonus(lvup.totA || lv),
     slots: slotsForCharacter(c.casterType || cl.caster, lv),
     cantrips: (CANTRIPS_KNOWN[cl.id] || [])[lv - 1] || 0,
     known: SPELLS_KNOWN[cl.id] ? (SPELLS_KNOWN[cl.id][lv - 1] || 0) : 0,
@@ -171,11 +210,16 @@ function confirmLevelUp(){
   if (gain == null){ toast('Tira il dado vita'); return; }
 
   const c = g.c;
-  c.level = lvup.to;
+  if (lvup.quale === 2){
+    c.level2 = lvup.to;
+    c.hitDie2 = c.hitDie2 || g.cl.hitDie;
+  } else {
+    c.level = lvup.to;
+    c.hitDie = c.hitDie || g.cl.hitDie;
+  }
   c.hp = c.hp || { current:0, max:0, temp:0 };
   c.hp.max = (c.hp.max || 0) + gain;
   c.hp.current = (c.hp.current || 0) + gain;
-  c.hitDie = c.hitDie || g.cl.hitDie;
   if (!c.casterType || c.casterType === 'none') c.casterType = g.cl.caster;
   if (!c.spellAbility && g.cl.spellAbility) c.spellAbility = g.cl.spellAbility;
 
@@ -183,14 +227,18 @@ function confirmLevelUp(){
   if (g.isAsi) lines.push(`${lvup.to}° Aumento dei punteggi di caratteristica: 2 punti o un talento (da applicare)`);
   if (lines.length) c.features = [c.features || '', lines.join('\n\n')].filter(Boolean).join('\n\n');
 
-  c.builder = Object.assign({}, c.builder, { classId: lvup.classId, subclassId: lvup.subclassId || (c.builder && c.builder.subclassId) || null });
+  c.builder = lvup.quale === 2
+    ? Object.assign({}, c.builder, { classId2: lvup.classId, subclassId2: lvup.subclassId || (c.builder && c.builder.subclassId2) || null })
+    : Object.assign({}, c.builder, { classId: lvup.classId, subclassId: lvup.subclassId || (c.builder && c.builder.subclassId) || null });
   if (g.sc && !new RegExp('Sottoclasse: ' + g.sc.name).test(c.notesExtra || ''))
     c.notesExtra = [c.notesExtra || '', 'Sottoclasse: ' + g.sc.name].filter(Boolean).join('\n\n');
 
   scheduleSave('characters', c);
   const wantsSpells = g.after.cantrips > g.before.cantrips || g.after.known > g.before.known;
   closeModal(); render();
-  toast(`📈 ${c.name} è di ${c.level}° livello (+${gain} PF)`);
+  toast(lvup.quale === 2
+    ? `📈 ${c.name}: ${g.cl.name} ${c.level2}° (+${gain} PF)`
+    : `📈 ${c.name} è di ${c.level}° livello (+${gain} PF)`);
   celebrate();
   if (wantsSpells) setTimeout(() => { state.sheetTab = 'spells'; render(); }, 900);
   lvup = null;

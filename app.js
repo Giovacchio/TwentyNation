@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.7';
+const APP_VERSION = '7.8';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1178,6 +1178,7 @@ function newCharacter(){
     armor: '', senses: '', languages: '', tools: '', feats: '', profOther: '',
     hitDie2: 0, hitDiceUsed2: 0, carryCapacity: '',
     class2: '', level2: 0, pactUsed: 0,
+    effetti: [],
     inspiration: false, exhaustion: 0,
     appearance: { age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' },
     faction: '', symbol: '', allies: '', enemies: '',
@@ -1223,6 +1224,7 @@ function migrateCharacter(c){
   if (c.portrait === undefined) c.portrait = null;
   c.hitDie2 = Number(c.hitDie2) || 0; c.hitDiceUsed2 = Number(c.hitDiceUsed2) || 0;
   c.class2 = c.class2 || ''; c.level2 = Number(c.level2) || 0; c.pactUsed = Number(c.pactUsed) || 0;
+  if (!Array.isArray(c.effetti)) c.effetti = [];
   if (c.inspiration == null) c.inspiration = false;
   c.exhaustion = clamp(c.exhaustion || 0, 0, 6);
   if (c.slotsOverride === undefined) c.slotsOverride = null;
@@ -1687,6 +1689,34 @@ function openCharacterForm(existingId){
   draftChar = c ? JSON.parse(JSON.stringify(c)) : newCharacter();
   openModal({ render: () => characterFormHTML(!!c), after: () => { if (!c){ const el = document.getElementById('cf-name'); if (el) el.focus(); } } });
 }
+/* Chi mette la seconda classe dopo, o importa una scheda già
+   multiclasse, non ha i suoi privilegi in scheda: la salita di livello
+   li scrive solo da quel momento in poi. Questo li recupera tutti
+   insieme, saltando quelli che ci sono già — si può premere due volte
+   senza duplicare niente. */
+function privilegiSeconda(charId){
+  const c = charId ? charById(charId) : draftChar;
+  const bersaglio = c || draftChar;
+  if (!bersaglio || !bersaglio.class2){ toast('Prima scegli una seconda classe'); return; }
+  const id = (typeof classIdDaNome === 'function') ? classIdDaNome(bersaglio.class2) : null;
+  const cl = id && CLASS_BY_ID[id];
+  if (!cl){ toast('Non conosco i privilegi di «' + bersaglio.class2 + '»'); return; }
+  const lv = clamp(Number(bersaglio.level2)||1, 1, 20);
+  const testo = bersaglio.features || '';
+  const nuove = [];
+  for (let l = 1; l <= lv; l++){
+    (cl.features[l] || []).forEach(f => {
+      const riga = l + '° [' + cl.name + '] ' + f[0] + ': ' + f[1];
+      if (testo.includes(f[0] + ':')) return;      // c'è già, non si ripete
+      nuove.push(riga);
+    });
+  }
+  if (!nuove.length){ toast('Li hai già tutti in scheda'); return; }
+  bersaglio.features = [testo, nuove.join('\n\n')].filter(Boolean).join('\n\n');
+  if (charId) scheduleSave('characters', bersaglio);
+  renderModalRoot(); render();
+  toast('✦ ' + nuove.length + (nuove.length===1?' privilegio aggiunto':' privilegi aggiunti'));
+}
 function pickDraftClass2(val){
   draftChar.class2 = val || '';
   if (!val){ draftChar.level2 = 0; draftChar.hitDie2 = 0; }
@@ -1735,7 +1765,8 @@ function characterFormHTML(isEdit){
       ${d.class2 ? `<div class="field-hint" style="margin:-4px 0 10px">${(()=>{
         const tot = livelloIncantatoreTotale(draftChar);
         return tot ? ('Livello da incantatore combinato: <b>' + tot + '</b> — gli slot vengono da lì.')
-                   : 'Nessuna delle due lancia incantesimi con gli slot.'; })()}</div>` : ''}
+                   : 'Nessuna delle due lancia incantesimi con gli slot.'; })()}</div>
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="privilegiSeconda('${d.id}')">✦ Aggiungi i privilegi di ${escapeHtml(d.class2)} fino al ${d.level2||1}°</button>` : ''}
       <div class="field">
         <label>Sesso</label>
         <div class="chip-row">
@@ -2403,10 +2434,74 @@ function weaponPickerButton(c){
 
 function conditionsRowHTML(c){
   const active = (c.conditions||[]).map(id => CONDITION_BY_ID[id]).filter(Boolean);
+  const eff = c.effetti || [];
   return `<div class="chip-row" style="margin-top:10px; align-items:center">
     ${active.map(cond=>`<button class="chip active" style="background:var(--garnet); border-color:var(--garnet-bright)" onclick="toggleCondition('${c.id}','${cond.id}')" title="${attr(cond.desc)}">${cond.icon} ${cond.name} ✕</button>`).join('')}
     <button class="chip" onclick="openConditionPicker('${c.id}')">＋ Condizione</button>
+  </div>
+  <div class="chip-row" style="margin-top:8px; align-items:center">
+    ${eff.map((e,k)=>`<button class="chip effetto ${e.round!=null && e.round<=1?'ultimo':''}" onclick="togliEffettoPg('${c.id}',${k})" title="Tocca per toglierlo">
+      ${escapeHtml(e.nome)}${e.round!=null?` <b>${e.round}</b>`:''}${e.durata?` <span class="muted">${escapeHtml(e.durata)}</span>`:''}</button>`).join('')}
+    <button class="chip" onclick="apriEffettoPg('${c.id}')">⏳ Effetto</button>
   </div>`;
+}
+
+/* ─── Effetti temporanei del personaggio ─────────────────────────
+   Sono gli stessi che il master vede nell'iniziativa: la lista sta sul
+   personaggio, non sul combattente, così quello che il master segna al
+   tavolo il giocatore se lo ritrova in scheda — e viceversa. Due
+   elenchi separati sarebbero due verità diverse sulla stessa cosa. */
+const EFFETTI_PG = [
+  ['Benedizione', 10], ['Eroismo', 10], ['Scudo della fede', 10],
+  ['Ispirazione bardica', null], ['Rabbia', 10], ['Avvelenato', 3], ['Concentrato su', null],
+];
+let effettoPgPer = null;
+function apriEffettoPg(charId){
+  const c = charById(charId); if (!c) return;
+  effettoPgPer = { charId, nome:'', round:10, durata:'' };
+  openModal({ render: () => modalShell('⏳ Effetto su ' + (c.name||''), `
+    <p class="muted" style="margin-bottom:12px">Quello che ti dura addosso per un po': una benedizione, una rabbia, un veleno. Se metti i round scala da solo quando il master fa avanzare l'iniziativa.</p>
+    <div class="chip-row" style="margin-bottom:12px">
+      ${EFFETTI_PG.map(([n,r])=>`<button class="chip" onclick="effettoPgRapido('${jsStr(n)}',${r===null?'null':r})">${escapeHtml(n)}</button>`).join('')}
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Che effetto</label>
+        <input id="effpg-nome" value="${attr(effettoPgPer.nome)}" placeholder="Es. Benedizione" oninput="effettoPgPer.nome=this.value"></div>
+      <div class="field"><label>Round (vuoto = a tempo indefinito)</label>
+        <input id="effpg-round" type="number" inputmode="numeric" min="1" max="999" value="${effettoPgPer.round==null?'':effettoPgPer.round}" oninput="effettoPgPer.round=this.value===''?null:clamp(parseInt(this.value)||1,1,999)"></div>
+    </div>
+    <div class="field"><label>Oppure una durata a parole</label>
+      <input id="effpg-durata" value="${attr(effettoPgPer.durata)}" placeholder="Es. 1 minuto, fino al riposo lungo" oninput="effettoPgPer.durata=this.value"></div>
+    <button class="btn btn-primary btn-block" onclick="salvaEffettoPg()">Aggiungi</button>`) });
+}
+function effettoPgRapido(nome, round){
+  if (!effettoPgPer) return;
+  effettoPgPer.nome = nome; effettoPgPer.round = round;
+  salvaEffettoPg();
+}
+function salvaEffettoPg(){
+  if (!effettoPgPer) return;
+  const el = document.getElementById('effpg-nome');
+  if (el && el.value) effettoPgPer.nome = el.value;
+  const nome = (effettoPgPer.nome || '').trim();
+  if (!nome){ toast('Dagli un nome'); return; }
+  const c = charById(effettoPgPer.charId);
+  if (c){
+    c.effetti = c.effetti || [];
+    const e = { nome };
+    if (effettoPgPer.round != null) e.round = effettoPgPer.round;
+    if ((effettoPgPer.durata||'').trim()) e.durata = effettoPgPer.durata.trim();
+    c.effetti.push(e);
+    scheduleSave('characters', c);
+  }
+  effettoPgPer = null;
+  closeModal(); render();
+}
+function togliEffettoPg(charId, k){
+  const c = charById(charId); if (!c || !c.effetti) return;
+  const via = c.effetti.splice(k, 1)[0];
+  scheduleSave('characters', c); render();
+  if (via) toast('✓ «' + via.nome + '» tolto');
 }
 function openConditionPicker(charId){
   const c = charById(charId); if (!c) return;
@@ -2679,6 +2774,7 @@ function concludiRiposoBreve(charId){
     if ((Number(c.pactUsed)||0) > 0) n++;
     c.pactUsed = 0;
   }
+  n += ricaricaOggetti(c, ['sr']);
   scheduleSave('characters', c);
   closeModal(); render();
   toast(n ? ('☀️ Riposo breve: ' + n + (n===1?' risorsa recuperata':' risorse recuperate'))
@@ -2704,9 +2800,11 @@ function longRest(charId){
   c.hitDiceUsed = clamp((c.hitDiceUsed||0) - back, 0, 20);
   c.hitDiceUsed2 = clamp((c.hitDiceUsed2||0) - back, 0, 20);
   (c.resources||[]).forEach(r => { r.left = Number(r.total)||0; });
+  // un riposo lungo comprende un'alba: tornano anche quelle
+  ricaricaOggetti(c, ['sr','lr','dn','']);
   scheduleSave('characters', c);
   closeModal(); render();
-  toast('🌙 Riposo lungo: PF e slot ripristinati');
+  toast('🌙 Riposo lungo: PF, slot e cariche ripristinati');
 }
 
 /* ─── 17. ZAINO ─── */
@@ -2758,8 +2856,44 @@ function invItemHTML(c, it, i){
     </button>
     ${needsAtt ? `<button class="attune-toggle ${it.attuned?'on':''}" title="${it.attuned?'Sintonizzato':'Sintonizzati'}" onclick="toggleAttune('${c.id}',${i})">⚡</button>` : ''}
     ${magic ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.85rem;" onclick="viewMagicItem('${magic.id}','${c.id}')" aria-label="Cosa fa">?</button>` : ''}
-    <span class="inv-qty">×${it.qty||1}</span>
-  </div>`;
+    ${(Number(it.caricheMax)||0) > 0 ? '' : `<span class="inv-qty">×${it.qty||1}</span>`}
+  </div>
+  ${(Number(it.caricheMax)||0) > 0 ? `<div class="inv-cariche">
+    <button class="stepper-btn sm" onclick="scalaCariche('${c.id}',${i},-1)" aria-label="Usa una carica">−</button>
+    <div class="inv-cariche-mid">
+      <b style="color:${(Number(it.cariche)||0) ? 'var(--gold)' : 'var(--ink-soft)'}">${clamp(Number(it.cariche)||0,0,Number(it.caricheMax))}</b>
+      <span class="muted"> / ${Number(it.caricheMax)} cariche</span>
+      ${it.recupero ? `<span class="muted" style="font-size:.68rem"> · ${escapeHtml(RECOVERY_LABEL[it.recupero]||it.recupero)}</span>` : ''}
+    </div>
+    <button class="stepper-btn sm" onclick="scalaCariche('${c.id}',${i},1)" aria-label="Recupera una carica">+</button>
+  </div>` : ''}`;
+}
+/* Le cariche di una bacchetta erano solo una frase nelle note: adesso
+   sono un contatore vero, che si scala col dito e torna col riposo
+   giusto — esattamente come le risorse della classe. */
+/* Quali oggetti tornano carichi con questo tipo di riposo. */
+function ricaricaOggetti(c, quali){
+  let n = 0;
+  (c.inventory||[]).forEach(it => {
+    const max = Number(it.caricheMax)||0;
+    if (!max) return;
+    if (!quali.includes(it.recupero || '')) return;
+    if ((Number(it.cariche)||0) < max){ it.cariche = max; n++; }
+  });
+  return n;
+}
+function scalaCariche(charId, i, d){
+  const c = charById(charId); if (!c) return;
+  const it = (c.inventory||[])[i]; if (!it) return;
+  const max = Number(it.caricheMax)||0; if (!max) return;
+  const ora = clamp(Number(it.cariche)||0, 0, max);
+  const nuovo = clamp(ora + d, 0, max);
+  if (nuovo === ora){
+    toast(d < 0 ? ('«' + (it.name||'L\'oggetto') + '» è scarico') : 'È già al massimo');
+    return;
+  }
+  it.cariche = nuovo;
+  scheduleSave('characters', c); render();
 }
 function addInventoryItem(charId){
   const inner = `
@@ -2820,6 +2954,18 @@ function editInventoryItem(charId, i){
         <select id="inv-edit-attuned"><option value="" ${!it.attuned?'selected':''}>No</option><option value="1" ${it.attuned?'selected':''}>Sì</option></select>
       </div>
     </div>
+    <div class="form-row-3">
+      <div class="field"><label>Cariche</label><input id="inv-edit-cariche" type="number" inputmode="numeric" min="0" max="99" value="${it.caricheMax?clamp(Number(it.cariche)||0,0,Number(it.caricheMax)):''}" placeholder="—"></div>
+      <div class="field"><label>Su quante</label><input id="inv-edit-cariche-max" type="number" inputmode="numeric" min="0" max="99" value="${it.caricheMax||''}" placeholder="—"></div>
+      <div class="field"><label>Tornano</label>
+        <select id="inv-edit-recupero">
+          <option value="" ${!it.recupero?'selected':''}>—</option>
+          <option value="dn" ${it.recupero==='dn'?'selected':''}>All'alba</option>
+          <option value="lr" ${it.recupero==='lr'?'selected':''}>Riposo lungo</option>
+          <option value="sr" ${it.recupero==='sr'?'selected':''}>Riposo breve</option>
+        </select>
+      </div>
+    </div>
     <div class="field"><label>Note</label><input id="inv-edit-notes" value="${attr(it.notes||'')}"></div>
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-danger" onclick="removeInventoryItem('${charId}',${i})">Elimina</button>
@@ -2835,6 +2981,10 @@ function confirmEditInventory(charId, i){
   c.inventory[i].qty = clamp(parseInt(document.getElementById('inv-edit-qty').value)||1, 1, 9999);
   c.inventory[i].weight = (document.getElementById('inv-edit-weight').value||'').trim();
   c.inventory[i].attuned = !!document.getElementById('inv-edit-attuned').value;
+  const max = clamp(parseInt(document.getElementById('inv-edit-cariche-max').value)||0, 0, 99);
+  c.inventory[i].caricheMax = max;
+  c.inventory[i].cariche = max ? clamp(parseInt(document.getElementById('inv-edit-cariche').value)||0, 0, max) : 0;
+  c.inventory[i].recupero = document.getElementById('inv-edit-recupero').value || '';
   c.inventory[i].notes = (document.getElementById('inv-edit-notes').value||'').trim();
   scheduleSave('characters', c);
   closeModal(); render();
@@ -3850,15 +4000,15 @@ function renderInitiativeTracker(){
 }
 function initRowHTML(cb, i, isCurrent){
   const down = cb.hp != null && cb.hp <= 0;
-  const eff = cb.effetti || [];
+  const eff = effettiDi(cb);
   return `<div class="init-row ${isCurrent?'current-turn':''} ${down?'down':''}">
     <button class="init-badge" onclick="editCombatInit(${i})" title="Modifica iniziativa">${cb.init}</button>
     <div style="flex:1; min-width:0;">
       <div class="init-name">${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}${cb.conc?' <span title="Sta concentrando">🌀</span>':''}</div>
       <div class="init-hp">${cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : (cb.kind==='quick'?'—':'')}</div>
       ${eff.length ? `<div class="init-effetti">${eff.map((e,k)=>`
-        <button class="chip effetto ${e.round<=1?'ultimo':''}" onclick="togliEffetto(${i},${k})" title="Tocca per toglierlo">
-          ${escapeHtml(e.nome)} <b>${e.round}</b></button>`).join('')}</div>` : ''}
+        <button class="chip effetto ${e.round!=null && e.round<=1?'ultimo':''}" onclick="togliEffetto(${i},${k})" title="Tocca per toglierlo">
+          ${escapeHtml(e.nome)}${e.round!=null?` <b>${e.round}</b>`:''}${e.durata?` <span class="muted">${escapeHtml(e.durata)}</span>`:''}</button>`).join('')}</div>` : ''}
     </div>
     <div class="init-actions">
       <button class="btn-icon" style="width:34px;height:34px;font-size:.8rem;" onclick="apriEffetto(${i})" aria-label="Aggiungi un effetto a tempo" title="Effetto a tempo">⏳</button>
@@ -3878,6 +4028,26 @@ const EFFETTI_RAPIDI = [
   ['Avvelenato', 3], ['Spaventato', 3], ['Trattenuto', 3], ['Affascinato', 3],
   ['Prono', 1], ['Stordito', 1], ['Benedizione', 10], ['Sotto marchio', 10],
 ];
+/* Per un personaggio del party gli effetti stanno sulla SUA scheda, non
+   sulla riga del combattente: quello che il master segna al tavolo il
+   giocatore se lo ritrova aprendo la scheda, e viceversa. Due elenchi
+   separati sarebbero due verità diverse sulla stessa cosa. */
+function effettiDi(cb){
+  if (!cb) return [];
+  if (cb.kind === 'pc'){
+    const c = charById(cb.refId);
+    if (c){ if (!Array.isArray(c.effetti)) c.effetti = []; return c.effetti; }
+  }
+  if (!Array.isArray(cb.effetti)) cb.effetti = [];
+  return cb.effetti;
+}
+function salvaEffettiDi(cb){
+  if (cb && cb.kind === 'pc'){
+    const c = charById(cb.refId);
+    if (c){ scheduleSave('characters', c); return; }
+  }
+  saveSession();
+}
 let effettoPer = null;
 function apriEffetto(i){
   const cb = state.combat.list[i]; if (!cb) return;
@@ -3908,29 +4078,38 @@ function salvaEffetto(){
   if (!nome){ toast('Dagli un nome'); return; }
   const cb = state.combat.list[effettoPer.i];
   if (cb){
-    cb.effetti = cb.effetti || [];
-    cb.effetti.push({ nome, round: clamp(Number(effettoPer.round)||1, 1, 99) });
+    effettiDi(cb).push({ nome, round: clamp(Number(effettoPer.round)||1, 1, 99) });
+    salvaEffettiDi(cb);
   }
   effettoPer = null;
   saveSession(); closeModal(); render();
 }
 function togliEffetto(i, k){
-  const cb = state.combat.list[i]; if (!cb || !cb.effetti) return;
-  const via = cb.effetti.splice(k, 1)[0];
-  saveSession(); render();
+  const cb = state.combat.list[i]; if (!cb) return;
+  const lista = effettiDi(cb);
+  const via = lista.splice(k, 1)[0];
+  salvaEffettiDi(cb); saveSession(); render();
   if (via) toast('✓ «' + via.nome + '» tolto');
 }
 /* All'inizio del turno di qualcuno, i suoi effetti perdono un round. */
 function scalaEffetti(i){
   const cb = state.combat.list[i];
-  if (!cb || !cb.effetti || !cb.effetti.length) return;
+  if (!cb) return;
+  const lista = effettiDi(cb);
+  if (!lista.length) return;
   const finiti = [];
-  cb.effetti = cb.effetti.filter(e => {
+  /* Si scala sul posto: la lista può essere quella del personaggio, e
+     sostituirla scollegherebbe la scheda dal tracker. */
+  for (let k = lista.length - 1; k >= 0; k--){
+    const e = lista[k];
+    if (e.round == null) continue;           // «finché dura»: non scala
     e.round = (Number(e.round) || 1) - 1;
-    if (e.round > 0) return true;
-    finiti.push(e.nome); return false;
-  });
-  if (finiti.length) setTimeout(() => toast('⏳ Su ' + cb.name + ' finisce: ' + finiti.join(', ')), 200);
+    if (e.round <= 0){ finiti.push(e.nome); lista.splice(k, 1); }
+  }
+  if (finiti.length){
+    salvaEffettiDi(cb);
+    setTimeout(() => toast('⏳ Su ' + cb.name + ' finisce: ' + finiti.reverse().join(', ')), 200);
+  }
 }
 function uniqueCombatName(base){
   base = base || 'Combattente';

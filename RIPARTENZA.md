@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.7** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.8** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -112,9 +112,9 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    master in tempo reale. Il salto più grande rimasto, ma tocca privacy e regole: va
    fatto **opt-in per ciascun giocatore**, non acceso dal master.
 2. **Diario condiviso** col tavolo (oggi è solo personale).
-3. **Il multiclasse oltre gli slot**: i privilegi della seconda classe non finiscono in
-   scheda, e la salita di livello ne conosce una sola. Gli slot ora sono giusti (v7.7),
-   il resto no.
+3. **Munizioni** e **filtri per livello/scuola negli incantesimi della scheda**: due buchi
+   noti, messi da parte per scelta di Giova (le munizioni non le conta, e i filtri con gli
+   incantesimi importati senza scuola andrebbero pensati).
 4. **Incontri salvati**: oggi il costruttore è usa-e-getta. Poterli preparare in anticipo
    e richiamarli a sessione aperta sarebbe il passo naturale.
 5. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
@@ -163,6 +163,10 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 - **`resizeImageFile()` non ritaglia più.** Fino alla 6.9 tagliava a quadrato dal centro
   appena caricata l'immagine, distruggendo l'originale. Adesso riduce e basta, con due
   tetti (lato lungo 480, area 190.000 px). Se un giorno serve un cerchio, lo fa il CSS.
+- **Gli effetti temporanei di un personaggio stanno sulla SUA scheda** (`c.effetti`), non
+  sulla riga del combattente: `effettiDi(cb)` / `salvaEffettiDi(cb)` in `app.js` sono
+  l'unico modo giusto di leggerli e scriverli, e restituiscono **lo stesso oggetto** che
+  vede la scheda. Chi legge `cb.effetti` direttamente su un PG vede una lista vuota.
 - **Gli slot del multiclasse** stanno in `slotsFor()` / `livelloIncantatoreTotale()`
   (`app.js`): si sommano i livelli da incantatore, non i livelli. Il patto del warlock
   NON entra nella somma — ha la sua riga, il suo `pactUsed` e torna col riposo breve.
