@@ -228,32 +228,95 @@ function traduciLingue(testo){
 /* ─── La schermata ─── */
 let tradAnteprima = null;
 
-function openTraduzione(){
-  const voci = (state.homebrew || []).filter(x => x && x.name);
-  if (!voci.length){ toast('Non hai ancora contenuti tuoi da tradurre'); return; }
+/* ─── Tutto quello che si può tradurre ───────────────────────────
+   La traduzione copriva solo le tue sottoclassi, razze e background.
+   Ma un bestiario letto da un manuale inglese resta pieno di «Young
+   Red Dragon» e «Large dragon, chaotic evil», e gli incantesimi
+   importati pure. Adesso passa da tutte e tre le collezioni. */
+const TRAD_TAGLIE = { tiny:'Minuscola', small:'Piccola', medium:'Media', large:'Grande',
+  huge:'Enorme', gargantuan:'Mastodontica' };
+const TRAD_TIPI = { aberration:'aberrazione', beast:'bestia', celestial:'celestiale',
+  construct:'costrutto', dragon:'drago', elemental:'elementale', fey:'fatato',
+  fiend:'immondo', giant:'gigante', humanoid:'umanoide', monstrosity:'mostruosità',
+  ooze:'melma', plant:'pianta', undead:'non morto', swarm:'sciame' };
+const TRAD_ALLINEAMENTI = { lawful:'legale', chaotic:'caotico', neutral:'neutrale',
+  good:'buono', evil:'malvagio', unaligned:'senza allineamento', any:'qualsiasi' };
+/* La riga «Large dragon, chaotic evil» che sta sotto il nome. */
+function traduciTipoCreatura(testo){
+  let t = String(testo || '');
+  if (!t.trim()) return t;
+  const sost = (dizionario) => {
+    Object.keys(dizionario).forEach(en => {
+      t = t.replace(new RegExp('\\b' + en + '\\b', 'gi'), dizionario[en]);
+    });
+  };
+  sost(TRAD_TAGLIE); sost(TRAD_TIPI); sost(TRAD_ALLINEAMENTI);
+  return t.replace(/\bGS\b/gi, 'GS').replace(/\bCR\b/g, 'GS');
+}
+const TRAD_SCUOLE = { abjuration:'Abiurazione', conjuration:'Evocazione', divination:'Divinazione',
+  enchantment:'Ammaliamento', evocation:'Invocazione', illusion:'Illusione',
+  necromancy:'Necromanzia', transmutation:'Trasmutazione' };
+function traduciScuola(testo){
+  const k = norm(String(testo||'').trim());
+  return TRAD_SCUOLE[k] || testo;
+}
+
+/* Cosa cambierebbe, in tutte e tre le collezioni. */
+function tradCambi(){
   const cambi = [];
-  voci.forEach(v => {
+  let totale = 0;
+  (state.homebrew || []).forEach(v => {
+    if (!v || !v.name) return;
+    totale++;
     const nuovo = traduciNome(v.name);
-    if (nuovo && nuovo !== v.name) cambi.push({ id: v.id, kind: v.kind, da: v.name, a: nuovo });
+    if (nuovo && nuovo !== v.name) cambi.push({ dove:'homebrew', id:v.id, kind:v.kind, da:v.name, a:nuovo });
   });
-  tradAnteprima = { cambi, totale: voci.length };
+  (state.npcs || []).forEach(v => {
+    if (!v || !v.name) return;
+    totale++;
+    const nuovo = traduciNome(v.name);
+    const tipo = traduciTipoCreatura(v.type || '');
+    if ((nuovo && nuovo !== v.name) || (tipo && tipo !== v.type))
+      cambi.push({ dove:'npcs', id:v.id, kind:'creatura', da:v.name, a:(nuovo||v.name),
+                   sotto: (tipo !== v.type ? tipo : '') });
+  });
+  (state.customSpells || []).forEach(v => {
+    if (!v || !v.name) return;
+    totale++;
+    const nuovo = traduciNome(v.name);
+    const sc = traduciScuola(v.school || '');
+    if ((nuovo && nuovo !== v.name) || (sc && sc !== v.school))
+      cambi.push({ dove:'customSpells', id:v.id, kind:'incantesimo', da:v.name, a:(nuovo||v.name),
+                   sotto: (sc !== v.school ? sc : '') });
+  });
+  return { cambi, totale };
+}
+function openTraduzione(){
+  const a = tradCambi();
+  if (!a.totale){ toast('Non hai ancora niente di tuo da tradurre'); return; }
+  tradAnteprima = a;
   openModal({ render: () => tradHTML() });
 }
 function tradHTML(){
   const a = tradAnteprima || { cambi: [], totale: 0 };
-  const daAnnullare = (state.homebrew||[]).filter(x => x && x.nameEn).length;
+  const conOriginale = (l) => (l||[]).filter(x => x && (x.nameEn || x.typeEn || x.schoolEn)).length;
+  const daAnnullare = conOriginale(state.homebrew) + conOriginale(state.npcs) + conOriginale(state.customSpells);
+  const ICONE = { creatura:'🐉', incantesimo:'✨' };
   const riga = (c) => `<div class="attack-row" style="display:block">
-      <div class="muted" style="font-size:.72rem">${HB_KINDS[c.kind]?HB_KINDS[c.kind].icon:''} ${escapeHtml(c.da)}</div>
+      <div class="muted" style="font-size:.72rem">${(HB_KINDS[c.kind]?HB_KINDS[c.kind].icon:(ICONE[c.kind]||''))} ${escapeHtml(c.da)}</div>
       <div class="attack-name" style="color:var(--gold)">${escapeHtml(c.a)}</div>
+      ${c.sotto?`<div class="muted" style="font-size:.7rem">↳ ${escapeHtml(c.sotto)}</div>`:''}
     </div>`;
   const inner = `
     <p class="muted" style="margin-bottom:14px">
       Rinomino in italiano <b>i nomi</b> di quello che hai importato: sottoclassi, razze,
-      tratti, privilegi e lingue. <b>Il testo delle regole non viene toccato</b>: resta
-      come sta nel tuo manuale.
+      background, tratti, privilegi e lingue, <b>le creature del bestiario</b> (nome e
+      riga del tipo) e <b>i tuoi incantesimi</b> (nome e scuola).
+      <b>Il testo delle regole non viene toccato</b>: resta come sta nel tuo manuale.
     </p>
     <div class="card" style="margin-bottom:12px">
       <div class="row-between"><span class="muted">Voci tue</span><b>${a.totale}</b></div>
+      <div class="row-between" style="margin-top:4px"><span class="muted">Fra cui creature</span><b>${(state.npcs||[]).length}</b></div>
       <div class="row-between" style="margin-top:4px"><span class="muted">Da rinominare</span><b style="color:var(--gold)">${a.cambi.length}</b></div>
     </div>
     ${a.cambi.length ? `<div class="divider"><span class="flourish">❧</span><span>Anteprima</span></div>
@@ -298,6 +361,38 @@ function applicaTraduzione(){
     }
     if (toccato) scheduleSave('homebrew', v);
   });
+  /* Le creature: nome e la riga «Grande drago, caotico malvagio». */
+  (state.npcs||[]).forEach(v => {
+    if (!v || !v.name) return;
+    let toccato = false;
+    const nuovo = traduciNome(v.name);
+    if (nuovo && nuovo !== v.name){
+      if (!v.nameEn) v.nameEn = v.name;
+      v.name = nuovo; toccato = true; n++;
+    }
+    const tipo = traduciTipoCreatura(v.type || '');
+    if (tipo && tipo !== v.type){
+      if (!v.typeEn) v.typeEn = v.type;
+      v.type = tipo; toccato = true;
+    }
+    if (toccato){ if (typeof bestiarioScorda === 'function') bestiarioScorda(); scheduleSave('npcs', v); }
+  });
+  /* Gli incantesimi importati: nome e scuola. */
+  (state.customSpells||[]).forEach(v => {
+    if (!v || !v.name) return;
+    let toccato = false;
+    const nuovo = traduciNome(v.name);
+    if (nuovo && nuovo !== v.name){
+      if (!v.nameEn) v.nameEn = v.name;
+      v.name = nuovo; toccato = true; n++;
+    }
+    const sc = traduciScuola(v.school || '');
+    if (sc && sc !== v.school){
+      if (!v.schoolEn) v.schoolEn = v.school;
+      v.school = sc; toccato = true;
+    }
+    if (toccato) scheduleSave('customSpells', v);
+  });
   tradAnteprima = null;
   closeModal(); render();
   toast(n ? ('🇮🇹 ' + n + (n===1?' nome tradotto':' nomi tradotti')) : 'Non c\'era niente da rinominare');
@@ -308,6 +403,20 @@ function annullaTraduzione(){
     if (!v || !v.nameEn) return;
     v.name = v.nameEn; delete v.nameEn; n++;
     scheduleSave('homebrew', v);
+  });
+  (state.npcs||[]).forEach(v => {
+    if (!v) return;
+    let toccato = false;
+    if (v.nameEn){ v.name = v.nameEn; delete v.nameEn; n++; toccato = true; }
+    if (v.typeEn){ v.type = v.typeEn; delete v.typeEn; toccato = true; }
+    if (toccato){ if (typeof bestiarioScorda === 'function') bestiarioScorda(); scheduleSave('npcs', v); }
+  });
+  (state.customSpells||[]).forEach(v => {
+    if (!v) return;
+    let toccato = false;
+    if (v.nameEn){ v.name = v.nameEn; delete v.nameEn; n++; toccato = true; }
+    if (v.schoolEn){ v.school = v.schoolEn; delete v.schoolEn; toccato = true; }
+    if (toccato) scheduleSave('customSpells', v);
   });
   tradAnteprima = null;
   closeModal(); render();

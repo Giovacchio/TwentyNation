@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.6';
+const APP_VERSION = '7.7';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1177,6 +1177,7 @@ function newCharacter(){
     attacks: [], resources: [], companions: [], activeForm: null, conditions: [],
     armor: '', senses: '', languages: '', tools: '', feats: '', profOther: '',
     hitDie2: 0, hitDiceUsed2: 0, carryCapacity: '',
+    class2: '', level2: 0, pactUsed: 0,
     inspiration: false, exhaustion: 0,
     appearance: { age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' },
     faction: '', symbol: '', allies: '', enemies: '',
@@ -1221,6 +1222,7 @@ function migrateCharacter(c){
     .forEach(k => { if (c[k] == null) c[k] = ''; });
   if (c.portrait === undefined) c.portrait = null;
   c.hitDie2 = Number(c.hitDie2) || 0; c.hitDiceUsed2 = Number(c.hitDiceUsed2) || 0;
+  c.class2 = c.class2 || ''; c.level2 = Number(c.level2) || 0; c.pactUsed = Number(c.pactUsed) || 0;
   if (c.inspiration == null) c.inspiration = false;
   c.exhaustion = clamp(c.exhaustion || 0, 0, 6);
   if (c.slotsOverride === undefined) c.slotsOverride = null;
@@ -1685,6 +1687,15 @@ function openCharacterForm(existingId){
   draftChar = c ? JSON.parse(JSON.stringify(c)) : newCharacter();
   openModal({ render: () => characterFormHTML(!!c), after: () => { if (!c){ const el = document.getElementById('cf-name'); if (el) el.focus(); } } });
 }
+function pickDraftClass2(val){
+  draftChar.class2 = val || '';
+  if (!val){ draftChar.level2 = 0; draftChar.hitDie2 = 0; }
+  else {
+    if (!draftChar.level2) draftChar.level2 = 1;
+    if (CLASS_TO_HIT_DIE[val]) draftChar.hitDie2 = CLASS_TO_HIT_DIE[val];
+  }
+  renderModalRoot();
+}
 function pickDraftClass(val){
   draftChar.classField = val;
   applyClassDefaults(draftChar, true);
@@ -1710,6 +1721,21 @@ function characterFormHTML(isEdit){
         <div class="field"><label>Livello</label><input type="number" inputmode="numeric" min="1" max="20" value="${d.level||1}" oninput="draftChar.level=clamp(parseInt(this.value)||1,1,20)"></div>
         <div class="field"><label>Allineamento</label><input value="${attr(d.alignment||'')}" placeholder="Es. Neutrale Buono" oninput="draftChar.alignment=this.value"></div>
       </div>
+      <!-- La seconda classe non è un dettaglio estetico: da lei
+           dipendono gli slot incantesimo, che senza erano sbagliati. -->
+      <div class="form-row">
+        <div class="field"><label>Seconda classe (multiclasse)</label>
+          <select onchange="pickDraftClass2(this.value)">
+            <option value="">— nessuna —</option>
+            ${CLASS_LIST_IT.filter(cl=>cl!==d.classField).map(cl=>`<option value="${cl}" ${d.class2===cl?'selected':''}>${cl}</option>`).join('')}
+          </select>
+        </div>
+        ${d.class2 ? `<div class="field"><label>Livello nella seconda</label><input type="number" inputmode="numeric" min="1" max="19" value="${d.level2||1}" oninput="draftChar.level2=clamp(parseInt(this.value)||1,1,19); renderModalRoot()"></div>` : ''}
+      </div>
+      ${d.class2 ? `<div class="field-hint" style="margin:-4px 0 10px">${(()=>{
+        const tot = livelloIncantatoreTotale(draftChar);
+        return tot ? ('Livello da incantatore combinato: <b>' + tot + '</b> — gli slot vengono da lì.')
+                   : 'Nessuna delle due lancia incantesimi con gli slot.'; })()}</div>` : ''}
       <div class="field">
         <label>Sesso</label>
         <div class="chip-row">
@@ -2644,10 +2670,14 @@ function concludiRiposoBreve(charId){
     if ((Number(r.left)||0) !== pieno) n++;
     r.left = pieno;
   });
-  // Il warlock riprende gli slot del Patto a ogni riposo breve.
+  // Il warlock riprende gli slot del Patto a ogni riposo breve — anche
+  // se il warlock è la seconda classe di un multiclasse.
   if (c.casterType === 'pact'){
     if (Object.values(c.slotsUsed||{}).some(v => (Number(v)||0) > 0)) n++;
     c.slotsUsed = {};
+  } else if (typeof haPatto === 'function' && haPatto(c)){
+    if ((Number(c.pactUsed)||0) > 0) n++;
+    c.pactUsed = 0;
   }
   scheduleSave('characters', c);
   closeModal(); render();
@@ -2667,6 +2697,7 @@ function longRest(charId){
   setPath(c,'hp.current', max);
   setPath(c,'hp.temp', 0);
   c.slotsUsed = {};
+  c.pactUsed = 0;
   c.deathSaves = { win:0, fail:0 };
   c.concentration = null;
   const back = Math.max(1, Math.floor((c.level||1)/2));
@@ -2817,11 +2848,61 @@ function spellByRef(ref){
   return (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).find(s=>s.id===ref.id)
       || (state.sharedSpells||[]).find(s=>s.id===ref.id);
 }
+/* ─── Multiclasse ────────────────────────────────────────────────
+   Gli slot di chi ha due classi non sono quelli della prima: si
+   sommano i livelli da incantatore delle due — interi per gli
+   incantatori pieni, metà per paladino e ranger, un terzo per le
+   sottoclassi magiche di guerriero e ladro — e si legge la tabella
+   con quel totale. Finora l'app usava solo la classe principale, e
+   dava numeri sbagliati a chiunque multiclassasse. */
+function livelloIncantatore(tipo, livello){
+  const lv = clamp(Number(livello)||0, 0, 20);
+  if (!lv) return 0;
+  if (tipo === 'full') return lv;
+  if (tipo === 'half') return Math.floor(lv / 2);
+  if (tipo === 'third') return Math.floor(lv / 3);
+  return 0;                       // 'none' e 'pact': il patto conta a parte
+}
+/* Il tipo di incantatore della seconda classe, dal suo nome. */
+function tipoSeconda(c){
+  if (!c || !c.class2) return 'none';
+  return CLASS_TO_CASTER[c.class2] || 'none';
+}
+function haMulticlasse(c){ return !!(c && c.class2 && (Number(c.level2)||0) > 0); }
+/* Il livello combinato che decide gli slot. */
+function livelloIncantatoreTotale(c){
+  const uno = livelloIncantatore(c.casterType, c.level);
+  const due = haMulticlasse(c) ? livelloIncantatore(tipoSeconda(c), c.level2) : 0;
+  return uno + due;
+}
+/* Il warlock ha slot suoi, che si recuperano col riposo breve: la
+   regola non li fonde con gli altri, e nemmeno l'app. */
+function haPatto(c){ return c.casterType === 'pact' || (haMulticlasse(c) && tipoSeconda(c) === 'pact'); }
+function slotsPatto(c){
+  if (!haPatto(c)) return null;
+  const lv = c.casterType === 'pact' ? (Number(c.level)||0) : (Number(c.level2)||0);
+  const arr = slotsForCharacter('pact', lv);
+  return arr.some(n=>n) ? arr : null;
+}
+function togglePatto(charId, i){
+  const c = charById(charId); if (!c) return;
+  const pt = slotsPatto(c); if (!pt) return;
+  const liv = pt.findIndex(n=>n) + 1, quanti = pt[liv-1] || 0;
+  const spesi = clamp(Number(c.pactUsed)||0, 0, quanti);
+  c.pactUsed = i < spesi ? i : i + 1;
+  scheduleSave('characters', c); render();
+}
 function slotsFor(c){
   if (c.slotsOverride){
     const arr = [];
     for (let i=1;i<=9;i++) arr[i-1] = clamp(c.slotsOverride[i]||0, 0, 9);
     if (arr.some(n=>n)) return arr;
+  }
+  if (haMulticlasse(c)){
+    const tot = livelloIncantatoreTotale(c);
+    if (tot > 0) return slotsForCharacter('full', tot);
+    // due classi che non lanciano (o solo warlock): restano i suoi
+    return slotsForCharacter(c.casterType, c.level);
   }
   return slotsForCharacter(c.casterType, c.level);
 }
@@ -2878,6 +2959,21 @@ function renderSheetSpells(c){
             <div class="slot-runes">${Array.from({length:count}).map((_,ri)=>`<button class="rune ${ri<usedCount?'spent':''}" onclick="toggleSlot('${c.id}',${lvl},${ri})" aria-label="Slot ${lvl}° livello">${ri<usedCount?'':'✦'}</button>`).join('')}</div>
           </div>`;
         }).join('') : `<p class="muted">Nessuno slot a questo livello.</p>`}
+        ${(()=>{ const pt = slotsPatto(c); if (!pt) return '';
+          /* Gli slot del patto non si fondono con gli altri: sono di
+             livello fisso, si recuperano col riposo breve, e la regola
+             li tiene separati. Quindi li tiene separati anche l'app,
+             invece di sommarli e dare un numero che non esiste. */
+          const liv = pt.findIndex(n=>n) + 1, quanti = pt[liv-1] || 0;
+          const spesi = clamp(Number(c.pactUsed)||0, 0, quanti);
+          return `<div class="slot-row" style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--line)">
+            <div class="slot-level-label" style="color:var(--arcane)">${liv}°</div>
+            <div class="slot-runes">${Array.from({length:quanti}).map((_,ri)=>`<button class="rune ${ri<spesi?'spent':''}" onclick="togglePatto('${c.id}',${ri})" aria-label="Slot del patto">${ri<spesi?'':'✦'}</button>`).join('')}</div>
+          </div>
+          <div class="muted" style="font-size:.72rem; margin-top:4px">Slot del patto (warlock): livello fisso, tornano col riposo breve.</div>`;
+        })()}
+        ${haMulticlasse(c) ? `<div class="muted" style="font-size:.72rem; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line)">
+          🎓 ${escapeHtml(c.classField||'')} ${c.level||1} + ${escapeHtml(c.class2)} ${c.level2}: gli slot vengono dal livello da incantatore combinato (${livelloIncantatoreTotale(c)}).</div>` : ''}
       </div>
     ` : `<div class="empty-state" style="padding:26px 20px;"><div class="ic">🪄</div><p>Questo personaggio non lancia incantesimi. Se invece è un incantatore, imposta il tipo qui sopra.</p></div>`}
 
@@ -3544,7 +3640,9 @@ function renderBestiary(){
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">🎒 Armi, armature ed equipaggiamento</button>
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">💍 Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
     <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openMostriPdf()">📖 Leggi i mostri dal tuo manuale</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:10px" onclick="openMostriPdf()">📖 Leggi i mostri dal tuo manuale</button>
+    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openIncontri()">⚔️ Costruisci un incontro</button>
+    ${(state.npcs||[]).length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
     ${tanti ? `
       <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">🐉 Il tuo bestiario</b><span class="muted" style="font-size:.75rem">${tutti.length} creature</span></div>
       ${cercaLista('bestiario-cerca', state.bestiarioQ, 'bestiarioCerca', 'Cerca per nome o tipo…')}
@@ -3752,18 +3850,87 @@ function renderInitiativeTracker(){
 }
 function initRowHTML(cb, i, isCurrent){
   const down = cb.hp != null && cb.hp <= 0;
+  const eff = cb.effetti || [];
   return `<div class="init-row ${isCurrent?'current-turn':''} ${down?'down':''}">
     <button class="init-badge" onclick="editCombatInit(${i})" title="Modifica iniziativa">${cb.init}</button>
     <div style="flex:1; min-width:0;">
-      <div class="init-name">${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}</div>
+      <div class="init-name">${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}${cb.conc?' <span title="Sta concentrando">🌀</span>':''}</div>
       <div class="init-hp">${cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : (cb.kind==='quick'?'—':'')}</div>
+      ${eff.length ? `<div class="init-effetti">${eff.map((e,k)=>`
+        <button class="chip effetto ${e.round<=1?'ultimo':''}" onclick="togliEffetto(${i},${k})" title="Tocca per toglierlo">
+          ${escapeHtml(e.nome)} <b>${e.round}</b></button>`).join('')}</div>` : ''}
     </div>
     <div class="init-actions">
+      <button class="btn-icon" style="width:34px;height:34px;font-size:.8rem;" onclick="apriEffetto(${i})" aria-label="Aggiungi un effetto a tempo" title="Effetto a tempo">⏳</button>
       ${cb.hp!=null ? `<button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem;" onclick="bumpCombatHP(${i},-1)" aria-label="-1 PF">−</button>
       <button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem;" onclick="bumpCombatHP(${i},1)" aria-label="+1 PF">+</button>` : ''}
       <button class="btn-icon" style="width:34px;height:34px;font-size:.75rem;" onclick="removeFromCombat(${i})" aria-label="Rimuovi">✕</button>
     </div>
   </div>`;
+}
+
+/* ─── Effetti a tempo nell'iniziativa ────────────────────────────
+   «Avvelenato per 3 round» è la cosa che al tavolo si dimentica
+   sempre: parte, e poi nessuno si ricorda quando finisce. Qui l'
+   effetto sta attaccato al combattente e scala da solo a ogni suo
+   turno; quando arriva a zero se ne va e l'app lo dice. */
+const EFFETTI_RAPIDI = [
+  ['Avvelenato', 3], ['Spaventato', 3], ['Trattenuto', 3], ['Affascinato', 3],
+  ['Prono', 1], ['Stordito', 1], ['Benedizione', 10], ['Sotto marchio', 10],
+];
+let effettoPer = null;
+function apriEffetto(i){
+  const cb = state.combat.list[i]; if (!cb) return;
+  effettoPer = { i, nome: '', round: 3 };
+  openModal({ render: () => modalShell('⏳ Effetto su ' + (cb.name||''), `
+    <div class="chip-row" style="margin-bottom:12px">
+      ${EFFETTI_RAPIDI.map(([n,r])=>`<button class="chip" onclick="effettoRapido('${jsStr(n)}',${r})">${escapeHtml(n)}</button>`).join('')}
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Che effetto</label>
+        <input id="eff-nome" value="${attr(effettoPer.nome)}" placeholder="Es. Avvelenato" oninput="effettoPer.nome=this.value"></div>
+      <div class="field"><label>Per quanti round</label>
+        <input id="eff-round" type="number" inputmode="numeric" min="1" max="99" value="${effettoPer.round}" oninput="effettoPer.round=clamp(parseInt(this.value)||1,1,99)"></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="salvaEffetto()">Aggiungi</button>
+    <div class="spell-source-note">Scala di uno all'inizio di ogni turno di ${escapeHtml(cb.name||'questo combattente')}. A zero sparisce e te lo dico.</div>`) });
+}
+function effettoRapido(nome, round){
+  if (!effettoPer) return;
+  effettoPer.nome = nome; effettoPer.round = round;
+  salvaEffetto();
+}
+function salvaEffetto(){
+  if (!effettoPer) return;
+  const el = document.getElementById('eff-nome');
+  if (el && el.value) effettoPer.nome = el.value;
+  const nome = (effettoPer.nome || '').trim();
+  if (!nome){ toast('Dagli un nome'); return; }
+  const cb = state.combat.list[effettoPer.i];
+  if (cb){
+    cb.effetti = cb.effetti || [];
+    cb.effetti.push({ nome, round: clamp(Number(effettoPer.round)||1, 1, 99) });
+  }
+  effettoPer = null;
+  saveSession(); closeModal(); render();
+}
+function togliEffetto(i, k){
+  const cb = state.combat.list[i]; if (!cb || !cb.effetti) return;
+  const via = cb.effetti.splice(k, 1)[0];
+  saveSession(); render();
+  if (via) toast('✓ «' + via.nome + '» tolto');
+}
+/* All'inizio del turno di qualcuno, i suoi effetti perdono un round. */
+function scalaEffetti(i){
+  const cb = state.combat.list[i];
+  if (!cb || !cb.effetti || !cb.effetti.length) return;
+  const finiti = [];
+  cb.effetti = cb.effetti.filter(e => {
+    e.round = (Number(e.round) || 1) - 1;
+    if (e.round > 0) return true;
+    finiti.push(e.nome); return false;
+  });
+  if (finiti.length) setTimeout(() => toast('⏳ Su ' + cb.name + ' finisce: ' + finiti.join(', ')), 200);
 }
 function uniqueCombatName(base){
   base = base || 'Combattente';
@@ -3783,6 +3950,7 @@ function addToCombat(refId, kind){
   const init = rollDie(20) + (kind==='pc' ? (src.initiative ?? dexMod) : dexMod);
   state.combat.list.push({
     refId, kind, name: uniqueCombatName(src.name), avatar: src.avatar, init,
+    conc: kind==='pc' ? !!src.concentration : false, effetti: [],
     hp: kind==='pc' ? getPath(src,'hp.current',0) : (src.hpCurrent ?? src.hpMax ?? 0),
     hpMax: kind==='pc' ? getPath(src,'hp.max',0) : (src.hpMax ?? 0),
   });
@@ -3830,11 +3998,24 @@ function sortCombat(){
 }
 function bumpCombatHP(i, delta){
   const cb = state.combat.list[i]; if (!cb || cb.hp==null) return;
+  const prima = cb.hp;
   cb.hp = clamp(cb.hp+delta, 0, cb.hpMax || 9999);
+  const danni = Math.max(0, prima - cb.hp);
   // Se è un personaggio del party, aggiorna anche la sua scheda.
   if (cb.kind === 'pc'){
     const c = charById(cb.refId);
-    if (c){ setPath(c,'hp.current', clamp(cb.hp, 0, getPath(c,'hp.max',9999))); scheduleSave('characters', c); }
+    if (c){
+      setPath(c,'hp.current', clamp(cb.hp, 0, getPath(c,'hp.max',9999)));
+      scheduleSave('characters', c);
+      cb.conc = !!c.concentration;
+      /* La regola che al tavolo salta sempre: chi sta concentrando e
+         subisce danni tira Costituzione, CD 10 o metà dei danni. Il
+         master lo scopre qui, mentre segna i danni, non dopo. */
+      if (danni > 0 && c.concentration){
+        const cd = Math.max(10, Math.floor(danni / 2));
+        setTimeout(() => toast('🌀 ' + c.name + ': TS Costituzione CD ' + cd + ' o perde «' + (c.concentration && c.concentration.name || '') + '»'), 150);
+      }
+    }
   } else if (cb.kind === 'npc'){
     const n = state.npcs.find(x=>x.id===cb.refId);
     if (n){ n.hpCurrent = cb.hp; scheduleSave('npcs', n); }
@@ -3850,6 +4031,7 @@ function nextTurn(){
   if (!state.combat.list.length) return;
   state.combat.turn++;
   if (state.combat.turn >= state.combat.list.length){ state.combat.turn = 0; state.combat.round++; }
+  scalaEffetti(state.combat.turn);
   saveSession(); render();
 }
 function prevTurn(){
@@ -3994,6 +4176,53 @@ function downloadJSON(payload, basename){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }
+/* ─── Il promemoria del backup ───────────────────────────────────
+   L'esportazione c'è da sempre, ma nessuno se la ricorda — e in questo
+   progetto i dati si sono persi due volte. Qui l'app tiene la data
+   dell'ultimo backup e, passato un mese, lo dice. Una volta, senza
+   insistere: un avviso che torna ogni giorno si impara a ignorarlo. */
+const LS_BACKUP = 'grimorio-ultimo-backup';
+const GIORNI_BACKUP = 30;
+function ultimoBackup(){
+  try { const v = Number(localStorage.getItem(LS_BACKUP)); return v > 0 ? v : 0; }
+  catch(e){ return 0; }
+}
+function segnaBackupFatto(){
+  try { localStorage.setItem(LS_BACKUP, String(Date.now())); } catch(e){}
+}
+function giorniDaBackup(){
+  const t = ultimoBackup();
+  if (!t) return null;                       // mai fatto
+  return Math.floor((Date.now() - t) / 86400000);
+}
+function quandoUltimoBackup(){
+  const t = ultimoBackup();
+  if (!t) return 'mai';
+  const g = giorniDaBackup();
+  if (g <= 0) return 'oggi';
+  if (g === 1) return 'ieri';
+  if (g < 30) return g + ' giorni fa';
+  return new Date(t).toLocaleDateString('it-IT');
+}
+/* Vale la pena avvisare solo se c'è qualcosa da perdere. */
+function serveUnBackup(){
+  const roba = (state.characters||[]).length + (state.homebrew||[]).length + (state.customSpells||[]).length;
+  if (roba < 2) return false;
+  const g = giorniDaBackup();
+  return g === null || g >= GIORNI_BACKUP;
+}
+function controllaBackup(){
+  if (!serveUnBackup()) return;
+  try {
+    const visto = Number(localStorage.getItem(LS_BACKUP + '-avvisato') || 0);
+    if (Date.now() - visto < GIORNI_BACKUP * 86400000) return;   // già detto di recente
+    localStorage.setItem(LS_BACKUP + '-avvisato', String(Date.now()));
+  } catch(e){}
+  const g = giorniDaBackup();
+  setTimeout(() => toast(g === null
+    ? '💾 Non hai mai esportato un backup: bastano due tocchi in Opzioni'
+    : '💾 L\'ultimo backup risale a ' + g + ' giorni fa'), 2600);
+}
 function exportData(){
   try {
     downloadJSON({
@@ -4002,6 +4231,7 @@ function exportData(){
       customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
       journal: state.journal
     }, 'grimorio-backup');
+    segnaBackupFatto();
     toast('⤓ Backup esportato');
   } catch(e){ console.error(e); toast('⚠️ Esportazione non riuscita'); }
 }
@@ -4597,7 +4827,7 @@ function boot(){
    le loro funzioni non esistono. Partire subito significava saltare il
    ripristino della campagna a ogni avvio. Si aspetta che ci siano tutti. */
 let __avviato = false;
-function avvia(){ if (__avviato) return; __avviato = true; boot(); }
+function avvia(){ if (__avviato) return; __avviato = true; boot(); if (typeof controllaBackup === 'function') controllaBackup(); }
 if (document.readyState === 'complete') avvia();
 else {
   document.addEventListener('DOMContentLoaded', avvia, { once: true });

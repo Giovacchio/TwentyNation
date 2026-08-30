@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.6** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.7** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -41,6 +41,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `meccaniche.js` | effetti delle sottoclassi sulle regole, Dono del Patto |
 | `mostri-pdf.js` | legge i mostri da PDF, testo e **JSON** |
 | **`liste.js`** | **elenchi lunghi: paginazione, ricerca, scelta a pastiglie** |
+| **`incontri.js`** | **costruttore di incontri: peso dello scontro e punti esperienza** |
 | `firestore.rules` | regole di sicurezza (già pubblicate, **non vanno cambiate**) |
 
 **Attenzione:** un file nuovo va aggiunto in **tre** posti — `index.html` (lo `<script>`),
@@ -107,20 +108,18 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 
 ## Da dove ripartire
 
-1. **Costruttore di incontri** — scegli i mostri dal bestiario, l'app dice se l'incontro
-   è facile/medio/difficile/mortale per il gruppo e quanti PX vale. Tutto SRD,
-   self-contained, nessun rischio. *È la cosa più utile che manca* — e adesso che il
-   bestiario regge migliaia di creature ha molto più senso di prima.
-2. **Condizioni con durata nell'iniziativa** — effetti attivi che scalano da soli a ogni
-   round, e avviso sulla concentrazione quando quel personaggio subisce danni.
-3. **Il master vede il gruppo** — PF, CA e percezione passiva dei giocatori visibili al
-   master in tempo reale. Il salto più grande, ma tocca privacy e regole: opt-in per
-   ciascun giocatore.
-4. **Diario condiviso** col tavolo (oggi è solo personale).
-5. **Traduzione dei nomi anche per il bestiario** (oggi copre solo le aggiunte).
-6. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
+1. **Il master vede il gruppo** — PF, CA e percezione passiva dei giocatori visibili al
+   master in tempo reale. Il salto più grande rimasto, ma tocca privacy e regole: va
+   fatto **opt-in per ciascun giocatore**, non acceso dal master.
+2. **Diario condiviso** col tavolo (oggi è solo personale).
+3. **Il multiclasse oltre gli slot**: i privilegi della seconda classe non finiscono in
+   scheda, e la salita di livello ne conosce una sola. Gli slot ora sono giusti (v7.7),
+   il resto no.
+4. **Incontri salvati**: oggi il costruttore è usa-e-getta. Poterli preparare in anticipo
+   e richiamarli a sessione aperta sarebbe il passo naturale.
+5. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
    da fermo — si liberano scorrendo, quindi non urgenti.
-7. **Oltre le 4.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo
+6. **Oltre le 4.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo
    bestiario di consultazione, separato da `state.npcs`. Non serve finché il contatore in
    «Salute dei dati» resta sotto il 60% — guardalo prima di rimetterci mano.
 
@@ -164,6 +163,9 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 - **`resizeImageFile()` non ritaglia più.** Fino alla 6.9 tagliava a quadrato dal centro
   appena caricata l'immagine, distruggendo l'originale. Adesso riduce e basta, con due
   tetti (lato lungo 480, area 190.000 px). Se un giorno serve un cerchio, lo fa il CSS.
+- **Gli slot del multiclasse** stanno in `slotsFor()` / `livelloIncantatoreTotale()`
+  (`app.js`): si sommano i livelli da incantatore, non i livelli. Il patto del warlock
+  NON entra nella somma — ha la sua riga, il suo `pactUsed` e torna col riposo breve.
 - **Il ponte fra le tue cose e il resto sta in `homebrew.js`**: `trovaRazza()`,
   `trovaSottoclasse()`, `sottoclassiSenzaCasa()`, `adottaSottoclasse()`. Quando aggiungi
   un punto dell'app che deve conoscere il materiale caricato, passa da lì — e ricordati

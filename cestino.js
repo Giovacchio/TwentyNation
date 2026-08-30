@@ -184,6 +184,18 @@ function saluteHTML(){
           <div class="muted" style="font-size:.72rem">${r.totale} in tutto · ${r.suAccount} sull'account${r.soloQui?' · <b style="color:var(--warn)">'+r.soloQui+' solo qui</b>':''}</div>
         </div>
       </div>`).join('')}</div>` : emptyState('📭','Non hai ancora niente da mettere al sicuro.')}
+    ${(()=>{ if (typeof quandoUltimoBackup !== 'function') return '';
+      const g = giorniDaBackup(), serve = (typeof serveUnBackup === 'function') && serveUnBackup();
+      return `<div class="card" style="margin-top:12px; ${serve?'border-color:var(--warn)':''}">
+        <div class="row-between"><b style="font-size:.86rem">💾 Ultimo backup</b>
+          <b style="color:${serve?'var(--warn)':'var(--good)'}">${escapeHtml(quandoUltimoBackup())}</b></div>
+        <p class="muted" style="margin-top:6px; font-size:.76rem">
+          ${g === null
+            ? 'Non ne hai mai esportato uno. È l\'unica copia che resta tua anche senza account e senza questo dispositivo.'
+            : (serve ? 'È passato più di un mese. Un backup costa due tocchi e ti evita la giornata storta.'
+                     : 'Sei a posto. Rifallo quando aggiungi qualcosa di importante.')}
+        </p>
+      </div>`; })()}
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-gold" onclick="closeModal(); exportData()">⤓ Esporta un backup</button>
       <button class="btn btn-ghost" onclick="closeModal(); openCestino()">🗑️ Cestino${quantoNelCestino()?' ('+quantoNelCestino()+')':''}</button>

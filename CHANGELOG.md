@@ -1,5 +1,40 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.7 — 30 agosto 2026
+**Costruttore di incontri, multiclasse che finalmente dà i numeri giusti, effetti a tempo, promemoria del backup e traduzione su tutto.**
+
+### ⚔️ Costruttore di incontri
+Dal Tavolo del Master. Scegli chi c'è dall'altra parte — cercando in una volta sola fra le creature di serie, le tue e quelle del tavolo — e l'app dice **quanto pesa lo scontro** per il tuo gruppo e **quanti punti esperienza vale**, divisi per chi combatte davvero.
+
+- Il conto è quello vero: PX per grado sfida, moltiplicatore che cresce col numero di nemici (e si sposta di un gradino per i gruppi sotto i tre o sopra i cinque), soglie sommate sui livelli di chi partecipa. **Sei goblin non sono «facile» solo perché la somma è bassa.**
+- Le soglie si leggono tutte in chiaro sotto il verdetto: se al tuo tavolo la pensate diversamente, vedi da dove esce il numero.
+- **«Manda all'iniziativa»** mette in campo tutte le copie in un colpo, con i punti ferita tirati sui dadi vita e i nomi numerati.
+
+### 🎓 Il multiclasse dava numeri sbagliati
+La scheda teneva solo un secondo dado vita. **Gli slot incantesimo si calcolavano sulla sola classe principale**: un mago 5 / chierico 5 leggeva gli slot di un incantatore di 5°, non di 10°. Ora c'è la seconda classe con il suo livello, e gli slot vengono dal **livello da incantatore combinato** — interi per gli incantatori pieni, metà per paladino e ranger, un terzo per le sottoclassi magiche, zero per chi non lancia.
+
+- **Gli slot del patto restano separati**, come vuole la regola: livello fisso, riga a parte, e tornano col riposo breve — anche quando il warlock è la seconda classe.
+- Sotto gli slot compare il conto: «Mago 5 + Chierico 5: livello da incantatore combinato 10».
+
+### ⏳ Effetti a tempo nell'iniziativa
+Il tasto ⏳ su ogni combattente: «Avvelenato 3 round», e **scala da solo all'inizio di ogni suo turno**. Quando arriva a zero sparisce e l'app te lo dice. Otto effetti pronti con un tocco, l'ultimo round si colora, e si tolgono anche a mano.
+
+**E la regola che salta sempre**: togliendo punti ferita a un personaggio che sta concentrando, il master si vede scritta la CD del tiro salvezza (10, o metà dei danni) mentre segna i danni — non dopo.
+
+### 💾 Il backup che si ricorda da solo
+Data dell'ultimo backup in «Salute dei dati», e un avviso quando è passato un mese. Una volta, non ogni giorno: un promemoria che torna sempre si impara a ignorarlo. E se hai due cose in croce non dice niente. *(In questo progetto i dati si sono persi due volte: l'esportazione c'era già, quello che mancava era ricordarsene.)*
+
+### 🇮🇹 La traduzione copre tutto
+Prima toccava solo sottoclassi, razze e background. Ora anche:
+- **le creature del bestiario** — nome e la riga sotto: «Large dragon, chaotic evil» → «Grande drago, caotico malvagio»;
+- **i tuoi incantesimi** — nome e scuola.
+
+Come prima: il testo delle regole non si tocca, gli originali restano salvati e «↩︎ Rimetti i nomi originali» riporta tutto indietro, creature e incantesimi compresi. Il tasto ora c'è anche nel bestiario.
+
+> **Sui numeri del costruttore.** Sono tabelle di meccanica — punti esperienza, soglie, moltiplicatori — non testo di nessun manuale: nessuna descrizione, nessun nome, nessun brano. È una cosa diversa dal materiale che l'app continua a non contenere e che carichi tu dai libri che possiedi.
+
+> 26 prove nuove in `test-v77.mjs`: i conti dell'incontro caso per caso, il multiclasse classe per classe con gli slot del patto tenuti fuori, l'effetto che scala e sparisce, l'avviso sulla concentrazione, il promemoria del backup e la traduzione avanti e indietro. Suite completa, **1.443 interazioni ripercorse una per una con zero errori**, audit mobile invariato.
+
 ## v7.6 — 30 agosto 2026
 **La carta del compagno diventa grande come quella dei personaggi.**
 

@@ -583,6 +583,12 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 /* Le righe di promemoria: stessa forma delle altre, ma si vede che non
    sono da toccare — niente bordo acceso, niente reazione al tocco. */
 /* ── Il tuo turno ─────────────────────────────────────────────── */
+/* Gli effetti a tempo attaccati a un combattente. */
+.init-effetti { display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+.init-effetti .chip.effetto { padding:3px 9px; font-size:.7rem; min-height:0; border-color:var(--arcane); color:var(--ink-soft); }
+.init-effetti .chip.effetto b { color:var(--arcane); margin-left:2px; }
+.init-effetti .chip.effetto.ultimo { border-color:var(--warn); }
+.init-effetti .chip.effetto.ultimo b { color:var(--warn); }
 .turno-testa { display:flex; align-items:center; gap:10px; margin-top:6px; }
 .turno-barra { display:flex; align-items:center; justify-content:space-between; gap:10px;
   padding:8px 11px; border:1px dashed var(--line); border-radius:var(--radius); background:var(--card-2); }
@@ -974,6 +980,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./homebrew-bulk.js"></script>
   <script defer src="./traduci.js"></script>
   <script defer src="./liste.js"></script>
+  <script defer src="./incontri.js"></script>
   <script defer src="./cestino.js"></script>
   <script defer src="./turno.js"></script>
   <script defer src="./meccaniche.js"></script>
