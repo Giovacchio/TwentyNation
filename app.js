@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.0';
+const APP_VERSION = '7.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1750,7 +1750,7 @@ function characterFormHTML(isEdit){
         </div>
         <div class="field-hint" style="margin-bottom:8px">Senza foto viene usato il simbolo scelto qui sotto.</div>
         <div class="chip-row">
-          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g&&!d.portrait?'active':''}" style="font-size:1.1rem;padding:8px 12px;" onclick="draftChar.avatar='${jsStr(g)}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
+          ${AVATAR_GLYPHS.map(g=>`<button class="chip ${d.avatar===g?'active':''}" style="font-size:1.1rem;padding:8px 12px;${d.portrait?'opacity:.75;':''}" onclick="draftChar.avatar='${jsStr(g)}'; renderModalRoot()" aria-label="Simbolo ${g}">${g}</button>`).join('')}
         </div>
       </div>
       <button class="btn btn-primary btn-block" style="margin-top:6px" onclick="saveCharacterDraft(${isEdit})">${isEdit?'Salva modifiche':'Crea personaggio'}</button>

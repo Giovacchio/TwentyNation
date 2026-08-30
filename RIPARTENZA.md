@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.0** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -115,7 +115,20 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 
 - **Ogni consegna è testata prima**: `/root/t/*.mjs` con Playwright, più `audit/audit.mjs`
   che scatta 99 schermate e cerca testo tagliato, elementi troppo piccoli e sovrapposizioni.
-  `test-tremila.mjs` è la prova di carico: 3.000 creature vere e 500 voci di contenuti.
+  `test-tremila.mjs` è la prova di carico: 4.000 creature vere e 500 voci di contenuti.
+- **`check-interazioni.mjs`** (statico, istantaneo): legge tutti i gestori inline del codice
+  — `onclick`, `oninput`, `onchange`, `onkeydown` — e verifica che ogni funzione chiamata
+  esista, che nessun `<button>` sia senza gestore, che nessuna funzione sia definita due
+  volte e che ogni `getElementById` cerchi un id che qualcuno crea. Lanciarlo dopo ogni
+  modifica: costa un secondo.
+- **`crawl-interazioni.mjs`** (dinamico, ~8 minuti): apre 37 superfici e **clicca ogni
+  elemento uno per uno**, rimettendo a posto lo stato fra un tocco e l'altro. Segnala gli
+  errori a runtime, i tocchi senza nessun effetto e le zone di tocco sotto i 32 px
+  (misurate davvero con `elementFromPoint`, non dal rettangolo dell'elemento — e portando
+  prima l'elemento in vista, o la misura vale zero). Rapporto completo in
+  `/tmp/interazioni.json`. È quello che ha trovato il tasto delle risorse morto da sempre.
+- **Le risorse non hanno un identificativo**: si indirizzano per posizione, come fanno
+  `saveResource`, `bumpResource` e `removeResource`. Cercarle per `id` non trova mai niente.
 - **I test devono usare i modelli veri dell'app.** Nella v6.4 quattro difetti gravi erano
   passati perché i test seminavano la forma sbagliata dei dati: verificavano l'errore
   invece del comportamento. Prima di scrivere una prova, controlla com'è fatto davvero

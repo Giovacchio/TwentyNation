@@ -469,7 +469,12 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .skills-list { display: flex; flex-direction: column; }
 .skill-row, .save-row { display: flex; align-items: center; gap: 11px; padding: 3px 0; border-bottom: 1px solid var(--line-soft); }
 .skill-row:last-child, .save-row:last-child { border-bottom: none; }
-.skill-dot { width: 19px; height: 19px; border-radius: 50%; border: 2px solid var(--gold-dim); flex-shrink: 0; background: transparent; transition: all .18s; }
+/* Il pallino resta piccolo perché così è bello, ma la zona che
+   raccoglie il tocco no: 19×19 è metà di quello che serve a un pollice,
+   e sbagliare mira qui significa segnare la competenza sbagliata. La
+   zona invisibile arriva a 37×29 senza spostare niente di un pixel. */
+.skill-dot { width: 19px; height: 19px; border-radius: 50%; border: 2px solid var(--gold-dim); flex-shrink: 0; background: transparent; transition: all .18s; position: relative; }
+.skill-dot::after { content: ""; position: absolute; inset: -9px -6px; }
 .skill-dot.on { background: var(--gold); border-color: var(--gold-bright); box-shadow: inset 0 0 0 2.5px var(--card), 0 0 9px rgba(217,180,95,.5); }
 .skill-tap { flex: 1; display: flex; align-items: center; gap: 8px; padding: 9px 4px; min-width: 0; text-align: left; border-radius: 8px; }
 .skill-tap:active { background: var(--card-hi); }
@@ -575,6 +580,9 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .lista-cerca-x:hover { background:var(--surface-2); color:var(--ink); }
 .barra { height:8px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
 .barra-piena { height:100%; background:linear-gradient(90deg, var(--gold), var(--gold-2, var(--gold))); border-radius:99px; transition:width .2s ease; }
+/* Le righe di promemoria: stessa forma delle altre, ma si vede che non
+   sono da toccare — niente bordo acceso, niente reazione al tocco. */
+.attack-row.promemoria { background: transparent; border-style: dashed; opacity: .88; cursor: default; }
 .lista-vuota { text-align:center; padding:18px 10px; font-size:.8rem; color:var(--ink-faint); }
 .filtro-riga { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:10px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 .filtro-riga::-webkit-scrollbar { display:none; }
@@ -607,7 +615,10 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 
 /* ────────────────── ATTACCHI / RISORSE / STATO ────────────────── */
 .attack-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); }
-.attack-main { flex: 1; min-width: 0; text-align: left; }
+/* Era alto quanto il testo — 18 px — mentre la riga intorno ne misura
+   il doppio: toccando appena sopra o sotto il nome non succedeva niente.
+   Adesso riempie la riga in altezza, senza cambiare come si vede. */
+.attack-main { flex: 1; min-width: 0; text-align: left; align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
 .attack-name { font-weight: 700; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attack-btn {
   flex-shrink: 0; min-width: 52px; height: 38px; padding: 0 10px; border-radius: 10px;

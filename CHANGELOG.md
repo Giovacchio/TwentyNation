@@ -1,5 +1,25 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.1 — 30 agosto 2026
+**Ho toccato ogni cosa toccabile dell'app, una per una: 1.426 elementi su 37 schermate.**
+
+Due controlli nuovi e permanenti. Uno statico legge tutti i **564 gestori** scritti nel codice (`onclick`, `oninput`, `onchange`, `onkeydown`) e verifica che ogni funzione chiamata esista davvero. L'altro apre l'app in un browser vero e **clicca ogni elemento uno per uno**, rimettendo a posto lo stato fra un tocco e l'altro, registrando errori, tocchi senza effetto e bersagli troppo piccoli per un pollice.
+
+**Zero errori a runtime su 1.426 tocchi.** Ma sono usciti tre difetti veri:
+
+- **Il tasto delle risorse in «Il tuo turno» non ha mai funzionato.** Le risorse (forma selvatica, recupero arcano, punti stregoneria) in tutta l'app si indirizzano per posizione — `bumpResource`, `saveResource`, `removeResource` fanno tutti così. Il turno le cercava per `id`, che non esiste in quel modello: `find(x => x.id === undefined)` non trovava mai niente, e il tasto restava lì a non spendere nulla. **Per ogni personaggio, da quando esiste la schermata.**
+- **Tredici pulsanti finti in «Il tuo turno».** Scatto, Disimpegno, Schivata, Nascondersi e le altre azioni di base erano `<button>` senza nessun gestore: invitavano un tocco e non facevano niente. Un pulsante che non fa nulla è peggio di una riga di testo — chi lo tocca crede che l'app si sia inceppata. Ora sono righe di promemoria, con il bordo tratteggiato: si legge che sono da leggere.
+- **I venti simboli del personaggio non mostravano quale fosse scelto** quando c'era una foto: li toccavi e non succedeva niente di visibile, anche se il valore veniva salvato. Ora la scelta si vede sempre.
+
+**Bersagli più facili da centrare**
+
+- **I pallini delle competenze** erano 19×19: la metà di quanto serve a un pollice, e sbagliare mira lì significa segnare la competenza sbagliata. La zona che raccoglie il tocco ora è **26×32** — 2,3 volte più grande — senza spostare di un pixel come si vedono. Più larghi non si può: sono in un elenco fitto, e rubarsi i tocchi fra righe vicine sarebbe peggio.
+- **Il nome dell'attacco** era alto 18 px dentro una riga alta il doppio: toccando appena sopra o sotto non succedeva niente. Ora riempie la riga.
+
+> **E una lezione che questo progetto ha già pagato due volte.** Il difetto delle risorse era coperto da una prova verde: il test seminava un `id:'r1'` che l'app non crea mai, quindi verificava il mio errore invece del comportamento. È la terza volta che succede in questo progetto. La prova ora usa il modello vero, e ne ho aggiunta una che clicca **il tasto disegnato sullo schermo** e controlla che scali la risorsa giusta fra due.
+
+> I 49 «tocchi senza effetto» rimasti sono tutti legittimi: filtri già attivi, tendine (che con un clic finto non cambiano valore) e i tasti che aprono la finestra di scelta file. Suite completa e audit mobile verdi.
+
 ## v7.0 — 29 agosto 2026
 **I personaggi diventano la schermata iniziale, e il ritratto si vede tutto.**
 

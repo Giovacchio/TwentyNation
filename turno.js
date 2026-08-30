@@ -57,14 +57,22 @@ function turnoHTML(){
   const sp = incantesimiDelTurno(c);
   const vel = c.speed || 9;
 
-  const voce = (icona, nome, sotto, azione) => `
-    <button class="attack-row" style="width:100%; text-align:left" ${azione?`onclick="${azione}"`:''}>
+  /* Le azioni di base sono un promemoria, non un comando: qui erano
+     tredici <button> senza gestore, che invitavano un tocco e non
+     facevano niente. Un pulsante che non fa nulla è peggio di una riga
+     di testo — chi lo tocca crede che l'app si sia inceppata. Quando
+     non c'è un'azione da compiere si disegna una riga, non un tasto. */
+  const voce = (icona, nome, sotto, azione) => {
+    const dentro = `
       <span style="flex-shrink:0; margin-right:11px; font-size:1.15rem">${icona}</span>
       <span class="attack-main">
         <span class="attack-name">${escapeHtml(nome)}</span>
         ${sotto?`<span class="muted" style="font-size:.73rem; display:block">${escapeHtml(sotto)}</span>`:''}
-      </span>
-    </button>`;
+      </span>`;
+    return azione
+      ? `<button class="attack-row" style="width:100%; text-align:left" onclick="${azione}">${dentro}</button>`
+      : `<div class="attack-row promemoria">${dentro}</div>`;
+  };
 
   const rigaIncantesimo = (x) => `
     <div class="attack-row">
@@ -91,9 +99,13 @@ function turnoHTML(){
       ${liv}° <b style="color:${usati>=tot?'var(--ink-soft)':'var(--gold)'}">${tot-usati}/${tot}</b></button>`;
   }).join('');
 
-  const risorse = (c.resources || []).map(r => {
+  /* Le risorse non hanno un identificativo: in tutta l'app si indirizzano
+     per posizione (bumpResource, saveResource, removeResource). Qui le
+     cercavo per `id`, che è sempre indefinito — quindi questo tasto non
+     ha mai speso niente, in nessun personaggio, da quando esiste. */
+  const risorse = (c.resources || []).map((r, i) => {
     const tot = Number(r.total)||0, left = clamp(r.left==null?tot:r.left, 0, Math.max(tot,99));
-    return `<button class="chip" onclick="turnoSpendiRisorsa('${c.id}','${jsStr(r.id)}')" style="min-height:40px">
+    return `<button class="chip" onclick="turnoSpendiRisorsa('${c.id}',${i})" style="min-height:40px">
       ${escapeHtml(r.name||'Risorsa')} <b style="color:${left?'var(--gold)':'var(--ink-soft)'}">${left}/${tot}</b></button>`;
   }).join('');
 
@@ -172,9 +184,9 @@ function turnoSpendiSlot(charId, livello){
   renderModalRoot(); render();
   toast('✦ Speso uno slot di ' + livello + '° — ne restano ' + (tot - usati - 1));
 }
-function turnoSpendiRisorsa(charId, idRisorsa){
+function turnoSpendiRisorsa(charId, i){
   const c = charById(charId); if (!c) return;
-  const r = (c.resources||[]).find(x => x.id === idRisorsa); if (!r) return;
+  const r = (c.resources||[])[i]; if (!r) return;
   const tot = Number(r.total)||0;
   const left = clamp(r.left==null?tot:r.left, 0, Math.max(tot,99));
   if (left <= 0){ toast('«' + (r.name||'') + '» è esaurita'); return; }
