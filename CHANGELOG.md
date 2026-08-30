@@ -1,5 +1,22 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.5 — 30 agosto 2026
+**«Il tuo turno» adesso fa il turno, non lo elenca soltanto.**
+
+**Il difetto che hai visto, ed era grosso.** La schermata mostrava solo gli incantesimi segnati come *preparati* — per tutti. Ma **bardo, stregone, warlock e ranger non preparano niente**: lanciano quello che conoscono. Per loro «Il tuo turno» era vuota proprio nel momento in cui serve. Ora l'app sa chi prepara (chierico, druido, paladino e il mago col libro) e chi no, e per gli altri mostra tutto quello che sanno. Se una scheda non è legata a una classe — importata da PDF, scritta a mano — **non si indovina: si mostra tutto**, perché nascondere quello che il personaggio sa fare è il danno peggiore. E un preparatore che non ha ancora segnato niente li vede comunque tutti, con un avviso che spiega come segnarli.
+
+**Il tasto «Lancia» fa il mestiere per intero.** Prima c'era un tastino «slot» che scalava un contatore e basta. Adesso un tocco: **spende lo slot giusto** — e se quelli del suo livello sono finiti usa il primo più alto disponibile, dicendotelo — **accende la concentrazione** se l'incantesimo la richiede (avvisando quale stai per sostituire), e **segna l'azione come usata**. Quello che non puoi lanciare si vede spento, con scritto «niente slot», invece di lasciarti scoprire dopo.
+
+**L'economia del turno.** Azione, azione bonus e reazione si spendono una volta per turno: è la cosa che al tavolo si dimentica di più. Ora ogni sezione dice se è **libera** o **usata**, si segna da sola quando lanci o attacchi, si può correggere a mano, e «↻ Nuovo turno» azzera tutto. Cambiando personaggio riparte pulito.
+
+**A 0 punti ferita il tuo turno è un tiro salvezza contro morte** — e adesso la schermata lo dice, con i tre pallini dei successi e dei fallimenti e il tasto per tirare, al posto dell'elenco delle azioni.
+
+**Concentrazione, la regola che salta sempre.** Il riquadro ha il tasto per il tiro salvezza su Costituzione, e togliendo punti ferita da qui l'app ti ricorda la CD: 10, o metà dei danni se è di più.
+
+**Meno rumore.** Le dieci azioni di base (Scatto, Disimpegno, Schivata…) restano un promemoria utile, ma spingevano in fondo allo schermo proprio le cose che il tuo personaggio sa fare. Ora stanno dietro un tocco — e restano aperte quando non hai nient'altro in quella parte del turno, o la sezione sembrerebbe vuota. In cima compaiono anche la **CD dei tuoi incantesimi**, il **movimento** e lo scatto.
+
+> 15 prove nuove (30 in tutto su `test-turno.mjs`): chi prepara e chi no classe per classe, il chierico che vede solo i preparati e quello che non ne ha segnati, lo slot speso a livello più alto quando il suo è finito, il rifiuto quando non ce n'è più, l'economia del turno che si azzera cambiando personaggio, e il riquadro dei tiri contro morte che compare solo a terra. Suite completa, 1.433 interazioni ripercorse una per una (zero errori), audit mobile invariato.
+
 ## v7.4 — 30 agosto 2026
 **🔄 Bestiario sincronizzato: tutto il tuo bestiario sul tavolo, senza più sceglierlo ogni volta.**
 

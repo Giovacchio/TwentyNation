@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.4** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.5** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -56,7 +56,12 @@ concentrazione, condizioni e forma selvatica; tutta la carta apre la scheda.
 Creazione guidata, scheda completa con tiri, PF, condizioni, riposi,
 passaggio di livello, esportazione e importazione PDF, ritratto, multiclasse parziale.
 **«Il tuo turno»**: una schermata con attacchi, incantesimi divisi per tempo di lancio,
-slot e risorse da spendere, senza aprire la scheda. **Scorrimento laterale** fra le sezioni.
+slot e risorse da spendere, senza aprire la scheda. «Lancia» spende lo slot (anche a
+livello più alto se serve), accende la concentrazione e segna l'azione; l'economia del
+turno (azione / bonus / reazione) si azzera con «Nuovo turno»; a 0 PF compaiono i tiri
+salvezza contro morte. **Chi prepara e chi no** lo decide `preparaIncantesimi()` in
+`turno.js` guardando `CLASS_BY_ID[c.classId].spellType`: bardo, stregone, warlock e
+ranger NON preparano — filtrarli sui preparati lasciava la schermata vuota. **Scorrimento laterale** fra le sezioni.
 
 **Incantesimi** — 319 SRD più i tuoi, importabili da JSON, testo o PDF (con ricucitura
 delle parole spezzate dai PDF a due colonne).
