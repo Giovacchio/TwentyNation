@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.2** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.3** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -75,8 +75,13 @@ tiene `raceId`/`bgId`/`classId`/`subclassId`, non solo i nomi scritti.
 **Tavolo del master** — bestiario SRD, PNG, iniziativa, diario. Lettore dei mostri da
 PDF, testo e JSON delle raccolte SRD.
 
-**Campagne** — tavolo condiviso con codice d'invito: incantesimi e aggiunte in comune,
-in un clic. I personaggi restano privati. Regole di sicurezza vere.
+**Campagne** — tavolo condiviso con codice d'invito: incantesimi, aggiunte **e creature**
+in comune, in un clic. I personaggi restano privati. Regole di sicurezza vere.
+Le tre collezioni condivisibili stanno in un elenco solo, `COND_TIPI` in `campaign.js`:
+conteggi, preselezione, condividi-tutto e ritira-tutto lo attraversano, così la prossima
+si aggiunge in un posto invece che in otto. Le regole Firestore hanno un jolly
+(`match /{sezione}/{docId}`) che copre già qualunque collezione nuova: **non vanno
+toccate**.
 
 **Sicurezza dei dati** — cestino a 30 giorni, «salute dei dati» con **indicatore dello
 spazio occupato**, backup esportabile, freno che impedisce a un aggiornamento di

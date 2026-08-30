@@ -287,7 +287,7 @@ let mpStato = null;
 const MP_LIMITE = 4000;
 
 function openMostriPdf(){
-  mpStato = { busy:false, trovati:null, scelti:new Set(), pag:0, tot:0, file:0, file_n:0, q:'', gs:'' };
+  mpStato = { busy:false, trovati:null, scelti:new Set(), pag:0, tot:0, file:0, file_n:0, q:'', gs:'', condividi:false };
   openModal({ render: mostriPdfHTML });
 }
 function mostriPdfHTML(){
@@ -361,6 +361,14 @@ function mostriPdfHTML(){
     : emptyState('🤔', mpSenzaStatistiche
         ? 'Nessuna voce di questo file ha le statistiche: è un catalogo di nomi e descrizioni, non un bestiario giocabile.'
         : 'Non ho riconosciuto nessun blocco statistica. Serve il formato standard, con CA e punti ferita.')}
+    ${(typeof campaignReady === 'function' && campaignReady()) ? `
+      <button class="switch-row" style="margin-top:14px" onclick="mpShare()">
+        <div class="track"><div class="knob" style="${s.condividi?'transform:translateX(21px)':''}"></div></div>
+        <div style="flex:1; text-align:left; font-family:var(--font-ui)">
+          <b style="font-size:.84rem">Condividi con «${escapeHtml(state.campaign.name||'la campagna')}»</b>
+          <div class="muted" style="font-size:.73rem; font-weight:600">Le vedranno i membri del tavolo nel loro bestiario.</div>
+        </div>
+      </button>` : ''}
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-ghost" onclick="openMostriPdf()">← Ricomincia</button>
       <button class="btn btn-primary" ${n?'':'disabled'} onclick="mpConferma()">Aggiungi ${n||''}</button>
@@ -370,6 +378,7 @@ function mostriPdfHTML(){
 function mpToggle(id){ if (mpStato.scelti.has(id)) mpStato.scelti.delete(id); else mpStato.scelti.add(id); renderModalRoot(); }
 /* «tutti» vale su quello che stai vedendo, non sull'intero catalogo */
 function mpTutti(on){ mpFiltrati().forEach(m => on ? mpStato.scelti.add(m.id) : mpStato.scelti.delete(m.id)); renderModalRoot(); }
+function mpShare(){ mpStato.condividi = !mpStato.condividi; renderModalRoot(); }
 function mpCerca(v){ mpStato.q = v; listaAzzera('mp-trovati'); renderModalRoot(); }
 function mpFiltraGs(v){ mpStato.gs = v; listaAzzera('mp-trovati'); renderModalRoot(); }
 function mpFiltrati(){
@@ -477,7 +486,12 @@ async function mpAggiungi(scelti){
       () => {}, 'Ho capito');
     return;
   }
+  const condividi = mpStato && mpStato.condividi;
   mpStato = null;
   closeModal(); render();
   toast('🐉 ' + nuovi.length + (nuovi.length===1?' creatura nel bestiario':' creature nel bestiario'));
+  if (condividi && typeof shareToCampaign === 'function'){
+    const n = await shareToCampaign('npcs', nuovi);
+    if (n) toast('⚔️ ' + n + ' anche sul tavolo');
+  }
 }

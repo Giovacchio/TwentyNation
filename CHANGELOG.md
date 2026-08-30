@@ -1,5 +1,28 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.3 — 30 agosto 2026
+**Anche i mostri vanno sul tavolo, come tutto il resto.**
+
+Incantesimi e aggiunte si condividevano da tempo; il bestiario no. Adesso una creatura che ti sei fatto — o che hai letto da un manuale — la vedono i membri della campagna.
+
+- **Dal bestiario**: «⚔️ Condividi col tavolo». Con un filtro attivo condivide **solo quelle che stai vedendo**, che è il modo naturale di mandare lo scontro di stasera invece dell'archivio intero.
+- **Dalla scheda della creatura**: ⚔️ Condividi / Ritira, come per le sottoclassi.
+- **Leggendo un manuale**: l'interruttore «Condividi con la campagna» è ora anche nel lettore dei mostri, come in quello dei manuali.
+- **Le creature del tavolo compaiono nel tuo bestiario** insieme alle tue, ordinate insieme e marcate ⚔️ con il nome di chi le ha messe. Toccandone una la guardi e, se ti serve, **la copi nel tuo bestiario** (o la copi e la metti dritta all'iniziativa). Quella del tavolo resta di chi ce l'ha messa: la copia è tua e la modifichi come vuoi.
+- **Ritiro in blocco** (`ritiraMolti`): togliere centinaia di voci una per una era la fila della condivisione al contrario. Adesso va a pacchetti da 400, come l'andata.
+- La schermata della campagna conta anche le creature, e le elenca con il tasto per ritirarle.
+
+**Due scelte fatte apposta**
+
+- **Le creature non partono spuntate** in «Scegli cosa». Un bestiario importato ne ha migliaia: spuntarle tutte da solo vorrebbe dire far scaricare a ogni membro del tavolo un archivio che non ha chiesto. Le altre cose restano preselezionate come prima.
+- **«Condividi tutto» avvisa** quando le creature sono più di 300: te lo dice prima, non lo scopri dopo.
+
+> **Le regole Firestore non vanno toccate.** Usano già un jolly (`match /{sezione}/{docId}`) che copre qualunque collezione nuova sotto la campagna: i permessi di lettura, scrittura e ritiro valgono per i mostri esattamente come per gli incantesimi.
+
+> **Una lezione applicata subito.** Il motivo per cui una collezione nuova si dimentica in metà delle funzioni è che erano scritte a mano, una per una (`kind === 'spells' ? … : 'homebrew'`). Adesso c'è un elenco solo, `COND_TIPI`, e conteggi, preselezione, condividi-tutto e ritira-tutto lo attraversano: la prossima collezione si aggiunge in un posto.
+
+> 9 prove nuove in `test-campagna.mjs` (26 in tutto) con due account simulati: condivisione singola e in blocco, il giocatore che le vede col nome di chi le ha messe, la copia che non eredita i bolli né si duplica a schermo, il giocatore che **non** può ritirare quelle del master, il ritiro che le fa sparire dal bestiario altrui, e l'uscita dal tavolo che porta via le loro e lascia le tue. Suite completa, controllo delle interazioni e audit mobile verdi.
+
 ## v7.2 — 30 agosto 2026
 **Il dado dell'iniziativa accanto all'iniziativa, e famigli e compagni hanno una faccia.**
 

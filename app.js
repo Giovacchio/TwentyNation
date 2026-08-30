@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.2';
+const APP_VERSION = '7.3';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -3494,9 +3494,18 @@ function renderDM(){
    della lentezza. */
 let __bestiarioOrdinato = null, __bestiarioFirma = '';
 function bestiarioOrdinato(){
-  const firma = state.npcs.length + ':' + (state.npcs.length ? (state.npcs[state.npcs.length-1].id || '') : '');
+  /* Le creature del tavolo stanno nello stesso elenco delle tue: al
+     momento di preparare uno scontro non interessa da dove vengono,
+     interessa averle sotto mano. Quelle che hai già non si ripetono. */
+  const dalTavolo = (state.sharedNpcs || []);
+  const firma = state.npcs.length + ':' + dalTavolo.length + ':' +
+    (state.npcs.length ? (state.npcs[state.npcs.length-1].id || '') : '');
   if (__bestiarioOrdinato && __bestiarioFirma === firma) return __bestiarioOrdinato;
-  __bestiarioOrdinato = state.npcs.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'it'));
+  const miei = new Set(state.npcs.map(n => n.id));
+  const ospiti = dalTavolo.filter(n => n && n.id && !miei.has(n.id))
+    .map(n => Object.assign({}, n, { __dalTavolo: true }));
+  __bestiarioOrdinato = state.npcs.concat(ospiti)
+    .sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'it'));
   __bestiarioFirma = firma;
   return __bestiarioOrdinato;
 }
@@ -3541,6 +3550,10 @@ function renderBestiary(){
     ${tutti.length
       ? (visti.length
           ? bloccoLista('bestiario', visti, npcCardHTML, { classe:'stagger list-gap party-grid', nome:'creature' })
+            + ((typeof campaignReady === 'function' && campaignReady())
+                ? (()=>{ const daDare = visti.filter(n => !n.__dalTavolo && !giaSuTavolo('npcs', n.id)).length;
+                    return daDare ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiMostrati()">⚔️ Condividi col tavolo ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + daDare + ' mostrate' : '(' + daDare + ')'}</button>` : ''; })()
+                : '')
             + (tanti ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px; color:var(--warn)" onclick="confermaEliminaMostrati()">🗑️ Elimina ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + visti.length + ' mostrate' : 'tutto il bestiario (' + visti.length + ')'}</button>` : '')
           : `<div class="lista-vuota">Nessuna creatura con questi filtri.</div>`)
       : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
@@ -3585,6 +3598,14 @@ async function eliminaMostrati(lista){
   else for (const id of ids) await fsDelete('npcs', id);
 }
 function npcCardHTML(n){
+  if (n.__dalTavolo) return `<button class="char-card npc-card" style="border-color:var(--gold-dim)" onclick="apriMostroCondiviso('${jsStr(n.id)}')">
+    ${avatarHTML(n, 46)}
+    <div class="char-card-body">
+      <div class="char-card-name">${escapeHtml(n.name||'Senza nome')} <span style="color:var(--gold)">⚔️</span></div>
+      <div class="char-card-sub">${n.type?escapeHtml(n.type)+' · ':''}CA ${n.ac??10} · PF ${n.hpMax??0} · da ${escapeHtml(n.sharedByName||'un membro')}</div>
+    </div>
+    <div class="char-card-chevron">›</div>
+  </button>`;
   return `<button class="char-card npc-card" onclick="openNpcForm('${n.id}')">
     ${avatarHTML(n, 46)}
     <div class="char-card-body">
@@ -3629,6 +3650,11 @@ function npcFormHTML(isEdit){
       <div class="field"><label>Azioni / Note</label><textarea style="min-height:110px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
       <button class="btn btn-primary btn-block" onclick="saveNpcDraft()">${isEdit?'Salva modifiche':'Aggiungi al bestiario'}</button>
       ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:10px;" onclick="addNpcToInitiative('${d.id}')">⚔️ Aggiungi all'iniziativa</button>
+      ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
+        const su = giaSuTavolo('npcs', d.id);
+        return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px;${su?'color:var(--gold); border-color:var(--gold-dim)':''}"
+          onclick="${su ? `unshareFromCampaign('npcs','${jsStr(d.id)}')` : `shareOneNpc('${jsStr(d.id)}')`}">
+          ⚔️ ${su ? 'Ritira dal tavolo' : 'Condividi con la campagna'}</button>`; })() : ''}
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-ghost" onclick="duplicateNpc('${d.id}')">⧉ Duplica</button>
         <button class="btn btn-danger" onclick="confirmDeleteNpc('${d.id}')">Elimina</button>
