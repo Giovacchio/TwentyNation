@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.9.1';
+const APP_VERSION = '8.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -404,7 +404,7 @@ const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
   characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [],
-  campaign: null, sharedSpells: [], sharedHomebrew: [],
+  campaign: null, sharedSpells: [], sharedHomebrew: [], sharedParty: [],
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
@@ -462,6 +462,11 @@ function loadLocal(){
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
+    /* si riprende anche di chi è questa roba, così un salvataggio
+       successivo non le cancella la firma */
+    __proprietarioLocale = Object.prototype.hasOwnProperty.call(data, 'diChi')
+      ? (data.diChi || null)
+      : (function(){ try { return localStorage.getItem(LS_UID) || null; } catch(e){ return null; } })();
     state.characters = (data.characters || []).map(safeMigrate).filter(Boolean);
     state.npcs = data.npcs || [];
     bestiarioScorda();
@@ -480,12 +485,36 @@ function loadLocal(){
 let __salvaLocaleTimer = null;
 let __ultimoPesoLocale = 0;
 
+/* L'archivio locale porta scritto DI CHI E'. Prima il proprietario stava
+   in una chiave a parte (`grimorio-uid`) e le due cose potevano
+   separarsi: se quella chiave spariva — memoria ripulita a meta', quota
+   esaurita mentre la si scriveva, due persone sullo stesso telefono —
+   l'archivio restava li' senza nome, e il primo account che entrava se
+   lo prendeva tutto e se lo caricava pure sul proprio spazio nel cloud.
+   Il nome dentro l'archivio non puo' separarsi dall'archivio. */
 function pacchettoLocale(){
   return JSON.stringify({
+    diChi: __proprietarioLocale || null,
     characters: state.characters, npcs: state.npcs,
     customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
     journal: state.journal
   });
+}
+let __proprietarioLocale = null;
+/* Di chi e' la roba che c'e' adesso in localStorage. Si legge dall'archivio;
+   la vecchia chiave separata vale solo come ripiego per gli archivi
+   scritti prima di questa versione. */
+function proprietarioArchivio(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw){
+      const d = JSON.parse(raw);
+      if (Object.prototype.hasOwnProperty.call(d, 'diChi')) return d.diChi || null;
+      /* archivio vecchio, senza firma: ci si fida della chiave separata */
+      return localStorage.getItem(LS_UID) || null;
+    }
+  } catch(e){}
+  try { return localStorage.getItem(LS_UID) || null; } catch(e){ return null; }
 }
 /* Scrive davvero, subito. Torna false se la memoria del telefono è piena:
    chi sta aggiungendo tanta roba insieme se ne accorge e torna indietro
@@ -850,6 +879,10 @@ async function fsSetMany(collection, oggetti, avanzamento){
 // entro 600ms non fa "perdere" il salvataggio della prima.
 function scheduleSave(collection, obj){
   saveLocal();
+  /* Se questa scheda e' al tavolo, la copia che vedono gli altri va
+     rinfrescata: un solo aggancio qui invece di rincorrere ogni punto
+     in cui cambiano PF, condizioni o effetti. */
+  if (collection === 'characters' && typeof aggiornaPgCondiviso === 'function') aggiornaPgCondiviso(obj.id);
   setSaveStatus(currentUser ? 'saving' : 'offline');
   const key = collection + ':' + obj.id;
   clearTimeout(__saveTimers[key]);
@@ -916,9 +949,32 @@ function noteAuthError(err){
    quando quella persona rientra. Chi entra la prima volta si porta
    dietro quello che aveva creato da scollegato: è suo. */
 function cambiaCassetto(uid){
-  let precedente = null;
-  try { precedente = localStorage.getItem(LS_UID); } catch(e){ return; }
-  if (precedente === uid) return;             // stesso account: niente da fare
+  /* Il proprietario si legge DALL'ARCHIVIO, non da una chiave che puo'
+     essere sparita per conto suo lasciando i dati orfani. */
+  const precedente = proprietarioArchivio();
+  if (precedente === uid){ __proprietarioLocale = uid; return; }   // stesso account
+
+  /* Se non c'e' un proprietario ma c'e' della roba, quella roba e' di
+     qualcuno e non si sa di chi: NON si regala a chi sta entrando. Si
+     mette da parte come si farebbe con quella di un altro account. La
+     sola roba che si eredita davvero e' quella creata senza account, e
+     adesso l'archivio lo dice: `diChi: null` scritto da chi lavorava
+     scollegato, contro l'assenza del campo di un archivio ambiguo. */
+  const orfanoAmbiguo = !precedente && archivioNonVuoto() && !firmatoSenzaAccount();
+  if (orfanoAmbiguo){
+    try {
+      const attuale = localStorage.getItem(LS_KEY);
+      if (attuale) localStorage.setItem(cassettoDi('sconosciuto-' + Date.now()), attuale);
+    } catch(e){ console.warn('Non riesco a mettere da parte i dati orfani', e); }
+    ['characters','npcs','customSpells','spellTags','homebrew','journal'].forEach(k => { state[k] = []; });
+    bestiarioScorda();
+    __proprietarioLocale = uid;
+    saveLocalOra();
+    try { localStorage.setItem(LS_UID, uid); } catch(e){}
+    dimenticaVisti();
+    setTimeout(() => toast('👤 Trovata roba senza proprietario: messa da parte, non è finita nel tuo account'), 600);
+    return;
+  }
 
   if (precedente){
     // metti da parte quello che c'è, è di qualcun altro
@@ -947,10 +1003,35 @@ function cambiaCassetto(uid){
       spellTags: state.spellTags, homebrew: state.homebrew, journal: state.journal })); } catch(e){}
     setTimeout(() => toast('👤 Account cambiato: rivedi le tue cose fra un istante'), 600);
   }
-  // niente uid prima d'ora: quello che c'è l'hai creato tu da scollegato,
-  // resta dov'è e sale sull'account con il primo collegamento.
+  // niente proprietario e archivio firmato «senza account» (o vuoto):
+  // quello che c'è l'hai creato tu da scollegato, è tuo e sale col primo
+  // collegamento.
+  __proprietarioLocale = uid;
+  saveLocalOra();
   try { localStorage.setItem(LS_UID, uid); } catch(e){}
   if (precedente) dimenticaVisti();
+}
+/* C'è qualcosa dentro, o è un archivio vuoto? */
+function archivioNonVuoto(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    return ['characters','npcs','customSpells','homebrew','journal']
+      .some(k => Array.isArray(d[k]) && d[k].length);
+  } catch(e){ return false; }
+}
+/* Un archivio scritto da questa versione mentre si lavorava senza
+   account porta `diChi: null` scritto per davvero. Uno vecchio, o uno a
+   cui è sparita la chiave del proprietario, il campo non ce l'ha: è
+   quella la differenza fra «è tuo» e «non si sa di chi è». */
+function firmatoSenzaAccount(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return true;
+    const d = JSON.parse(raw);
+    return Object.prototype.hasOwnProperty.call(d, 'diChi') && !d.diChi;
+  } catch(e){ return false; }
 }
 
 function signIn(forceMethod){
@@ -1616,6 +1697,7 @@ function renderParty(){
       <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">⇪ Importa PDF</button>
     </div>
     ${campaignCardHTML()}
+    ${(typeof compagniCampagnaHTML === 'function') ? compagniCampagnaHTML() : ''}
   `;
 }
 /* Il tavolo si raggiunge dalla prima schermata: è la cosa che si apre
@@ -1857,6 +1939,8 @@ function confirmDeleteCharacter(id){
 function doDeleteCharacter(id){
   const c = state.characters.find(x=>x.id===id);
   if (typeof nelCestino === 'function') nelCestino('characters', c);
+  /* cancellandolo sparisce anche dal tavolo, se ce l'avevi messo */
+  if (typeof ritiraPgSeCondiviso === 'function') ritiraPgSeCondiviso(id);
   state.characters = state.characters.filter(c=>c.id!==id);
   fsDelete('characters', id);
   saveLocal();
@@ -5200,6 +5284,13 @@ function openSheetMenu(charId){
       ${item('🏕️', 'Riposo', 'Breve o lungo, con i dadi vita e le risorse', `openRestModal('${c.id}')`)}
       ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
       ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
+      ${(state.campaign && state.campaign.id && typeof apriCondividiPg === 'function')
+        ? item('⚔️', (typeof dettaglioDi === 'function' && dettaglioDi(c.id)) ? 'Al tavolo · ' + PARTY_DETTAGLI[dettaglioDi(c.id)].label.toLowerCase() : 'Mostra al tavolo',
+               (typeof dettaglioDi === 'function' && dettaglioDi(c.id))
+                 ? 'Gli altri vedono questa scheda: tocca per cambiare o togliere'
+                 : 'Fai vedere questa scheda agli altri giocatori — decidi tu quanto',
+               `apriCondividiPg('${c.id}')`)
+        : ''}
       ${item('✎', 'Modifica la scheda', 'Nome, caratteristiche, competenze, tutto il resto', `openCharacterForm('${c.id}')`)}
       ${item('🖼️', 'Cambia ritratto', 'Una foto o un disegno al posto del simbolo', `choosePortrait(u=>setCharPortrait('${c.id}',u))`)}
       ${state.characters.length > 1 ? item('🎭', 'Cambia personaggio', 'Salta su un\'altra scheda senza tornare al party', `openCharSwitcher()`) : ''}

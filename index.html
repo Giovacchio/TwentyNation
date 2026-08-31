@@ -606,6 +606,21 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
    serve a vederla, non a impedirtela — le regole hanno eccezioni. */
 .turno-spenta { opacity:.5; }
 .attack-row.promemoria { background: transparent; border-style: dashed; opacity: .88; cursor: default; }
+/* Compagni della campagna: le schede degli altri, in sola lettura */
+.compagno-riga { width: 100%; text-align: left; }
+.compagno-faccia { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+  background: var(--card-hi); border: 1px solid var(--line-soft); }
+.compagno-faccia img { width: 100%; height: 100%; object-fit: cover; }
+.compagno-barra { display: block; height: 4px; margin-top: 5px; border-radius: 3px;
+  background: var(--line-soft); overflow: hidden; }
+.compagno-barra i { display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--danger, #b4485c), var(--gold)); }
+.compagno-numeri { flex-shrink: 0; text-align: right; font-family: var(--font-ui); line-height: 1.35; }
+.compagno-numeri b { display: block; font-size: .88rem; }
+.compagno-numeri .muted { font-size: .66rem; }
+.compagno-marchi { display: block; font-size: .62rem; letter-spacing: .04em; }
+
 /* Origini: la riga stretta in Panoramica e le tre carte nella Storia */
 .origini-riga { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 10px; padding: 8px 10px;
   background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line-soft);
@@ -999,6 +1014,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 <script defer src="./magic-items.js"></script>
 <script defer src="./homebrew.js"></script>
 <script defer src="./campaign.js"></script>
+<script defer src="./party.js"></script>
 <script defer src="./spell-pdf.js"></script>
 <script defer src="./homebrew-bulk.js"></script>
   <script defer src="./traduci.js"></script>

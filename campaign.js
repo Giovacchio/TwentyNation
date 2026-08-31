@@ -30,7 +30,7 @@ function detachCampaign(){ campUnsub.forEach(u=>{ try{u();}catch(e){} }); campUn
 /* ─── Aggancio ─── */
 function attachCampaign(){
   detachCampaign();
-  state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = [];
+  state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = [];
   const id = state.campaign && state.campaign.id;
   if (!id || !currentUser || !firebaseReady) return;
   const base = db.collection('campaigns').doc(id);
@@ -74,6 +74,7 @@ function attachCampaign(){
   wireShared('spells', 'sharedSpells');
   wireShared('homebrew', 'sharedHomebrew');
   wireShared('npcs', 'sharedNpcs');   // il bestiario del tavolo
+  wireShared('party', 'sharedParty'); // le schede che i giocatori hanno scelto di mostrare
 }
 function saveCampaignLocal(){
   try { localStorage.setItem('grimorio-campaign', JSON.stringify(state.campaign || null)); } catch(e){}
@@ -83,7 +84,7 @@ function loadCampaignLocal(){
 }
 function leaveCampaignLocal(msg){
   detachCampaign();
-  state.campaign = null; state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = [];
+  state.campaign = null; state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = [];
   saveCampaignLocal(); render();
   if (msg) toast('⚠️ ' + msg);
 }

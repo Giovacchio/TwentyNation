@@ -1,5 +1,33 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.0 — 31 agosto 2026
+**Una falla chiusa e i Compagni della campagna. Prima versione pensata per stare in mano ad altre persone.**
+
+### 🔒 Nessun account può più adottare la roba di un altro
+Trovata provando con due account: **se all'archivio locale mancava il proprietario, il primo account che entrava si prendeva tutto quello che c'era dentro — e se lo caricava pure sul proprio spazio nel cloud.** Il proprietario stava in una chiave separata (`grimorio-uid`) che poteva sparire per conto suo: memoria ripulita a metà, quota esaurita proprio mentre la si scriveva, due persone sullo stesso telefono.
+
+Adesso **il nome del proprietario sta dentro l'archivio**, e da lì non può separarsi. Le tre risposte possibili sono diventate tre, non due:
+
+- l'archivio è tuo → lo apri;
+- è di un altro account → messo da parte nel suo cassetto, e torna fuori quando quella persona rientra;
+- **non si sa di chi sia** → messo da parte lo stesso, e te lo dice. Prima questo terzo caso non esisteva e finiva nel primo.
+
+Quello che crei davvero senza account continua a restare tuo: adesso l'archivio lo scrive per esteso, invece di lasciarlo capire dall'assenza di una chiave.
+
+### ⚔️ Compagni della campagna
+Le schede degli altri giocatori del tavolo, **in sola lettura e in una sezione tutta loro** sotto i tuoi personaggi — mai mescolate ai tuoi.
+
+- **Decide il giocatore, sempre.** Nessuna scheda arriva al tavolo se non l'accende chi ce l'ha, dal menù «⋯» della propria scheda.
+- **E decide anche quanto mostrare:** «l'essenziale» (nome, ritratto, classe e livello, PF, CA, percezione passiva, velocità, condizioni ed effetti — quello che serve al master per far girare un combattimento) oppure «tutto» (in più caratteristiche, tiri salvezza, abilità competenti, attacchi, slot e dadi vita).
+- **Cosa non parte mai, con nessuna delle due:** note, diario, storia e background scritti, inventario e monete. Sono cose tue e al gioco non servono.
+- La copia al tavolo **si aggiorna da sola** quando cambiano PF, condizioni o effetti — raggruppando le modifiche, non una scrittura per ogni tocco del «−1».
+- Togliendola, o cancellando il personaggio, **sparisce dal tavolo**. Uscendo dalla campagna spariscono i compagni.
+- Un ritratto troppo pesante non viene spedito invece di far fallire tutto l'invio: un documento su Firestore non può superare il megabyte.
+
+> Le regole di sicurezza **non cambiano**: la nuova sezione `party` ricade sotto la regola con caratteri jolly che già copriva le sottocollezioni di una campagna — la leggono i membri, la scrive chi si firma, la toglie chi ce l'ha messa o il master.
+>
+> 22 prove nuove in `test-v80.mjs` e 4 riscritte nella `test-v55` (davano per buono il vecchio modello a due chiavi). Suite completa verde, **1.447 interazioni ripercorse con zero rotture**, audit mobile invariato, e la prova «utente nuovo a mani vuote» 19 su 19.
+
 ## v7.9.1 — 31 agosto 2026
 **Seconda passata di controlli, con un metodo diverso: cercare i campi che qualcuno scrive e nessuno rilegge. Tre buchi.**
 

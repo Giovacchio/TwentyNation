@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.9.1** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.0** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -116,15 +116,23 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
    test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
 
+0a. **La falla degli account (v8.0) è la cosa da non far ricadere.** Il proprietario
+   dell'archivio locale sta DENTRO l'archivio (`diChi`), non più in una chiave separata:
+   due chiavi che possono separarsi sono un modo per creare dati orfani, e i dati orfani
+   venivano adottati. Chi tocca `cambiaCassetto`, `pacchettoLocale` o `loadLocal` tenga
+   presente che i casi sono TRE — tuo, di un altro, di nessuno — non due.
+
 0b. **Due mancanze note, segnalate e non scelte da Giova** (v7.9.1): il **cestino non
    finisce nel backup** — ripristinando, quello cancellato negli ultimi 30 giorni non
    torna; e il **vantaggio si dichiara solo dopo il tiro** (`repeatRoll`), mentre
    `state.rollMode` e `setRollMode` sono codice morto, l'inizio mai finito di quella
    funzione. Se un giorno si fa il vantaggio pre-tiro, si parte da lì.
 
-1. **Il master vede il gruppo** — PF, CA e percezione passiva dei giocatori visibili al
-   master in tempo reale. Il salto più grande rimasto, ma tocca privacy e regole: va
-   fatto **opt-in per ciascun giocatore**, non acceso dal master.
+1. ~~**Il master vede il gruppo**~~ — **fatto nella v8.0**, come «Compagni della campagna»
+   (`party.js`): opt-in per ciascun giocatore, due livelli di dettaglio, sola lettura,
+   sezione separata dai propri personaggi. Note, diario, storia, inventario e monete non
+   partono mai. Se un giorno serve il master che vede tutti senza opt-in, è una riga in
+   `compagniDelTavolo()` — ma va detto ai giocatori prima, non dopo.
 2. **Diario condiviso** col tavolo (oggi è solo personale).
 3. **Munizioni** e **filtri per livello/scuola negli incantesimi della scheda**: due buchi
    noti, messi da parte per scelta di Giova (le munizioni non le conta, e i filtri con gli
