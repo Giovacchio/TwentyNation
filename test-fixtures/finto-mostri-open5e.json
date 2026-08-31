@@ -1,0 +1,457 @@
+{
+ "count": 12,
+ "next": null,
+ "previous": null,
+ "results": [
+  {
+   "name": "Ombra di Stagno",
+   "slug": "ombra-di-stagno",
+   "size": "Tiny",
+   "type": "Aberration",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 10,
+   "armor_desc": "natural armor",
+   "hit_points": 8,
+   "hit_dice": "2d8+0",
+   "speed": {
+    "walk": 30,
+    "fly": 30
+   },
+   "strength": 8,
+   "dexterity": 10,
+   "constitution": 12,
+   "intelligence": 6,
+   "wisdom": 10,
+   "charisma": 8,
+   "challenge_rating": "0",
+   "cr": 0.0,
+   "senses": "darkvision 60 ft., passive Perception 10",
+   "languages": "",
+   "special_abilities": null,
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 2d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Vermiglio Errante",
+   "slug": "vermiglio-errante",
+   "size": "Small",
+   "type": "Beast",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 11,
+   "armor_desc": "natural armor",
+   "hit_points": 19,
+   "hit_dice": "3d8+1",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 9,
+   "dexterity": 11,
+   "constitution": 13,
+   "intelligence": 7,
+   "wisdom": 11,
+   "charisma": 9,
+   "challenge_rating": "1",
+   "cr": 1.0,
+   "senses": "darkvision 60 ft., passive Perception 11",
+   "languages": "Common",
+   "special_abilities": [
+    {
+     "name": "Tratto di Prova",
+     "desc": "Un tratto inventato per la prova."
+    }
+   ],
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 3d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Guardiano di Calce",
+   "slug": "guardiano-di-calce",
+   "size": "Medium",
+   "type": "Celestial",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 12,
+   "armor_desc": "natural armor",
+   "hit_points": 30,
+   "hit_dice": "4d8+2",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 10,
+   "dexterity": 12,
+   "constitution": 14,
+   "intelligence": 8,
+   "wisdom": 12,
+   "charisma": 10,
+   "challenge_rating": "2",
+   "cr": 2.0,
+   "senses": "darkvision 60 ft., passive Perception 12",
+   "languages": "",
+   "special_abilities": null,
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 4d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Bestia dei Rovi",
+   "slug": "bestia-dei-rovi",
+   "size": "Large",
+   "type": "Dragon",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 13,
+   "armor_desc": "natural armor",
+   "hit_points": 41,
+   "hit_dice": "5d8+3",
+   "speed": {
+    "walk": 30,
+    "fly": 30
+   },
+   "strength": 11,
+   "dexterity": 13,
+   "constitution": 15,
+   "intelligence": 9,
+   "wisdom": 13,
+   "charisma": 11,
+   "challenge_rating": "3",
+   "cr": 3.0,
+   "senses": "darkvision 60 ft., passive Perception 13",
+   "languages": "Common",
+   "special_abilities": [
+    {
+     "name": "Tratto di Prova",
+     "desc": "Un tratto inventato per la prova."
+    }
+   ],
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 5d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Sussurro Cavo",
+   "slug": "sussurro-cavo",
+   "size": "Huge",
+   "type": "Elemental",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 14,
+   "armor_desc": "natural armor",
+   "hit_points": 52,
+   "hit_dice": "6d8+4",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 12,
+   "dexterity": 14,
+   "constitution": 16,
+   "intelligence": 10,
+   "wisdom": 14,
+   "charisma": 12,
+   "challenge_rating": "4",
+   "cr": 4.0,
+   "senses": "darkvision 60 ft., passive Perception 14",
+   "languages": "",
+   "special_abilities": null,
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 6d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Nodo di Radici",
+   "slug": "nodo-di-radici",
+   "size": "Gargantuan",
+   "type": "Fey",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 15,
+   "armor_desc": "natural armor",
+   "hit_points": 63,
+   "hit_dice": "7d8+5",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 13,
+   "dexterity": 15,
+   "constitution": 17,
+   "intelligence": 11,
+   "wisdom": 10,
+   "charisma": 13,
+   "challenge_rating": "5",
+   "cr": 5.0,
+   "senses": "darkvision 60 ft., passive Perception 15",
+   "languages": "Common",
+   "special_abilities": [
+    {
+     "name": "Tratto di Prova",
+     "desc": "Un tratto inventato per la prova."
+    }
+   ],
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 7d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Falena Sepolcrale",
+   "slug": "falena-sepolcrale",
+   "size": "Tiny",
+   "type": "Fiend",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 16,
+   "armor_desc": "natural armor",
+   "hit_points": 74,
+   "hit_dice": "8d8+6",
+   "speed": {
+    "walk": 30,
+    "fly": 30
+   },
+   "strength": 14,
+   "dexterity": 16,
+   "constitution": 12,
+   "intelligence": 12,
+   "wisdom": 11,
+   "charisma": 14,
+   "challenge_rating": "6",
+   "cr": 6.0,
+   "senses": "darkvision 60 ft., passive Perception 16",
+   "languages": "",
+   "special_abilities": null,
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 2d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Custode di Sale",
+   "slug": "custode-di-sale",
+   "size": "Small",
+   "type": "Giant",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 17,
+   "armor_desc": "natural armor",
+   "hit_points": 85,
+   "hit_dice": "9d8+7",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 15,
+   "dexterity": 17,
+   "constitution": 13,
+   "intelligence": 13,
+   "wisdom": 12,
+   "charisma": 15,
+   "challenge_rating": "7",
+   "cr": 7.0,
+   "senses": "darkvision 60 ft., passive Perception 17",
+   "languages": "Common",
+   "special_abilities": [
+    {
+     "name": "Tratto di Prova",
+     "desc": "Un tratto inventato per la prova."
+    }
+   ],
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 3d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Lucertola Cinerea",
+   "slug": "lucertola-cinerea",
+   "size": "Medium",
+   "type": "Humanoid",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 18,
+   "armor_desc": "natural armor",
+   "hit_points": 96,
+   "hit_dice": "10d8+8",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 16,
+   "dexterity": 10,
+   "constitution": 14,
+   "intelligence": 14,
+   "wisdom": 13,
+   "charisma": 16,
+   "challenge_rating": "8",
+   "cr": 8.0,
+   "senses": "darkvision 60 ft., passive Perception 18",
+   "languages": "",
+   "special_abilities": null,
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +6 to hit, reach 5 ft., one target. Hit: 4d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Coro Spezzato",
+   "slug": "coro-spezzato",
+   "size": "Large",
+   "type": "Monstrosity",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 10,
+   "armor_desc": "natural armor",
+   "hit_points": 107,
+   "hit_dice": "11d8+9",
+   "speed": {
+    "walk": 30,
+    "fly": 30
+   },
+   "strength": 17,
+   "dexterity": 11,
+   "constitution": 15,
+   "intelligence": 15,
+   "wisdom": 14,
+   "charisma": 8,
+   "challenge_rating": "0",
+   "cr": 0.0,
+   "senses": "darkvision 60 ft., passive Perception 10",
+   "languages": "Common",
+   "special_abilities": [
+    {
+     "name": "Tratto di Prova",
+     "desc": "Un tratto inventato per la prova."
+    }
+   ],
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 5d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Mano di Vetro",
+   "slug": "mano-di-vetro",
+   "size": "Huge",
+   "type": "Ooze",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 11,
+   "armor_desc": "natural armor",
+   "hit_points": 118,
+   "hit_dice": "12d8+10",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 18,
+   "dexterity": 12,
+   "constitution": 16,
+   "intelligence": 6,
+   "wisdom": 10,
+   "charisma": 9,
+   "challenge_rating": "1",
+   "cr": 1.0,
+   "senses": "darkvision 60 ft., passive Perception 11",
+   "languages": "",
+   "special_abilities": null,
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 6d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  },
+  {
+   "name": "Pellegrino Muto",
+   "slug": "pellegrino-muto",
+   "size": "Gargantuan",
+   "type": "Plant",
+   "subtype": "",
+   "alignment": "neutral",
+   "armor_class": 12,
+   "armor_desc": "natural armor",
+   "hit_points": 129,
+   "hit_dice": "13d8+11",
+   "speed": {
+    "walk": 30,
+    "fly": 0
+   },
+   "strength": 19,
+   "dexterity": 13,
+   "constitution": 17,
+   "intelligence": 7,
+   "wisdom": 11,
+   "charisma": 10,
+   "challenge_rating": "2",
+   "cr": 2.0,
+   "senses": "darkvision 60 ft., passive Perception 12",
+   "languages": "Common",
+   "special_abilities": [
+    {
+     "name": "Tratto di Prova",
+     "desc": "Un tratto inventato per la prova."
+    }
+   ],
+   "actions": [
+    {
+     "name": "Colpo",
+     "desc": "Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 7d6 damage."
+    }
+   ],
+   "document__title": "Manuale Finto per le Prove",
+   "document__license_url": "http://open5e.com/legal"
+  }
+ ]
+}

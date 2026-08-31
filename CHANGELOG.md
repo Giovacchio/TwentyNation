@@ -1,5 +1,34 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.3 — 31 agosto 2026
+**I lettori provati sui manuali veri, e le prove rese permanenti senza tenere in cartella il materiale di nessuno.**
+
+### 📏 La regola, scritta in RIPARTENZA
+Ogni aggiunta di contenuto passa **due porte, in quest'ordine**: (1) il **lettore PDF** deve capirla *secondo le regole* — prerequisiti, livello, cosa concede, non solo il nome; (2) il **creatore di personaggi** deve saperla mettere davvero, non con un cartello «poi aggiungilo a mano». Solo dopo vengono scheda, stampa e tavolo. Con la domanda di controllo: *un personaggio importato da PDF e uno creato con la procedura guidata arrivano alla stessa scheda?*
+
+### 🔬 Cosa dicono i manuali veri
+| file | esito |
+|---|---|
+| guida alle **razze** (49 pag.) | **48 razze**, con bonus, velocità, taglia e tratti |
+| guida alle **classi** (203 pag.) | **116 sottoclassi**, ognuna agganciata alla sua classe |
+| raccolta **incantesimi** (135 pag.) | 119 letti su 30 pagine, 52 nuovi · **9 prove su 9** |
+| **suppliche** (tabella) | 35 voci pulite, 16 con effetto proposto da solo |
+| **mostri** (JSON, 9,3 MB) | **3.207 creature in 78 ms**, tutte col nome, 3.200 con le azioni, tipi tradotti, 6 fonti riconosciute |
+
+### 🧪 E adesso le prove restano
+I tuoi manuali non possono stare nel repo, ed è per questo che quattro suite erano rosse da settimane. Da ognuno ho ricavato un **file finto della stessa forma** — stesse colonne, stessa impaginazione a due colonne, stesse etichette — con contenuto inventato. Stanno in cartella, e le prove girano **in qualsiasi sessione, senza avere in mano niente di nessuno**.
+
+`test-porte.mjs`, 16 prove, controlla esattamente le due porte su tutti e cinque i formati.
+
+### 🐛 Due difetti veri trovati per strada
+- **La colonna «Level» di una tabella non diventava un prerequisito.** In un foglio esportato quel campo è un numero nudo — «5» — e nessuno lo leggeva come livello, benché la colonna lo dicesse. Adesso sì.
+- **La barra dell'esperienza era finita in «Chi sei»** con lo spostamento della v8.2, e con lei l'invito a salire di livello. I punti esperienza si guadagnano *giocando*: la barra è tornata sulla scheda principale, i campi da compilare restano in «Chi sei».
+
+### 🩹 E le quattro suite rosse da settimane sono tornate verdi
+`test-v44`, `test-v47`, `test-v48` e `test-importa` fallivano solo perché i file di prova non c'erano. Adesso puntano ai file finti e **girano da sole**. La scheda **compilabile** è diventata anch'essa un file finto: stessi 136 campi del modulo di una scheda vera, personaggio inventato.
+
+Le tre verifiche di `test-v47` che guardano il *contenuto* di una raccolta vera (il testo di un incantesimo noto, le lettere spaziate che escono da certi PDF) non possono dire niente su un file inventato: adesso **si saltano dicendo perché**, invece di restare rosse. Un rosso permanente che nessuno può togliere smette di essere un allarme — ci sono cascato io per primo, dando per scontato che fossero «i soliti PDF mancanti».
+
 ## v8.2.1 — 31 agosto 2026
 **Ritocchi alla scheda, e due difetti veri nel creatore.**
 

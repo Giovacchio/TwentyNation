@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.2.1';
+const APP_VERSION = '8.3';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2245,6 +2245,10 @@ function renderSheetOverview(c){
         <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
       </div>
       ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
+      ${/* i punti esperienza si guadagnano GIOCANDO, e la barra è anche
+            l'invito a salire di livello: spostandola in «Chi sei» quel
+            momento sarebbe finito in una scheda che apri una volta */''}
+      ${xpBarHTML(c)}
     </div>
 
     <div>
@@ -3656,7 +3660,6 @@ function renderSheetBackground(c){
           <div class="field"><label>Punti esperienza</label><input value="${attr(c.xp||'')}" oninput="updateCharField('${c.id}','xp',this.value)"></div>
           <div class="field"><label>Al prossimo livello</label><input value="${attr(c.xpNext||'')}" oninput="updateCharField('${c.id}','xpNext',this.value)"></div>
         </div>
-        ${xpBarHTML(c)}
         ${nf('Giocatore','playerName','Chi lo gioca')}
       </div>
     </div>

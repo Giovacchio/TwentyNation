@@ -143,7 +143,13 @@ function suppDaTabella(righeTutte){
     const nome = (per.nome || '').trim();
     if (nome){
       if (corrente) voci.push(corrente);
-      corrente = { nome, prereqGrezzo: [per.livello, per.req].filter(Boolean).join(' '), testo: (per.testo || per.breve || '') };
+      /* La colonna «Level» di una tabella contiene un numero nudo — «5» —
+         e letto così non è un prerequisito di livello per nessuno. Ma la
+         colonna DICE che è un livello: glielo si scrive accanto, se no
+         quell'informazione si perde per strada. */
+      const liv = String(per.livello || '').trim();
+      const livTesto = /^\d+$/.test(liv) ? liv + ' livello' : liv;
+      corrente = { nome, prereqGrezzo: [livTesto, per.req].filter(Boolean).join(', '), testo: (per.testo || per.breve || '') };
       return;
     }
     /* riga di continuazione: la descrizione che va a capo */
