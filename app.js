@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.1';
+const APP_VERSION = '8.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1443,7 +1443,10 @@ function setSheetTab(tab){ state.sheetTab = tab; replaceNav(); render(); scrollT
 /* ─── Scorrimento laterale fra le sezioni della scheda ───
    Sul telefono passare da Zaino a Magie voleva dire mirare un
    pulsante piccolo in cima: col dito è immediato. */
-const SHEET_TABS_ORDINE = ['overview','inventory','spells','background','notes'];
+/* Quattro schede: prima quello che serve al tavolo, poi le magie,
+   poi chi sei, poi lo zaino. «Note» è confluita in «Chi sei»: era
+   una scheda di campi sparsi che nessuno apriva. */
+const SHEET_TABS_ORDINE = ['overview','spells','background','inventory'];
 function sheetTabsDisponibili(c){
   const conMagie = c && ((c.casterType && c.casterType !== 'none') || (c.knownSpells||[]).length > 0);
   return SHEET_TABS_ORDINE.filter(t => t !== 'spells' || conMagie);
@@ -2131,7 +2134,8 @@ function renderCharacterSheet(){
   if (state.sheetTab === 'inventory') tab = renderSheetInventory(c);
   else if (state.sheetTab === 'spells') tab = renderSheetSpells(c);
   else if (state.sheetTab === 'background') tab = renderSheetBackground(c);
-  else if (state.sheetTab === 'notes') tab = renderSheetNotes(c);
+  /* le vecchie schede salvate puntano ancora a «notes» */
+  else if (state.sheetTab === 'notes'){ state.sheetTab = 'background'; tab = renderSheetBackground(c); }
   else tab = renderSheetOverview(c);
 
   return `
@@ -2151,51 +2155,26 @@ function renderCharacterSheet(){
     ${activeFormBanner(c)}
     <div class="segmented" style="margin:14px 0;">
       <button class="${state.sheetTab==='overview'?'active':''}" onclick="setSheetTab('overview')">Panoramica</button>
-      <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
       ${showSpells?`<button class="${state.sheetTab==='spells'?'active':''}" onclick="setSheetTab('spells')">Magie</button>`:''}
-      <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Storia</button>
-      <button class="${state.sheetTab==='notes'?'active':''}" onclick="setSheetTab('notes')">Note</button>
+      <button class="${state.sheetTab==='background'?'active':''}" onclick="setSheetTab('background')">Chi sei</button>
+      <button class="${state.sheetTab==='inventory'?'active':''}" onclick="setSheetTab('inventory')">Zaino</button>
     </div>
     <div id="sheet-tab-body">${tab}</div>
   `;
 }
 
+/* ─── La scheda principale: prima quello che serve AL TAVOLO ───────
+   L'ordine di prima era quello di un foglio di carta: caratteristiche
+   in cima, punti ferita a metà, e quello che tocchi ogni turno sparso
+   in mezzo. Giocando serve il contrario: PF e CA per primi, poi le
+   condizioni, poi cosa puoi fare, e i numeri da consultare più giù. */
 function renderSheetOverview(c){
   const cur = getPath(c,'hp.current',0), max = getPath(c,'hp.max',0), pct = hpPctFor(c);
   const dying = cur <= 0;
   return `
   <div class="desk-2">
     <div>
-      <div class="ability-grid">
-        ${ABILITIES.map(a => `
-          <div class="ability-seal">
-            <div class="lbl">${a.abbr}</div>
-            <button class="seal" style="width:58px;height:58px;" onclick="rollAbility('${c.id}','${a.key}')" title="Tira prova di ${a.label}">
-              <div class="mod" id="mod-${a.key}">${modStr(getPath(c,'abilities.'+a.key,10))}</div>
-            </button>
-            <input type="number" inputmode="numeric" value="${getPath(c,'abilities.'+a.key,10)}" min="1" max="30"
-                   aria-label="Punteggio ${a.label}" oninput="updateAbility('${c.id}','${a.key}', this.value)">
-          </div>`).join('')}
-      </div>
-
-      <div class="combat-grid">
-        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.ac??10}" aria-label="Classe Armatura" oninput="updateCharField('${c.id}','ac',parseInt(this.value)||0)"><div class="l">CA</div></div>
-        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" id="cs-init" value="${c.initiative ?? mod(getPath(c,'abilities.dex',10))}" aria-label="Iniziativa" oninput="updateCharField('${c.id}','initiative',parseInt(this.value)||0)"><div class="l">Iniziativa</div></div>
-        <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
-      </div>
-      <div class="combat-grid">
-        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.speed??9}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
-        <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
-        <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
-      </div>
-      ${xpBarHTML(c)}
-      <div class="combat-grid">
-        <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
-        <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Cost.</div></div>
-        <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
-      </div>
-
-      <div class="hp-block" style="margin-top:10px">
+      <div class="hp-block">
         <div class="hp-block-top">
           <div><span class="hp-num" id="hp-current">${cur}</span> <span class="hp-max" id="hp-max-lbl">/ ${max} PF</span></div>
           ${getPath(c,'hp.temp',0) ? `<span class="badge arcane">+${getPath(c,'hp.temp',0)} temp.</span>` : ''}
@@ -2232,13 +2211,17 @@ function renderSheetOverview(c){
         </div>
       </div>
 
+      <div class="combat-grid" style="margin-top:10px">
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.ac??10}" aria-label="Classe Armatura" oninput="updateCharField('${c.id}','ac',parseInt(this.value)||0)"><div class="l">CA</div></div>
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" id="cs-init" value="${c.initiative ?? mod(getPath(c,'abilities.dex',10))}" aria-label="Iniziativa" oninput="updateCharField('${c.id}','initiative',parseInt(this.value)||0)"><div class="l">Iniziativa</div></div>
+        <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
+      </div>
+
       <div class="status-row">
         <button class="status-chip ${c.inspiration?'on':''}" onclick="toggleInspiration('${c.id}')" title="Ispirazione">✨ Ispirazione</button>
         <button class="status-chip ${c.exhaustion?'warn':''}" onclick="bumpExhaustion('${c.id}')" title="Tocca per aumentare, tieni a 0 per azzerare">💀 Sfinimento ${c.exhaustion||0}</button>
       </div>
       ${conditionsRowHTML(c)}
-      ${origineRigaHTML(c)}
-      ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
 
       <div class="divider"><span class="flourish">❧</span><span>Attacchi</span></div>
       <div class="list-gap">
@@ -2251,10 +2234,37 @@ function renderSheetOverview(c){
       <div class="divider"><span class="flourish">❧</span><span>Risorse</span></div>
       <div class="list-gap">${c.resources.map((r,i)=>resourceRowHTML(c,r,i)).join('')}</div>` : ''}
       <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="editResource('${c.id}',-1)">✦ Aggiungi risorsa</button>
+
+      ${origineRigaHTML(c)}
+      ${(typeof privilegiAttiviHTML === 'function') ? privilegiAttiviHTML(c) : ''}
       ${companionsBlockHTML(c)}
+
+      <div class="combat-grid" style="margin-top:14px">
+        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.speed??9}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
+        <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
+        <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
+      </div>
+      <div class="combat-grid">
+        <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
+        <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Cost.</div></div>
+        <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
+      </div>
+      ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
     </div>
 
     <div>
+      <div class="ability-grid">
+        ${ABILITIES.map(a => `
+          <div class="ability-seal">
+            <div class="lbl">${a.abbr}</div>
+            <button class="seal" style="width:58px;height:58px;" onclick="rollAbility('${c.id}','${a.key}')" title="Tira prova di ${a.label}">
+              <div class="mod" id="mod-${a.key}">${modStr(getPath(c,'abilities.'+a.key,10))}</div>
+            </button>
+            <input type="number" inputmode="numeric" value="${getPath(c,'abilities.'+a.key,10)}" min="1" max="30"
+                   aria-label="Punteggio ${a.label}" oninput="updateAbility('${c.id}','${a.key}', this.value)">
+          </div>`).join('')}
+      </div>
+
       <div class="divider"><span class="flourish">❧</span><span>Tiri Salvezza</span></div>
       <div class="card"><div class="skills-list">
         ${ABILITIES.map(a=>`<div class="save-row">
@@ -2278,8 +2288,6 @@ function renderSheetOverview(c){
         </div>`).join('')}
       </div></div>
       <div class="roll-hint">Tocca il nome di un'abilità o il sigillo di una caratteristica per tirare il d20.</div>
-
-      <div class="roll-hint" style="margin-top:14px">Talenti, linguaggi e privilegi sono nella scheda <b>Note</b>.</div>
     </div>
   </div>`;
 }
@@ -3491,6 +3499,30 @@ function origineApri(charId, kind){
       </div>
     </div>` });
 }
+/* ─── Privilegi attivi ───────────────────────────────────────────
+   Sulla scheda principale, perché sono cose che FAI al tavolo: i
+   privilegi dell'archetipo che hai già raggiunto e i tratti della tua
+   razza. Prima stavano solo nella Storia, cioè nella scheda che apri
+   una volta e non guardi più. Chi sei (aspetto, personalità, legami)
+   resta di là: quello è racconto, non gioco. */
+function privilegiAttiviHTML(c){
+  const voci = origineVoci(c).filter(v => v.kind !== 'background' && v.x);
+  const righe = [];
+  voci.forEach(v => origineTratti(v.kind, v.x, c).forEach(t => righe.push({ ...t, da: v.nome, kind: v.kind })));
+  if (!righe.length) return '';
+  return `
+    <div class="divider"><span class="flourish">❧</span><span>Privilegi</span></div>
+    <div class="list-gap">
+      ${righe.map(r => `<button class="attack-row" style="width:100%; text-align:left"
+          onclick="origineApri('${c.id}','${r.kind}')">
+        <span class="attack-main">
+          <span class="attack-name">${escapeHtml(r.name)}</span>
+          <span class="muted" style="font-size:.73rem; display:block">${escapeHtml((r.desc||'').slice(0,110))}${(r.desc||'').length>110?'…':''}</span>
+        </span>
+      </button>`).join('')}
+    </div>`;
+}
+
 /* Il riquadro grande, nella Storia */
 function origineRiquadroHTML(c){
   const voci = origineVoci(c);
@@ -3514,6 +3546,10 @@ function origineRiquadroHTML(c){
 
 /* ─── 19. STORIA / BACKGROUND ─── */
 function renderSheetBackground(c){
+  /* stessi campi che stavano in «Note», adesso qui */
+  const nf = (label, key, ph, big) => `<div class="field"><label>${label}</label>${big
+    ? `<textarea style="min-height:${big}px" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">${escapeHtml(c[key]||'')}</textarea>`
+    : `<input value="${attr(c[key]||'')}" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">`}</div>`;
   return `
     ${origineRiquadroHTML(c)}
     <div class="divider"><span class="flourish">❧</span><span>Scegli</span></div>
@@ -3526,6 +3562,9 @@ function renderSheetBackground(c){
     </div>
     ${sottoclasseSceltaHTML(c)}
     ${(typeof donoPattoHTML === 'function') ? donoPattoHTML(c) : ''}
+    <div class="field" style="margin-top:10px"><label>Allineamento</label>
+      <input value="${attr(c.alignment||'')}" placeholder="Es. Caotico Neutrale"
+             oninput="updateCharField('${c.id}','alignment',this.value)"></div>
 
     <div class="divider"><span class="flourish">❧</span><span>Personalità</span></div>
     <div class="trait-grid">
@@ -3567,7 +3606,37 @@ function renderSheetBackground(c){
 
     <div class="divider"><span class="flourish">❧</span><span>Storia</span></div>
     <div class="field"><textarea style="min-height:220px;" placeholder="Da dove viene questo personaggio? Cosa lo spinge all'avventura?" oninput="updateCharField('${c.id}','backstory',this.value)">${escapeHtml(c.backstory||'')}</textarea></div>
-  `;
+  
+    <div class="divider"><span class="flourish">❧</span><span>Competenze</span></div>
+    <div class="desk-2">
+      <div>
+        ${nf('Linguaggi','languages','Es. Comune, Elfico',46)}
+        ${nf('Strumenti e competenze','tools','Es. Kit da erborista, armi semplici',46)}
+        ${nf('Armatura indossata','armor','Es. Vesti rinforzate')}
+        ${nf('Armature e armi','profOther','Es. Armature leggere, armi semplici',46)}
+        ${nf('Sensi','senses','Es. Scurovisione 18 m')}
+        ${nf('Capacità di carico (kg)','carryCapacity','Vuoto = Forza × 7,5')}
+        <div class="divider"><span class="flourish">❧</span><span>Talenti</span></div>
+        ${nf('Talenti','feats','Es. Resiliente (Costituzione)',90)}
+      </div>
+      <div>
+        <div class="divider"><span class="flourish">❧</span><span>Privilegi scritti a mano</span></div>
+        <div class="muted" style="font-size:.73rem; margin-bottom:6px">
+          Quelli dell'archetipo e della razza li trovi già in Panoramica: qui ci scrivi il resto.
+        </div>
+        ${nf('Privilegi di classe e capacità','features','Privilegi, canalizzare divinità…',220)}
+        ${nf('Razza e background','notesRace','Bonus di razza e background',110)}
+        ${nf('Altre note','notesExtra','Famigli, compagni, promemoria…',160)}
+        <div class="divider"><span class="flourish">❧</span><span>Progressione</span></div>
+        <div class="form-row">
+          <div class="field"><label>Punti esperienza</label><input value="${attr(c.xp||'')}" oninput="updateCharField('${c.id}','xp',this.value)"></div>
+          <div class="field"><label>Al prossimo livello</label><input value="${attr(c.xpNext||'')}" oninput="updateCharField('${c.id}','xpNext',this.value)"></div>
+        </div>
+        ${xpBarHTML(c)}
+        ${nf('Giocatore','playerName','Chi lo gioca')}
+      </div>
+    </div>
+`;
 }
 function setBackgroundPreset(charId, val){
   updateCharField(charId, 'background', val);

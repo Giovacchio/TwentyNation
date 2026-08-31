@@ -1,5 +1,34 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.2 — 31 agosto 2026
+**Quattro schede invece di cinque, e la principale riordinata per come si gioca davvero.**
+
+### 🗂️ Panoramica · Magie · Chi sei · Zaino
+«Note» era una scheda di campi sparsi che nessuno apriva: il suo contenuto è confluito in **«Chi sei»** (ex Storia). Quattro schede, e in ordine d'uso.
+
+### ⚔️ La principale ora segue il turno, non il foglio di carta
+L'ordine di prima era quello di una scheda cartacea: caratteristiche in cima, punti ferita a metà, e quello che tocchi ogni turno sparso in mezzo. Giocando serve il contrario:
+
+1. **Punti ferita** (con riposi e tiri contro morte)
+2. **CA · Iniziativa · 🎲**
+3. **Ispirazione · Sfinimento · Condizioni · ⏳ Effetti**
+4. **Attacchi** · **Risorse**
+5. **Chi sei** in una riga, e sotto i **Privilegi** di archetipo e razza
+6. Compagni e forme
+7. Velocità · Percezione passiva · Dadi vita · Competenza · CD
+8. Caratteristiche, Tiri Salvezza e Abilità nella colonna dei tiri
+
+### ✦ I privilegi dell'archetipo stanno dove servono
+I tratti della razza e i privilegi dell'archetipo già raggiunti sono **sulla scheda principale**, non più solo in Storia: sono cose che **fai** al tavolo. Chi sei per davvero — aspetto, personalità, legami, background — resta in «Chi sei»: quello è racconto, non gioco.
+
+### 🔎 Il controllo che ha fatto partire tutto
+Costruito un personaggio che usa **tutto** quello che una scheda di D&D ha addosso — 51 voci — e verificato una per una che si veda, si calcoli e si stampi.
+
+- **47 su 51 già a posto.** Le quattro mancanti: l'**allineamento** si poteva impostare solo nella finestra di modifica e non si vedeva più da nessuna parte (adesso è in «Chi sei»); i tiri contro morte compaiono solo a 0 PF (giusto); e `notes` era un campo del modello **che non si vedeva né si scriveva da nessuna parte** — morto dall'inizio.
+- **Il PDF non stampava le suppliche né gli incantesimi da sottoclasse.** Roba della v8.1, arrivata in scheda e non fino alla stampa. Adesso c'è, con una sezione «Sempre con te».
+
+> 1.531 interazioni ripercorse con zero rotture, suite completa verde. Due prove della v7.9 e quattro della v5.5 sono state riscritte: descrivevano il layout vecchio, non un difetto.
+
 ## v8.1 — 31 agosto 2026
 **Suppliche occulte e incantesimi che arrivano dalla sottoclasse. Con gli effetti veri, non solo il testo.**
 

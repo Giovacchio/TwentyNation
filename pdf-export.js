@@ -481,6 +481,37 @@ async function drawSheet(S, c, lib, doc, fonts){
     });
   }
 
+  /* ── Suppliche e incantesimi che non contano nel conteggio ──
+     Aggiunti in scheda con la v8.1 e rimasti fuori dalla stampa: chi
+     porta il foglio al tavolo perdeva le suppliche e gli incantesimi
+     di dominio, che sono quelli che ha SEMPRE. */
+  if (typeof supplicheDi === 'function'){
+    const supp = supplicheDi(c);
+    if (supp.length){
+      S.heading('Suppliche occulte');
+      /* S.row salta le righe senza valore: il nome va con il suo testo,
+         se no la supplica spariva dalla stampa. */
+      supp.forEach(x => S.row(x.nome, x.testo || '—'));
+    }
+  }
+  if (typeof spellSottoclasseDi === 'function'){
+    const daSub = spellSottoclasseDi(c);
+    const daSupp = (typeof incantesimiDaSuppliche === 'function') ? incantesimiDaSuppliche(c) : [];
+    if (daSub.length || daSupp.length){
+      S.heading('Sempre con te');
+      if (daSub.length){
+        S.text(daSub[0].da + ' — sempre preparati, non contano fra quelli preparabili:', { size:8, color:PDFX.soft });
+        S.text(daSub.map(x => spellName(x.sp)).join('   ·   '), { size:8.6 });
+        S.gap(4);
+      }
+      if (daSupp.length){
+        const Q = { volonta:'a volontà', riposoLungo:'1/riposo lungo', riposoBreve:'1/riposo breve' };
+        S.text('Dalle suppliche:', { size:8, color:PDFX.soft });
+        S.text(daSupp.map(x => spellName(x.sp) + ' (' + (Q[x.quando]||x.quando) + ')').join('   ·   '), { size:8.6 });
+      }
+    }
+  }
+
   /* ── Privilegi e tratti ── */
   if (c.features || c.notesRace || c.notesExtra || c.feats){
     S.heading('Privilegi e tratti');
