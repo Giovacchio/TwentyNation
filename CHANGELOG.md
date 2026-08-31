@@ -1,5 +1,14 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.8.1 — 30 agosto 2026
+**Ricontrollo completo della v7.8. Un solo ritocco.**
+
+Ripassata tutta la batteria di prove sull'app così com'è: 30 file di test, il ripasso statico dei gestori, il crawl che tocca ogni cosa toccabile una per una e l'audit grafico sui tre formati di schermo. **Nessuna rottura.**
+
+- **Pallini di competenza più facili da centrare.** Il crawl misura la zona che raccoglie davvero il dito, non il disegno: i 48 pallini di competenza e tiro salvezza si disegnano a 19 px ma ne raccoglievano 26×32, sotto i 32 minimi. Adesso 34×32, allargando solo l'area invisibile dietro — il pallino si vede identico e la zona resta dentro lo spazio vuoto prima del nome, quindi non ruba il tocco al tiro del d20. Verificato che nessun pallino finisca a coprire quello della riga sopra.
+
+> Restano note le due segnalazioni di sempre: in due schermate il pulsante tondo in basso a destra copre un tasto **da fermo** (scorrendo di un dito si scopre). E i test dei PDF veri (v44, v47, v48, importa) non girano perché i manuali di prova non stanno in cartella — è giusto così, non si tengono.
+
 ## v7.8 — 30 agosto 2026
 **Tre buchi della scheda chiusi: effetti a tempo, cariche degli oggetti, multiclasse completo.**
 

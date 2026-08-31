@@ -474,7 +474,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
    e sbagliare mira qui significa segnare la competenza sbagliata. La
    zona invisibile arriva a 37×29 senza spostare niente di un pixel. */
 .skill-dot { width: 19px; height: 19px; border-radius: 50%; border: 2px solid var(--gold-dim); flex-shrink: 0; background: transparent; transition: all .18s; position: relative; }
-.skill-dot::after { content: ""; position: absolute; inset: -9px -6px; }
+.skill-dot::after { content: ""; position: absolute; inset: -9px -10px; }
 .skill-dot.on { background: var(--gold); border-color: var(--gold-bright); box-shadow: inset 0 0 0 2.5px var(--card), 0 0 9px rgba(217,180,95,.5); }
 .skill-tap { flex: 1; display: flex; align-items: center; gap: 8px; padding: 9px 4px; min-width: 0; text-align: left; border-radius: 8px; }
 .skill-tap:active { background: var(--card-hi); }
