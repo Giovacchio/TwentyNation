@@ -1,5 +1,17 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.3.1 — 31 agosto 2026
+
+### ✦ I punti esperienza via dalla scheda principale
+Quasi nessun tavolo li conta: chi gioca a traguardi si ritrovava una barra fissa per un numero che non tocca mai. Adesso stanno **nel menu «⋯»** (col totale già scritto, e il tocco che apre l'aggiunta rapida) e la barra completa vive in **«Chi sei»**, per chi invece li usa.
+
+### 🕯️ Le suppliche si caricano anche senza avere un warlock
+C'era **una sola strada**: scheda di un warlock → Magie → il pulsante delle suppliche → «Carica altre». Senza un warlock in squadra non esisteva alcun modo di metterle in archivio prima di crearne uno. Adesso c'è anche in **Opzioni → Contenuti tuoi**, accanto a «Gestisci i tuoi contenuti».
+
+> **E qui la lezione, per la terza volta.** Controllando dove si caricassero, la mia prima verifica ha detto che le suppliche **non comparivano da nessuna parte**. Falso allarme: il CSS scrive i titoli in maiuscolo e cercavo «Suppliche» in un testo che diceva «SUPPLICHE». Ma il sospetto era legittimo, perché le 30 prove della v8.1 **chiamano le funzioni, non premono i pulsanti** — se il percorso fosse stato davvero rotto, non se ne sarebbe accorto nessuno.
+>
+> Le 10 prove nuove di `test-v831.mjs` percorrono la strada **premendo ogni pulsante**, dalla scheda fino alla casella del file. E il controllo del testo adesso non guarda più le maiuscole.
+
 ## v8.3 — 31 agosto 2026
 **I lettori provati sui manuali veri, e le prove rese permanenti senza tenere in cartella il materiale di nessuno.**
 

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.3';
+const APP_VERSION = '8.3.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2245,10 +2245,10 @@ function renderSheetOverview(c){
         <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
       </div>
       ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
-      ${/* i punti esperienza si guadagnano GIOCANDO, e la barra è anche
-            l'invito a salire di livello: spostandola in «Chi sei» quel
-            momento sarebbe finito in una scheda che apri una volta */''}
-      ${xpBarHTML(c)}
+      ${/* I punti esperienza restano fuori dalla scheda principale: quasi
+            nessun tavolo li conta, e chi gioca a traguardi si ritrovava
+            una barra fissa per un numero che non tocca mai. Stanno nel
+            menu «⋯» e in «Chi sei», per chi invece li usa. */''}
     </div>
 
     <div>
@@ -3660,6 +3660,7 @@ function renderSheetBackground(c){
           <div class="field"><label>Punti esperienza</label><input value="${attr(c.xp||'')}" oninput="updateCharField('${c.id}','xp',this.value)"></div>
           <div class="field"><label>Al prossimo livello</label><input value="${attr(c.xpNext||'')}" oninput="updateCharField('${c.id}','xpNext',this.value)"></div>
         </div>
+        ${xpBarHTML(c)}
         ${nf('Giocatore','playerName','Chi lo gioca')}
       </div>
     </div>
@@ -4674,6 +4675,12 @@ function renderSettings(){
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Sottoclassi, razze e background che non sono nell'SRD: li aggiungi tu dai manuali che possiedi e compaiono nella creazione guidata.${(state.homebrew||[]).length ? ' Ne hai <b>'+state.homebrew.length+'</b>.' : ''}</p>
       <button class="btn btn-gold btn-block" onclick="openHomebrew()">📚 Gestisci i tuoi contenuti</button>
+      ${/* Le suppliche si caricavano SOLO passando dalla scheda di un
+           warlock: senza un warlock in squadra non c'era nessuna strada
+           per metterle in archivio prima di crearne uno. */''}
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="apriImportSuppliche(null)">
+        🕯️ Carica suppliche occulte${(state.suppliche||[]).length ? ' · ne hai ' + state.suppliche.length : ''}
+      </button>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>I tuoi dati</span></div>
@@ -5425,6 +5432,7 @@ function openSheetMenu(charId){
   openModal({ render: () => modalShell('⋯ ' + escapeHtml(c.name || 'Scheda'), `
     <div class="list-gap">
       ${item('🏕️', 'Riposo', 'Breve o lungo, con i dadi vita e le risorse', `openRestModal('${c.id}')`)}
+      ${item('✦', 'Punti esperienza', (c.xp ? fmtXp(xpNum(c)) + ' px · tocca per aggiornarli' : 'Se giocate a traguardi, lascia stare'), `openXpDialog('${c.id}')`)}
       ${item('🩸', 'Condizioni', ((c.conditions||[]).length ? (c.conditions||[]).map(id => (CONDITION_BY_ID[id]||{}).name || id).join(', ') : 'Prono, avvelenato, affascinato…'), `openConditionPicker('${c.id}')`)}
       ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
       ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
