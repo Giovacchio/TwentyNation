@@ -760,7 +760,7 @@ function stepGear(){
             const list = (typeof SRD_WEAPONS !== 'undefined') ? SRD_WEAPONS.filter(w=>w.cat===p.cat) : [];
             const sel = pickedWeapon(p.key);
             return `<div class="field">
-              <label>${escapeHtml(p.label)}${p.qty>1?` ×${p.qty}`:''}</label>
+              <label>${escapeHtml(p.label)}</label>
               <div class="chip-row">
                 ${list.map(w=>`<button class="chip ${sel&&sel.id===w.id?'active':''}" onclick="bldPickWeapon('${p.key}','${w.id}')">${escapeHtml(gearName(w))} <span class="muted">${w.d}</span></button>`).join('')}
               </div>
@@ -774,8 +774,19 @@ function bldToggleGear(){ bld.gearOn = !bld.gearOn; renderModalRoot(); }
 function bldPickGear(gi, oi){ bld.gear[gi] = oi; renderModalRoot(); }
 
 /* I pacchetti dell'SRD dicono "un'arma da guerra a scelta": qui la
-   scegli davvero, e nello zaino ci finisce l'arma vera col suo peso. */
-function gearPlaceholders(){
+   scegli davvero, e nello zaino ci finisce l'arma vera col suo peso.
+
+   «DUE armi da guerra a scelta» vuol dire due armi che puoi prendere
+   DIVERSE — una spada lunga e un martello, se ti pare. L'app invece
+   offriva una sola scelta e poi ne metteva due uguali: era il modo
+   sbagliato di leggere la regola, e toglieva metà della decisione.
+   Adesso una riga da due diventa due scelte separate.
+
+   Le righe si preparano UNA VOLTA SOLA qui: prima l'elenco delle scelte
+   e il calcolo dello zaino le ricavavano ognuno per conto suo, e due
+   conti separati sulla stessa cosa sono il modo classico per farli
+   sfasare. */
+function righeEquipaggiamento(){
   const kit = CLASS_KITS[bld.classId];
   if (!kit || !bld.gearOn) return [];
   const rows = (kit.fixed || []).slice();
@@ -783,10 +794,24 @@ function gearPlaceholders(){
     const o = g.opts[bld.gear[gi] != null ? bld.gear[gi] : 0];
     if (o) o.items.forEach(it => rows.push(it));
   });
-  return rows.filter(r => /a scelta/i.test(r[0])).map((r, i) => ({
-    key: 'p' + i, label: r[0], qty: r[1],
-    cat: /guerra/i.test(r[0]) ? 'guerra' : 'semplice',
-  }));
+  const ORDINALI = ['Prima','Seconda','Terza','Quarta','Quinta'];
+  const fuori = [];
+  let i = 0;
+  rows.forEach(([nome, qty, peso]) => {
+    if (!/a scelta/i.test(nome)){ fuori.push({ nome, qty, peso, scelta: null }); return; }
+    const quante = Math.max(1, Number(qty) || 1);
+    for (let k = 0; k < quante; k++){
+      fuori.push({ nome, qty: 1, peso, scelta: {
+        key: 'p' + (i++),
+        label: quante > 1 ? (ORDINALI[k] || (k+1) + 'ª') + ' — ' + nome.toLowerCase() : nome,
+        cat: /guerra/i.test(nome) ? 'guerra' : 'semplice',
+      }});
+    }
+  });
+  return fuori;
+}
+function gearPlaceholders(){
+  return righeEquipaggiamento().filter(r => r.scelta).map(r => r.scelta);
 }
 function bldPickWeapon(key, id){ bld.weaponPick[key] = id; renderModalRoot(); }
 function pickedWeapon(key){
@@ -794,24 +819,18 @@ function pickedWeapon(key){
   return (id && typeof WEAPON_BY_ID !== 'undefined') ? WEAPON_BY_ID[id] : null;
 }
 
-/* Somma tutto: fisso + scelte, accorpando i doppioni */
+/* Somma tutto: fisso + scelte, accorpando i doppioni. Due scelte finite
+   sulla stessa arma tornano a essere una riga da due; due armi diverse
+   restano due righe. */
 function gearItems(){
-  const kit = CLASS_KITS[bld.classId];
-  if (!kit || !bld.gearOn) return [];
-  const rows = (kit.fixed || []).slice();
-  kit.groups.forEach((g, gi) => {
-    const o = g.opts[bld.gear[gi] != null ? bld.gear[gi] : 0];
-    if (o) o.items.forEach(it => rows.push(it));
-  });
-  // i segnaposto diventano l'arma che hai scelto
-  let pi = 0;
-  const resolved = rows.map(([name, qty, w]) => {
-    if (!/a scelta/i.test(name)) return [name, qty, w];
-    const pick = pickedWeapon('p' + (pi++));
-    return pick ? [gearName(pick), qty, pick.w] : [name, qty, w];
-  });
+  const righe = righeEquipaggiamento();
   const map = new Map();
-  resolved.forEach(([name, qty, w]) => {
+  righe.forEach(r => {
+    let name = r.nome, qty = r.qty, w = r.peso;
+    if (r.scelta){
+      const pick = pickedWeapon(r.scelta.key);
+      if (pick){ name = gearName(pick); w = pick.w; }
+    }
     const prev = map.get(name);
     if (prev) prev.qty += qty; else map.set(name, { name, qty, weight: w });
   });

@@ -1,5 +1,21 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.0.3 — 31 agosto 2026
+**«Due armi da guerra a scelta» te ne faceva scegliere una sola.**
+
+Segnalato da un giocatore. Nel passo dell'equipaggiamento, dove l'SRD dice **due** armi a scelta (guerriero, paladino, ranger), l'app offriva **una** casella di scelta e poi metteva nello zaino due copie della stessa arma.
+
+Era il modo sbagliato di leggere la regola: due armi a scelta vuol dire due armi che puoi prendere **diverse** — una spada lunga e un martello da guerra, se ti pare. Metà della decisione spariva.
+
+- Adesso una riga da due diventa **due scelte separate**, marcate «Prima —» e «Seconda —», ognuna con le sue armi.
+- Prendendone **due diverse** finiscono nello zaino come due righe, e in scheda diventano **due righe d'attacco**, ognuna coi suoi danni.
+- Prendendo **due volte la stessa** tornano a essere una riga sola ×2, come prima.
+- Le opzioni già decise dal manuale («due asce», «due spade corte») non chiedono niente: quelle sono davvero due copie uguali.
+
+> Trovato per strada: l'elenco delle scelte e il calcolo dello zaino ricavavano le righe **ognuno per conto suo** dallo stesso pacchetto. Due conti separati sulla stessa cosa sono il modo classico per farli sfasare — è la stessa forma del difetto della v8.0.1. Adesso le righe si preparano una volta sola, in `righeEquipaggiamento()`, e le usano tutti e due.
+>
+> 13 prove nuove in `test-v803.mjs`. Suite completa verde, 1.476 interazioni con zero rotture, audit invariato.
+
 ## v8.0.2 — 31 agosto 2026
 **La pagina che spariva e riappariva mentre scrivevi.**
 
