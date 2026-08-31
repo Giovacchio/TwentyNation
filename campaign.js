@@ -64,11 +64,15 @@ function attachCampaign(){
     }
   }));
 
+  /* Stessa storia del sync personale: l'eco di una scrittura nostra
+     ridisegnava tutta la pagina. Si ridisegna solo se e' cambiato
+     qualcosa davvero. */
   const wireShared = (name, key) => {
     campUnsub.push(base.collection(name).onSnapshot(snap => {
+      const prima = (typeof firmaCollezione === 'function') ? firmaCollezione(state[key]) : null;
       state[key] = snap.docs.map(x => ({
         ...(typeof daNuvola === 'function' ? daNuvola(x.data()) : x.data()), id: x.id }));
-      renderIfSafe();
+      if (prima === null || firmaCollezione(state[key]) !== prima) renderIfSafe();
     }, err => console.error('Condivisi non leggibili: ' + name, err)));
   };
   wireShared('spells', 'sharedSpells');

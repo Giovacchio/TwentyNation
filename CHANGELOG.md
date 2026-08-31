@@ -1,5 +1,20 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.0.2 — 31 agosto 2026
+**La pagina che spariva e riappariva mentre scrivevi.**
+
+Firestore rimanda indietro **ogni** scrittura a chi sta ascoltando: prima l'eco locale, poi la conferma dal server. L'app ridisegnava tutta la pagina a ogni eco, e risalvava tutto l'archivio.
+
+Misurato su un solo «−1 punto ferita»: **tre ridisegni dell'intera pagina e sette riscritture dell'archivio locale.** Quello era lo sfarfallio.
+
+- **L'eco di una scrittura tua non è una notizia.** L'aggiornamento viene comunque fuso — lì non si scherza, è il meccanismo che tiene allineati due telefoni — ma **si ridisegna e si risalva solo se è cambiato qualcosa davvero**. Un cambio vero che arriva da un altro dispositivo ridisegna eccome: c'è una prova apposta, perché la cura non doveva diventare peggio del male.
+- Stessa correzione per la roba condivisa col tavolo.
+- **Due salvataggi identici di fila ne scrivono uno solo.** Attenzione a come: si salta la scrittura solo quando il contenuto è **byte per byte** quello già in memoria, **mai** per rimandarla a dopo — rimandare è quello che una volta ha fatto perdere dati, e non si rifà. Chi scrive l'archivio di suo pugno (il cambio account) adesso avvisa, se no la scorciatoia racconterebbe bugie.
+
+Risultato: da tre ridisegni a uno, e da sette scritture a tre (le tre rimaste sono quelle volute, e ognuna ha il suo motivo scritto accanto).
+
+> 10 prove nuove in `test-v802.mjs`, fra cui una che **scrive davvero in un campo di testo** e controlla che il fuoco e il testo non si perdano per strada. Nel finto cloud delle prove sono state corrette due bugie che nascondevano il problema: non rimandava indietro le scritture come fa Firestore, e «staccarsi» non staccava niente.
+
 ## v8.0.1 — 31 agosto 2026
 **«Ripristina» nel cestino cliccava a vuoto. E il motivo per cui nessuna prova l'aveva visto è la cosa più utile di questo giro.**
 

@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.0.1** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.0.2** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -115,6 +115,12 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    costruire un personaggio che usa SOLO roba caricata e poi cercarlo in ogni schermata —
    vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
    test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
+
+0-. **Il finto cloud delle prove (`mock-cloud.js`) deve MENTIRE IL MENO POSSIBILE.**
+   Non rimandava indietro le scritture come fa Firestore, e la funzione per staccarsi
+   non staccava niente: due bugie che tenevano nascosto lo sfarfallio della v8.0.2 e
+   che facevano passare per buono un cambio account. Se una prova col finto cloud dà
+   un risultato più pulito di quello che si vede sul telefono, il sospetto va lì.
 
 0. **Le prove che chiamano la funzione invece di premere il tasto sono il difetto
    ricorrente di questo progetto** (v8.0.1: «Ripristina» nel cestino rotto da chissà

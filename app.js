@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.0.1';
+const APP_VERSION = '8.0.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -519,14 +519,26 @@ function proprietarioArchivio(){
 /* Scrive davvero, subito. Torna false se la memoria del telefono è piena:
    chi sta aggiungendo tanta roba insieme se ne accorge e torna indietro
    invece di lasciare in giro mezza importazione. */
+/* Il testo dell'ultima scrittura andata a buon fine. Serve a saltare le
+   scritture IDENTICHE: un solo «−1 punto ferita» passava da qui cinque
+   volte, e su un archivio da megabyte sono cinque riscritture in fila
+   della stessa identica roba. Attenzione: si salta solo quando il
+   contenuto e' byte per byte quello gia' in memoria, mai per rimandare
+   una scrittura a dopo — rimandare e' quello che una volta ha fatto
+   perdere dati, e non si rifa'. */
+let __ultimoTestoLocale = null;
+function scordaTestoLocale(){ __ultimoTestoLocale = null; }
 function saveLocalOra(){
   clearTimeout(__salvaLocaleTimer); __salvaLocaleTimer = null;
   try {
     const testo = pacchettoLocale();
+    if (testo === __ultimoTestoLocale) return true;   // gia' scritto identico
     localStorage.setItem(LS_KEY, testo);
+    __ultimoTestoLocale = testo;
     __ultimoPesoLocale = testo.length;
     return true;
   } catch(e){
+    __ultimoTestoLocale = null;        // non si sa piu' cosa c'e' scritto
     console.warn('Impossibile salvare in locale', e);
     toast('⚠️ Memoria del dispositivo piena: libera spazio');
     return false;
@@ -591,6 +603,18 @@ let __frenoAvvisato = false;
 /* `completo` dice che lo snapshot arriva davvero dal server (non dalla
    cache locale di Firestore): solo allora l'assenza può voler dire
    «cancellato», e comunque solo se prima l'avevamo visto presente. */
+/* Un'impronta della collezione, per capire se un aggiornamento porta
+   davvero qualcosa di nuovo o e' solo l'eco della nostra ultima
+   scrittura. Non e' un confronto profondo: bastano identita' e momento
+   dell'ultima modifica, che e' quello che cambia quando cambia un dato. */
+function firmaCollezione(arr){
+  if (!Array.isArray(arr)) return '0';
+  let h = 5381;
+  const testo = arr.map(x => (x && x.id) + ':' + ((x && (x.updatedAt || x.createdAt)) || 0)).join('|');
+  for (let i = 0; i < testo.length; i++) h = ((h * 33) ^ testo.charCodeAt(i)) >>> 0;
+  return arr.length + '-' + h;
+}
+
 function mergeCollection(localArr, remoteArr, collection, completo){
   const byId = {};
   remoteArr.forEach(r => { byId[r.id] = r; });
@@ -650,13 +674,26 @@ function attachFirestore(uidUser){
   detachFirestore();
   const base = db.collection('users').doc(uidUser);
   const primaVolta = {};
+  /* Firestore rimanda indietro OGNI scrittura a chi ascolta: prima l'eco
+     locale, poi la conferma dal server. Ridisegnare e risalvare a ogni
+     eco voleva dire, per un solo «−1 punto ferita», tre ridisegni
+     dell'intera pagina e sette riscritture dell'archivio locale — che
+     e' esattamente lo sfarfallio che si vedeva scrivendo o toccando i
+     pulsantini. L'eco di quello che sai gia' non e' una notizia:
+     l'aggiornamento va comunque fuso (li' non si scherza), ma si
+     ridisegna e si risalva SOLO se e' cambiato davvero qualcosa. */
   const wire = (name, mapper) => {
     unsubscribers.push(base.collection(name).onSnapshot(snap => {
       const remote = snap.docs.map(d => ({...daNuvola(d.data()), id: d.id}));
       const completo = !(snap.metadata && snap.metadata.fromCache);
+      const prima = firmaCollezione(state[name]);
       state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name, completo);
-      if (name === 'npcs') bestiarioScorda();
-      saveLocal(); setSaveStatus('saved'); renderIfSafe();
+      const cambiato = firmaCollezione(state[name]) !== prima;
+      if (cambiato){
+        if (name === 'npcs') bestiarioScorda();
+        saveLocal(); renderIfSafe();
+      }
+      setSaveStatus('saved');
       if (!primaVolta[name]){ primaVolta[name] = true; uploadUnsynced(name, remote); }
     }, err => { console.error('Errore sync ' + name, err); }));
   };
@@ -949,6 +986,9 @@ function noteAuthError(err){
    quando quella persona rientra. Chi entra la prima volta si porta
    dietro quello che aveva creato da scollegato: è suo. */
 function cambiaCassetto(uid){
+  /* Qui l'archivio cambia sotto i piedi: la cache di cosa c'e' scritto
+     non vale piu' niente. */
+  scordaTestoLocale();
   /* Il proprietario si legge DALL'ARCHIVIO, non da una chiave che puo'
      essere sparita per conto suo lasciando i dati orfani. */
   const precedente = proprietarioArchivio();
@@ -998,6 +1038,7 @@ function cambiaCassetto(uid){
         localStorage.removeItem(cassettoDi(uid));
       } catch(e){ console.warn('Cassetto illeggibile', e); }
     }
+    scordaTestoLocale();
     try { localStorage.setItem(LS_KEY, JSON.stringify({
       characters: state.characters, npcs: state.npcs, customSpells: state.customSpells,
       spellTags: state.spellTags, homebrew: state.homebrew, journal: state.journal })); } catch(e){}
