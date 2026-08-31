@@ -171,6 +171,37 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 
 ## Come si lavora qui
 
+### La regola: prima lo legge, poi lo crea
+
+**Ogni aggiunta di contenuto attraversa due porte, in quest'ordine, e non è finita
+finché non le ha passate tutte e due.**
+
+1. **Il lettore PDF deve capirlo.** Chi ha già una scheda o un manuale non ricomincia da
+   zero: importa. Se una cosa nuova non si riconosce leggendo un PDF o un testo, per chi
+   arriva da fuori quella cosa non esiste. Vale il riconoscimento **secondo le regole**,
+   non solo il nome: prerequisiti, livello, cosa concede.
+2. **Il creatore di personaggi deve saperla mettere davvero.** Non un cartello che dice
+   «poi aggiungilo a mano»: il passo, i controlli, i prerequisiti, e il risultato che
+   finisce nella scheda costruita.
+
+Solo dopo vengono la scheda, la stampa e la condivisione col tavolo.
+
+Perché è scritta qui: le due porte sono state saltate parecchie volte, e ogni volta il
+buco è rimasto invisibile finché non l'ha trovato un giocatore. Gli aumenti di
+caratteristica (v8.2.1) avevano il cartello «mettili a mano» al posto dei comandi; le
+suppliche (v8.1) sono nate già passando da tutte e due, ed è la ragione per cui hanno
+funzionato al primo colpo.
+
+**Come si verifica che le porte siano passate davvero:**
+
+- una prova che parte da un **PDF o da un testo** e controlla che la cosa nuova venga
+  riconosciuta con i suoi attributi (non solo il nome);
+- una prova che apre il **creatore**, la sceglie, e guarda che finisca in
+  `buildCharacterFromBuilder()`;
+- e la domanda di controllo: *un personaggio importato da PDF e uno creato con la
+  procedura guidata arrivano alla stessa scheda?* Se no, una delle due porte è finta.
+
+
 - **Ogni consegna è testata prima**: `/root/t/*.mjs` con Playwright, più `audit/audit.mjs`
   che scatta 99 schermate e cerca testo tagliato, elementi troppo piccoli e sovrapposizioni.
   `test-tremila.mjs` è la prova di carico: 4.000 creature vere e 500 voci di contenuti.
