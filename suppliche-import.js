@@ -402,7 +402,7 @@ function suppEffettoHTML(i){
         onclick="suppEffAbilita(${i},'${s.key}')">${escapeHtml(s.label)}</button>`).join('')}</div></div>` : ''}
     ${(e.tipo === 'senso' || e.tipo === 'nota') ? `<div class="field"><label>Cosa scrivo in scheda</label>
       <input value="${attr(e.testo||'')}" oninput="suppEffCampo(${i},'testo',this.value)"></div>` : ''}
-    <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal(); openModal({render: importSupplicheHTML})">Fatto</button>
+    <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal()">Fatto</button>
   `);
 }
 function suppEffTipo(i, tipo){

@@ -113,7 +113,13 @@ function cestinoHTML(){
       Quello che elimini resta qui <b>${CESTINO_GIORNI} giorni</b> prima di sparire davvero.
       Il cestino sta <b>su questo dispositivo</b>: non occupa spazio sul tuo account e non lo vede nessun altro.
     </p>
-    ${cestino.length ? `<div class="list-gap">${cestino.map(v => {
+    ${cestino.length ? `
+    <div class="row-between" style="margin-bottom:10px; gap:10px">
+      <span class="muted" style="font-size:.8rem"><b>${cestino.length}</b> ${cestino.length===1?'cosa':'cose'} nel cestino</span>
+      <button class="btn btn-sm btn-ghost" style="min-width:auto; padding:7px 12px; color:var(--garnet-bright); border-color:var(--garnet-bright)"
+              onclick="svuotaCestino()">🗑️ Svuota tutto</button>
+    </div>
+    <div class="list-gap">${cestino.map(v => {
       const k = CESTINO_TIPI[v.collezione] || { label:v.collezione, icona:'🗑️' };
       const g = giorniRimasti(v.at);
       return `<div class="attack-row">
@@ -125,7 +131,7 @@ function cestinoHTML(){
         <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Elimina per sempre" onclick="buttaDefinitivamente('${jsStr(v.chiave || v.id)}')">✕</button>
       </div>`;
     }).join('')}</div>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="svuotaCestino()">Svuota il cestino</button>`
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px; color:var(--garnet-bright)" onclick="svuotaCestino()">🗑️ Svuota tutto il cestino</button>`
     : emptyState('🗑️','Il cestino è vuoto. Quello che elimini finisce qui, e da qui si recupera.')}`;
   return modalShell('🗑️ Cestino', inner);
 }
@@ -212,8 +218,8 @@ function saluteHTML(){
         </p>
       </div>`; })()}
     <div class="btn-row" style="margin-top:14px">
-      <button class="btn btn-gold" onclick="closeModal(); exportData()">⤓ Esporta un backup</button>
-      <button class="btn btn-ghost" onclick="closeModal(); openCestino()">🗑️ Cestino${quantoNelCestino()?' ('+quantoNelCestino()+')':''}</button>
+      <button class="btn btn-gold" onclick="closeModalAll(); exportData()">⤓ Esporta un backup</button>
+      <button class="btn btn-ghost" onclick="closeModalAll(); openCestino()">🗑️ Cestino${quantoNelCestino()?' ('+quantoNelCestino()+')':''}</button>
     </div>
     <div class="spell-source-note">Un backup esportato è l'unica copia che resta tua anche senza account e senza questo dispositivo. Vale la pena farlo ogni tanto.</div>`;
   return modalShell('🩺 Salute dei dati', inner);

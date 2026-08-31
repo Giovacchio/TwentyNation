@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.3.1';
+const APP_VERSION = '8.4';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1192,8 +1192,8 @@ function authDiagnosticsHTML(){
       <div class="muted" style="font-size:.78rem">${escapeHtml(__lastAuthError.message)}</div>
     </div>` : ''}
     <div class="list-gap">
-      <button class="btn btn-primary btn-block" onclick="closeModal(); signIn('popup')">Accedi con la finestra popup</button>
-      <button class="btn btn-ghost btn-block" onclick="closeModal(); signIn('redirect')">Accedi con il reindirizzamento</button>
+      <button class="btn btn-primary btn-block" onclick="closeModalAll(); signIn('popup')">Accedi con la finestra popup</button>
+      <button class="btn btn-ghost btn-block" onclick="closeModalAll(); signIn('redirect')">Accedi con il reindirizzamento</button>
       <button class="btn btn-ghost btn-block" onclick="copyDiagnostics()">Copia questi dati</button>
       <button class="btn btn-ghost btn-block" onclick="forceAppUpdate()">🔄 Forza aggiornamento dell'app</button>
     </div>
@@ -1654,7 +1654,25 @@ function pushModalEntry(){
   __modalDepth = 1;
   try { history.pushState(Object.assign(navSnapshot(), {modal:true}), ''); } catch(e){}
 }
+/* Le finestre si impilano invece di sostituirsi. Aprire la scheda di
+   un incantesimo mentre crei un personaggio non deve buttare via la
+   creazione: chiudendo torni indietro di UN gradino e ritrovi il
+   modulo dov'era, scorrimento compreso. Il fondo della pila si
+   comporta come prima (chiude tutto e restituisce la cronologia). */
+let __modalStack = [];
+const MODAL_MAX = 8; // una pila piu' alta di cosi' e' un ciclo, non una navigazione
 function openModal(descriptor){
+  if (state.modal){
+    // riaprire la STESSA finestra e' un ridisegno, non un gradino nuovo
+    const stessa = descriptor && state.modal && descriptor.render === state.modal.render;
+    if (!stessa && __modalStack.length < MODAL_MAX){
+      const box = modalScrollBox();
+      __modalStack.push({ desc: state.modal, top: box ? box.scrollTop : 0 });
+    }
+    state.modal = descriptor;
+    renderModalRoot({ toTop:true });
+    return;
+  }
   // Se la chiusura precedente non è ancora atterrata, la sua voce di
   // cronologia sta per sparire: ce la riprendiamo appena il back arriva,
   // altrimenti il tasto Indietro del telefono uscirebbe dall'app.
@@ -1664,7 +1682,19 @@ function openModal(descriptor){
   renderModalRoot({ toTop:true }); // una finestra nuova parte sempre dall'alto
 }
 function closeModal(fromPop){
-  if (!state.modal && !__modalDepth) return;
+  if (!state.modal && !__modalDepth && !__modalStack.length) return;
+  if (__modalStack.length){
+    const sotto = __modalStack.pop();
+    state.modal = sotto.desc;
+    renderModalRoot({ toTop:true });
+    const nb = modalScrollBox();
+    if (nb && sotto.top) nb.scrollTop = sotto.top; // torni dove eri, non in cima
+    /* Il tasto Indietro ha gia' consumato la voce di cronologia: ne
+       rimettiamo una, se no il prossimo Indietro esce dall'app mentre
+       una finestra e' ancora aperta. */
+    if (fromPop){ __modalDepth = 0; __pendingClose = false; __needsRepush = false; pushModalEntry(); }
+    return;
+  }
   state.modal = null;
   renderModalRoot();
   if (fromPop){ __modalDepth = 0; __pendingClose = false; __needsRepush = false; return; }
@@ -1672,6 +1702,33 @@ function closeModal(fromPop){
     __modalDepth = 0; __needsRepush = false; __ignorePop = true; __pendingClose = true;
     try { history.back(); } catch(e){}
   }
+}
+/* Quando dopo la chiusura si cambia schermata davvero (apri una scheda,
+   vai al grimorio) la pila va svuotata: nessuna finestra deve restare
+   appesa sopra una vista nuova. */
+function closeModalAll(){ __modalStack = []; closeModal(); }
+/* Sostituisce la finestra in cima senza aggiungere un gradino: serve
+   alle schermate che si ridisegnano da sole (rileggi il PDF, cambia
+   intervallo) e che altrimenti impilerebbero copie di se' stesse. */
+function modalReplace(descriptor){
+  if (!state.modal) return openModal(descriptor);
+  state.modal = descriptor; renderModalRoot({ toTop:true });
+}
+/* «Torna al modulo»: risale la pila fino alla finestra che cerchi,
+   invece di aprirne una copia sopra quella che c'e' gia'. */
+function modalPopTo(renderFn){
+  for (let i = __modalStack.length - 1; i >= 0; i--){
+    if (__modalStack[i].desc && __modalStack[i].desc.render === renderFn){
+      const trovata = __modalStack[i];
+      __modalStack.length = i;               // butta via tutto quello che sta sopra
+      state.modal = trovata.desc;
+      renderModalRoot({ toTop:true });
+      const nb = modalScrollBox(); if (nb && trovata.top) nb.scrollTop = trovata.top;
+      return true;
+    }
+  }
+  modalReplace({ render: renderFn });
+  return false;
 }
 document.addEventListener('keydown', (e)=>{
   if (e.key === 'Escape' && state.modal){ closeModal(); return; }
@@ -5436,6 +5493,9 @@ function openSheetMenu(charId){
       ${item('🩸', 'Condizioni', ((c.conditions||[]).length ? (c.conditions||[]).map(id => (CONDITION_BY_ID[id]||{}).name || id).join(', ') : 'Prono, avvelenato, affascinato…'), `openConditionPicker('${c.id}')`)}
       ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
       ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
+      ${typeof apriRiempiScheda === 'function'
+        ? item('🖊️', 'Riempi la tua scheda compilabile', 'Metti il tuo modulo e ci scrivo dentro: ogni dato nella sua casella', `apriRiempiScheda('${c.id}')`)
+        : ''}
       ${(state.campaign && state.campaign.id && typeof apriCondividiPg === 'function')
         ? item('⚔️', (typeof dettaglioDi === 'function' && dettaglioDi(c.id)) ? 'Al tavolo · ' + PARTY_DETTAGLI[dettaglioDi(c.id)].label.toLowerCase() : 'Mostra al tavolo',
                (typeof dettaglioDi === 'function' && dettaglioDi(c.id))
@@ -5460,7 +5520,7 @@ function openCharSwitcher(){
         </span>
       </button>`).join('')}
     </div>
-    <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModal(); goView('party')">Torna al party</button>`) });
+    <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModalAll(); goView('party')">Torna al party</button>`) });
 }
 function switchChar(id){
   closeModal();
@@ -5487,7 +5547,7 @@ function globalSearchResults(q){
   state.characters.forEach(c => {
     if (norm(c.name||'').includes(n) || norm(c.classField||'').includes(n) || norm(c.race||'').includes(n))
       push('Personaggi', '🎭', c.name || 'Senza nome', `${c.classField||'Avventuriero'} · Lv ${c.level||1}`,
-        `closeModal(); openSheet('${c.id}')`);
+        `closeModalAll(); openSheet('${c.id}')`);
   });
 
   allSpells().forEach(sp => {
@@ -5513,7 +5573,7 @@ function globalSearchResults(q){
     if (norm(p.name||'').includes(n) || norm(p.type||'').includes(n))
       push('Dal tavolo', '⚔️', p.name || 'Senza nome',
         [p.type || '', p.sharedByName ? ('condiviso da ' + p.sharedByName) : ''].filter(Boolean).join(' · '),
-        `closeModal(); apriMostroCondiviso('${jsStr(p.id)}')`);
+        `closeModalAll(); apriMostroCondiviso('${jsStr(p.id)}')`);
   });
 
   if (typeof CONDITIONS !== 'undefined') CONDITIONS.forEach(cd => {
@@ -5539,7 +5599,7 @@ function globalSearchResults(q){
     if (norm(e.title||'').includes(n) || norm(e.text||'').includes(n))
       push('Diario', '📓', e.title || ('Sessione ' + (e.session||'?')),
         (e.session?('Sessione '+e.session+' · '):'') + (typeof prettyDate==='function'?prettyDate(e.date):e.date),
-        `closeModal(); goView('dm'); setDmTab('journal'); openJournalEntry('${e.id}')`);
+        `closeModalAll(); goView('dm'); setDmTab('journal'); openJournalEntry('${e.id}')`);
   });
 
   /* Le tue aggiunte E quelle del tavolo: homebrewOf() le mescola gia'
@@ -5551,7 +5611,7 @@ function globalSearchResults(q){
     if (norm(h.name||'').includes(n))
       push(h.fromCampaign ? 'Dal tavolo' : 'Aggiunte personali', h.fromCampaign ? '⚔️' : '✍️', h.name,
         [(HB_KINDS[h.kind] ? HB_KINDS[h.kind].label : ''), h.sharedByName ? ('condiviso da ' + h.sharedByName) : ''].filter(Boolean).join(' · '),
-        `closeModal(); goView('settings')`);
+        `closeModalAll(); goView('settings')`);
   });
 
   return out.slice(0, 60);

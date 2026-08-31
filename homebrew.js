@@ -442,7 +442,7 @@ function parseFeatureText(text, kind){
 let hbPendingText = '';
 function openHbText(prefill){
   hbPendingText = prefill || '';
-  openModal({ render: () => hbTextHTML(), after: () => { const el = document.getElementById('hb-text'); if (el && !prefill) el.focus(); } });
+  openModal({ render: hbTextHTML, after: () => { const el = document.getElementById('hb-text'); if (el && !prefill) el.focus(); } });
 }
 function hbTextHTML(){
   const rows = hbPendingText ? parseFeatureText(hbPendingText, hbDraft.kind) : [];
@@ -475,7 +475,7 @@ function applyParsedText(){
   reopenHbEditor();
   toast('✓ ' + rows.length + ' voci aggiunte');
 }
-function reopenHbEditor(){ openModal({ render: homebrewEditorHTML }); }
+function reopenHbEditor(){ modalPopTo(homebrewEditorHTML); }
 
 /* ─── Lettura di un PDF ─── */
 let __pdfjsPromise = null;
@@ -546,7 +546,11 @@ function hbReadPdf(input){
 let hbPdfPages = 1, hbPdfFrom = 1, hbPdfTo = 3;
 function openHbPdfRange(text){
   hbPendingText = text;
-  openModal({ render: () => {
+  // render con un nome stabile: rileggere le pagine ridisegna questa
+  // finestra invece di impilarne una copia sopra l'altra
+  openModal({ render: hbPdfRangeHTML });
+}
+function hbPdfRangeHTML(){
     const inner = `
       <p class="muted" style="margin-bottom:12px">Il PDF ha ${hbPdfPages} pagine. Ho letto le prime ${Math.min(3,hbPdfPages)}: se la ${HB_KINDS[hbDraft.kind].label.toLowerCase()} sta altrove, cambia l'intervallo e rileggi.</p>
       <div class="form-row">
@@ -559,7 +563,6 @@ function openHbPdfRange(text){
       <button class="btn btn-primary btn-block" onclick="openHbText(hbPendingText)">Analizza questo testo →</button>
       <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="reopenHbEditor()">← Torna al modulo</button>`;
     return modalShell('📄 Testo dal PDF', inner);
-  }});
 }
 async function hbRereadPdf(){
   if (!hbPdfBuffer) return;

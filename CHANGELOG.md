@@ -1,5 +1,36 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.4 — 31 agosto 2026
+**Le finestre non si buttano più via a vicenda, e l'esportazione sa rimettere i dati dove la tua scheda li tiene.**
+
+### 🪟 Le finestre si impilano: chiudere torna indietro di un gradino
+Durante la creazione, toccare il nome di un incantesimo per leggerne la scheda **cancellava il modulo di creazione**: chiudendo l'incantesimo non restava niente sotto, e ricominciavi da capo. L'app aveva **una sola finestra alla volta** — aprirne una sopra un'altra sostituiva quella di prima.
+
+Adesso c'è una pila: aprire una finestra sopra un'altra non tocca quella sotto, e chiudere torna **indietro di uno**, allo scorrimento in cui eri. Vale ovunque, non solo negli incantesimi: la conferma sopra il cestino, l'oggetto magico aperto dalla lista, il ⚙️ di una supplica. Dove invece si cambia davvero schermata (apri una scheda, vai al grimorio) la pila si svuota, così non resta mai una finestra appesa sopra una vista nuova. Il tasto Indietro del telefono scende la pila un gradino per volta e continua a non buttarti fuori dall'app.
+
+*Effetto collaterale gradito:* il pasticcio del cestino era lo stesso difetto. Confermare «elimina per sempre» faceva sparire **tutta** la finestra del cestino invece di riportarti all'elenco.
+
+### 🕯️ Raggio occulto sblocca le sue suppliche, anche in creazione
+Sceglievi **Raggio occulto** fra i trucchetti e al passo successivo «Raggio agonizzante» restava grigio, con scritto che dovevi conoscere un incantesimo che avevi appena preso. Due errori nella scheda finta che serve a controllare i prerequisiti: guardava **solo gli incantesimi di livello, mai i trucchetti** — e raggio occulto è un trucchetto — e ci metteva dentro oggetti nella forma sbagliata, quindi non riconosceva nemmeno quelli di livello. Sulla scheda vera ha sempre funzionato: era rotto **solo durante la creazione**, cioè l'unico posto dove serviva.
+
+### 🎲 Array standard e tiro dei dadi: i numeri li metti tu
+Sceglievi «Array standard» e l'app riempiva le sei caselle in ordine — Forza 15, Destrezza 14, e via. Per mettere il 15 dove volevi tu dovevi prima **svuotare a mano la casella che se l'era preso**. Adesso i sei numeri stanno in alto come gruppo da assegnare, le caselle partono su «—» e li metti dove vuoi; rimettere una casella su «—» restituisce il numero al gruppo. «Avanti» aspetta che siano assegnate tutte e sei. Stessa cosa per il tiro dei dadi: tira, poi decidi tu. «Acquisto punti» e «A mano» non cambiano.
+
+### 🖊️ Riempi la TUA scheda compilabile
+L'esportazione in PDF fa un foglio suo, buono per la stampa. Ma se la scheda compilabile ce l'hai già — quella da cui l'app legge i personaggi — i dati vanno messi **nelle sue caselle**. Da **⋯ → «Riempi la tua scheda compilabile»** dai il tuo modulo e l'app ci scrive dentro il personaggio: anagrafica, caratteristiche con modificatori e tiri salvezza, competenze ed esperienza nelle abilità, PF e dadi vita, attacchi, risorse a usi limitati, monete, zaino riga per riga con i pesi, personalità, aspetto, storia, e gli incantesimi nelle caselle del **livello giusto** — che sulla scheda non hanno un nome parlante e si capiscono solo dalla posizione sotto l'intestazione degli slot. Il file resta compilabile: puoi ancora correggerlo a mano.
+
+Gli elenchi (attacchi, risorse, zaino, incantesimi) vengono **svuotati prima** di essere riscritti, se no riusando lo stesso modulo per il secondo personaggio della compagnia ti ritrovavi le righe avanzate del primo mescolate alle nuove.
+
+> **Il modulo lo metti tu, e c'è un motivo.** La scheda ufficiale è materiale protetto: l'app non può distribuirla. Tu ce l'hai — è tua — e l'app si limita a scriverci dentro. Il file non lascia il telefono. Gli stessi nomi di casella che il lettore usa per **capire** una scheda vengono qui riusati per **riempirla**: se un dato si legge, si riscrive nella stessa casella.
+
+### 🗑️ «Svuota tutto» nel cestino, dove si vede
+Il pulsante esisteva già, ma era una scritta smorta in fondo a un elenco che può essere lungo. Adesso sta **in cima**, accanto al conto di quante cose ci sono, chiede conferma, e dopo lascia il cestino aperto e vuoto invece di sparire.
+
+### Prove
+`test-v84.mjs` (24) sulla pila delle finestre, sul raggio occulto e sullo svuotamento del cestino — premendo i pulsanti veri, non chiamando le funzioni. `test-array.mjs` (17) sull'assegnazione dei numeri. `test-riempi.mjs` (23) fa il **giro completo**: riempie il modulo, poi lo rilegge con l'importatore e controlla che torni fuori lo stesso personaggio, campo per campo.
+
+> **La scheda finta di prova era bugiarda.** Le sue «caselle di spunta» erano campi di testo travestiti, quindi nessuna prova aveva mai verificato che le spunte — competenze, tiri salvezza, tipo di riposo — venissero scritte davvero. E aveva una sola intestazione degli slot, quindi la geometria degli incantesimi non era mai stata messa alla prova. L'ho rigenerata con caselle vere e le tre colonne dei nove livelli (`fai-scheda.mjs`). Alla prima corsa con la scheda onesta, le spunte non passavano: sistemato, con in più il ripiego per le schede in giro che al posto della crocetta mettono un campo di testo.
+
 ## v8.3.1 — 31 agosto 2026
 
 ### ✦ I punti esperienza via dalla scheda principale

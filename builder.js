@@ -395,11 +395,17 @@ function stepAbilities(){
       <div class="row-between"><span class="muted">Punti spesi</span><b id="bld-spesi" style="${spent>27?'color:var(--garnet-bright)':''}">${spent} / 27</b></div>
       <div class="muted" style="font-size:.74rem; margin-top:6px">Da 8 a 15. I valori alti costano di più: 14 costa 7 punti, 15 ne costa 9.</div>
     </div>` : ''}
-    ${bld.method==='array' ? `<div class="card" style="margin-bottom:12px"><div class="muted" style="font-size:.8rem">Assegna 15, 14, 13, 12, 10 e 8 alle sei caratteristiche: ognuno una volta sola.</div></div>` : ''}
+    ${bld.method==='array' ? `<div class="card" style="margin-bottom:12px">
+      <div class="row-between"><span class="muted" style="font-size:.8rem">Da assegnare</span><b>${quanteAssegnate()} / 6</b></div>
+      ${numeriLiberi().length ? `<div class="chip-row" style="margin-top:8px">${numeriLiberi().map(v=>`<span class="badge gold">${v}</span>`).join('')}</div>` : ''}
+      <div class="muted" style="font-size:.74rem; margin-top:6px">Metti tu ogni numero dove vuoi: ognuno una volta sola. Per spostarne uno, rimettilo su «—».</div>
+    </div>` : ''}
     ${bld.method==='roll' ? `<div class="card" style="margin-bottom:12px">
       <button class="btn btn-gold btn-block btn-sm" onclick="rollAbilityScores()">🎲 Tira 6 volte 4d6 (scarta il più basso)</button>
-      ${bld.rolled ? `<div class="chip-row" style="margin-top:10px">${bld.rolled.map(v=>`<span class="badge gold">${v}</span>`).join('')}</div>
-      <div class="muted" style="font-size:.74rem; margin-top:6px">Assegna questi valori qui sotto.</div>` : ''}
+      ${bld.rolled ? `
+      <div class="row-between" style="margin-top:10px"><span class="muted" style="font-size:.8rem">Da assegnare</span><b>${quanteAssegnate()} / 6</b></div>
+      ${numeriLiberi().length ? `<div class="chip-row" style="margin-top:8px">${numeriLiberi().map(v=>`<span class="badge gold">${v}</span>`).join('')}</div>` : ''}
+      <div class="muted" style="font-size:.74rem; margin-top:6px">Metti tu ogni numero dove vuoi. Per spostarne uno, rimettilo su «—».</div>` : ''}
     </div>` : ''}
 
     <div class="list-gap">
@@ -411,32 +417,33 @@ function stepAbilities(){
           </div>
           ${abilityControl(a.key)}
           <div style="text-align:right; min-width:56px">
-            <div id="bld-fin-${a.key}" style="font-family:var(--font-head); font-size:1.15rem; color:var(--gold)">${fin[a.key]}</div>
-            <div class="muted" id="bld-mod-${a.key}" style="font-size:.7rem">${modStr(fin[a.key])}</div>
+            <div id="bld-fin-${a.key}" style="font-family:var(--font-head); font-size:1.15rem; color:${assegnata(a.key)?'var(--gold)':'var(--muted)'}">${assegnata(a.key)?fin[a.key]:'—'}</div>
+            <div class="muted" id="bld-mod-${a.key}" style="font-size:.7rem">${assegnata(a.key)?modStr(fin[a.key]):''}</div>
           </div>
         </div>`).join('')}
     </div>
     ${asiHTML()}
-    ${bldNav(bld.method!=='pointbuy' || spent<=27)}
+    ${bldNav(daAssegnare() ? quanteAssegnate()===6 : (bld.method!=='pointbuy' || spent<=27))}
   `;
 }
 function abilityControl(key){
-  const v = bld.base[key] || 8;
-  if (bld.method === 'array' || bld.method === 'roll'){
-    const pool = bld.method === 'array' ? STANDARD_ARRAY : (bld.rolled || []);
-    const used = ABILITIES.filter(a=>a.key!==key).map(a=>bld.base[a.key]);
+  if (daAssegnare()){
+    const v = Number(bld.base[key]) || 0;
+    const pool = poolMetodo();
+    const used = ABILITIES.filter(a=>a.key!==key).map(a=>Number(bld.base[a.key])||0);
     const opts = [];
     const counts = {};
     pool.forEach(p => counts[p] = (counts[p]||0)+1);
     used.forEach(u => { if (counts[u]) counts[u]--; });
     Object.keys(counts).sort((a,b)=>b-a).forEach(p => { if (counts[p] > 0) opts.push(Number(p)); });
-    if (!opts.includes(v) && pool.includes(v)) opts.unshift(v);
-    return `<select style="width:78px; padding:8px; border-radius:9px; border:1px solid var(--line); background:var(--bg-1); font-family:var(--font-ui); font-weight:700"
+    if (v && !opts.includes(v)) opts.unshift(v);   // il proprio numero resta scegliibile
+    return `<select style="width:78px; padding:8px; border-radius:9px; border:1px solid ${v?'var(--line)':'var(--gold-dim)'}; background:var(--bg-1); font-family:var(--font-ui); font-weight:700"
       onchange="setBase('${key}', this.value)">
-      <option value="">—</option>
+      <option value="" ${v?'':'selected'}>—</option>
       ${opts.map(o=>`<option value="${o}" ${v===o?'selected':''}>${o}</option>`).join('')}
     </select>`;
   }
+  const v = bld.base[key] || 8;
   const min = bld.method === 'pointbuy' ? 8 : 1;
   const max = bld.method === 'pointbuy' ? 15 : 20;
   return `<div style="display:flex; align-items:center; gap:5px">
@@ -465,8 +472,8 @@ function aggiornaDerivate(){
   ABILITIES.forEach(a => {
     const f = document.getElementById('bld-fin-' + a.key);
     const m = document.getElementById('bld-mod-' + a.key);
-    if (f) f.textContent = fin[a.key];
-    if (m) m.textContent = modStr(fin[a.key]);
+    if (f) f.textContent = assegnata(a.key) ? fin[a.key] : '—';
+    if (m) m.textContent = assegnata(a.key) ? modStr(fin[a.key]) : '';
   });
   const sp = document.getElementById('bld-spesi');
   const spent = pointsSpent();
@@ -486,16 +493,36 @@ function setBase(key, val){
   const min = bld.method === 'pointbuy' ? 8 : 1;
   const max = bld.method === 'pointbuy' ? 15 : 20;
   const prima = bld.base[key];
-  bld.base[key] = val === '' ? min : clamp(parseInt(val)||min, min, max);
+  // con array e dadi, svuotare una casella rimette il numero nel gruppo
+  if (daAssegnare() && (val === '' || val === null || val === undefined)){ bld.base[key] = 0; }
+  else bld.base[key] = val === '' ? min : clamp(parseInt(val)||min, min, max);
   if (bld.base[key] === prima){ aggiornaDerivate(); return; }   // niente da ridisegnare
   setTimeout(() => { if (state.modal) renderModalRoot(); }, 0);
 }
+/* Array standard e tiro dei dadi partono VUOTI. Prima l'app riempiva
+   le sei caselle in ordine (Forza 15, Destrezza 14…): sembrava un
+   favore, ma per mettere il 15 dove volevi tu dovevi prima svuotare a
+   mano la casella che se l'era preso. Adesso il gruppo di numeri sta
+   li' da assegnare e li metti tu dove vuoi, uno alla volta. */
 function setBldMethod(m){
   bld.method = m;
-  const def = m === 'pointbuy' ? 8 : (m === 'manual' ? 10 : 8);
+  const def = m === 'pointbuy' ? 8 : (m === 'manual' ? 10 : 0);
   ABILITIES.forEach(a => bld.base[a.key] = def);
-  if (m === 'array') ABILITIES.forEach((a,i) => bld.base[a.key] = STANDARD_ARRAY[i]);
   renderModalRoot();
+}
+/* 0 = «non ancora assegnata». Serve solo ad array e tiro dei dadi:
+   negli altri metodi una caratteristica ha sempre un numero. */
+function daAssegnare(){ return bld.method === 'array' || bld.method === 'roll'; }
+function assegnata(key){ return !daAssegnare() || Number(bld.base[key]) > 0; }
+function quanteAssegnate(){ return ABILITIES.filter(a => Number(bld.base[a.key]) > 0).length; }
+function poolMetodo(){ return bld.method === 'array' ? STANDARD_ARRAY : (bld.rolled || []); }
+function numeriLiberi(){
+  const conti = {};
+  poolMetodo().forEach(p => conti[p] = (conti[p]||0)+1);
+  ABILITIES.forEach(a => { const v = bld.base[a.key]; if (conti[v]) conti[v]--; });
+  const out = [];
+  Object.keys(conti).sort((a,b)=>b-a).forEach(p => { for (let i=0;i<conti[p];i++) out.push(Number(p)); });
+  return out;
 }
 function rollAbilityScores(){
   const set = [];
@@ -504,7 +531,7 @@ function rollAbilityScores(){
     set.push(dice[0]+dice[1]+dice[2]);
   }
   bld.rolled = set.sort((a,b)=>b-a);
-  ABILITIES.forEach((a,i) => bld.base[a.key] = set[i]);
+  ABILITIES.forEach(a => bld.base[a.key] = 0);   // li assegni tu, non l'app
   renderModalRoot();
   toast('🎲 ' + set.join(', '));
 }
@@ -770,7 +797,7 @@ function finishBuilder(){
   saveLocal();
   fsSet('characters', ch);
   if (!currentUser) state.offlineMode = true;
-  closeModal();
+  closeModalAll();
   openSheet(ch.id);
   toast('✦ ' + ch.name + ' è pronto');
 }
@@ -911,9 +938,17 @@ function gearWeight(){ return gearItems().reduce((t, it) => t + (it.weight||0) *
 /* ─── Passo: suppliche occulte ───────────────────────────────────
    Solo per il warlock, e solo dal 2° livello in su. Il personaggio non
    esiste ancora, quindi i prerequisiti si controllano sulla bozza. */
+/* La finta scheda con cui controlliamo i prerequisiti delle suppliche
+   mentre stai ancora creando il personaggio. Deve somigliare alla
+   scheda vera, o i requisiti mentono: qui dentro ci vanno ANCHE i
+   trucchetti (raggio occulto e' un trucchetto, e mezze suppliche lo
+   chiedono) e le voci vanno gia' nella forma {id, source} — bld.spells
+   contiene oggetti, non stringhe. */
 function bozzaPerSuppliche(){
+  const conosciuti = [...(bld.cantrips||[]), ...(bld.spells||[])]
+    .map(x => (x && typeof x === 'object') ? { id:x.id, source:x.source||'srd' } : { id:x, source:'srd' });
   return { level: bld.level, class2:'', level2:0, classField:'Warlock', classId:'warlock',
-           pactBoon: bld.pactBoon || '', knownSpells: (bld.spells||[]).map(id=>({id, source:'srd'})),
+           pactBoon: bld.pactBoon || '', knownSpells: conosciuti,
            suppliche: bld.suppliche || [], abilities: finalAbilities() };
 }
 function bldToggleSupplica(id){
