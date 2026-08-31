@@ -255,11 +255,20 @@ async function drawSheet(S, c, lib, doc, fonts){
   }
   S.page.drawText(wa(c.name || 'Senza nome'), { x:textLeft, y:S.y-20, size:21, font:fonts.bold, color:rgb(...PDFX.ink) });
   S.y -= 26;
-  /* La sottoclasse mancava dalla riga sotto il nome: chi stampava la
-     scheda si ritrovava un Druido senza circolo. */
-  const sc = (typeof sottoclasseDi === 'function') ? sottoclasseDi(c) : null;
-  const sub = [c.classField || 'Avventuriero', sc ? sc.name : '', (c.level||1) + '° livello',
-               c.race, c.background, c.alignment].filter(Boolean).join('  ·  ');
+  /* La sottoclasse mancava dalla riga sotto il nome (un Druido senza
+     circolo), e del multiclasse si stampava solo meta': «Druido 6° liv.»
+     anche se eri Druido 4 / Ladro 2. Adesso la riga dice le classi vere
+     e il livello totale. */
+  const sc  = (typeof sottoclasseDi === 'function') ? sottoclasseDi(c) : null;
+  const sc2 = (c.builder && c.builder.subclassId2 && typeof subclassesFor === 'function' && c.class2 && typeof classIdDaNome === 'function')
+    ? (subclassesFor(classIdDaNome(c.class2)) || []).find(x => x.id === c.builder.subclassId2) : null;
+  const lv1 = c.level || 1, lv2 = Number(c.level2) || 0;
+  const classi = c.class2 && lv2
+    ? (c.classField || 'Avventuriero') + (sc ? ' (' + sc.name + ')' : '') + ' ' + lv1
+      + ' / ' + c.class2 + (sc2 ? ' (' + sc2.name + ')' : '') + ' ' + lv2
+      + '  ·  ' + (lv1 + lv2) + '° livello totale'
+    : [c.classField || 'Avventuriero', sc ? sc.name : '', lv1 + '° livello'].filter(Boolean).join('  ·  ');
+  const sub = [classi, c.race, c.background, c.alignment].filter(Boolean).join('  ·  ');
   S.page.drawText(wa(sub), { x:textLeft, y:S.y-9, size:9.2, font:fonts.it, color:rgb(...PDFX.soft), maxWidth:S.right-textLeft-90 });
   if (c.playerName){
     const t = 'Giocatore: ' + c.playerName;
@@ -352,7 +361,11 @@ async function drawSheet(S, c, lib, doc, fonts){
 
   /* ── Risorse e condizioni ── */
   const res = (c.resources || []).filter(r => r.name);
-  if (res.length || (c.conditions||[]).length || c.inspiration || c.exhaustion){
+  /* La sezione era chiusa a chiave dietro risorse/condizioni: un
+     personaggio con solo effetti a tempo o concentrazione non se la
+     vedeva stampare affatto. */
+  if (res.length || (c.conditions||[]).length || c.inspiration || c.exhaustion
+      || (c.effetti||[]).length || (c.concentration && c.concentration.on) || c.hitDie2){
     S.heading('Risorse e stato');
     const recLabel = { sr:'riposo breve', lr:'riposo lungo', dn:'alba' };
     if (res.length) S.text(res.map(r =>
@@ -360,6 +373,15 @@ async function drawSheet(S, c, lib, doc, fonts){
     ).join('   ·   '), { size:8.6 });
     if ((c.conditions||[]).length && typeof CONDITION_BY_ID !== 'undefined')
       S.row('Condizioni', (c.conditions||[]).map(id => CONDITION_BY_ID[id] ? CONDITION_BY_ID[id].name : id).join(', '));
+    /* Gli effetti a tempo esistono dalla v7.8 e non erano mai arrivati
+       sulla stampa: chi porta la scheda di carta al tavolo perdeva
+       proprio la roba che cambia turno per turno. */
+    if ((c.effetti||[]).length)
+      S.row('Effetti attivi', c.effetti.map(e =>
+        e.nome + (e.round != null ? ' (' + e.round + (e.round === 1 ? ' round' : ' round') + ')' : (e.durata ? ' (' + e.durata + ')' : ''))
+      ).join(', '));
+    if (c.concentration && c.concentration.on)
+      S.row('Concentrazione', c.concentration.spell || 'sì');
     if (c.hitDie2) S.row('Secondo dado vita', 'd' + c.hitDie2 + ' · ' + Math.max(0,(c.level||1) - (c.hitDiceUsed2||0)) + ' rimasti');
     if (c.inspiration) S.row('Ispirazione', 'sì');
     if (c.exhaustion) S.row('Indebolimento', 'livello ' + c.exhaustion);
@@ -414,14 +436,28 @@ async function drawSheet(S, c, lib, doc, fonts){
       if (coins) S.row('Monete', coins);
     }
     if (inv.length){
-      const w = [S.width*0.44, S.width*0.10, S.width*0.13, S.width*0.33];
-      S.trow(['Oggetto','Qtà','Peso','Note'], w, { bold:true, size:7.6 });
-      inv.forEach(it => S.trow([
-        (it.equipped ? '> ' : '') + it.name + (it.attuned ? ' (sintonizzato)' : ''),
-        String(it.qty || 1),
-        it.weight ? String(it.weight).replace('.', ',') + ' kg' : '',
-        it.notes || ''
-      ], w));
+      /* Le cariche di bacchette e bastoni (v7.8) non si stampavano:
+         era proprio il numero che al tavolo si segna a matita. */
+      const conCariche = inv.some(i => i.caricheMax);
+      const w = conCariche
+        ? [S.width*0.38, S.width*0.09, S.width*0.12, S.width*0.13, S.width*0.28]
+        : [S.width*0.44, S.width*0.10, S.width*0.13, S.width*0.33];
+      const recBreve = { sr:'r. breve', lr:'r. lungo', dn:'alba' };
+      S.trow(conCariche ? ['Oggetto','Qtà','Peso','Cariche','Note'] : ['Oggetto','Qtà','Peso','Note'],
+        w, { bold:true, size:7.6 });
+      inv.forEach(it => {
+        const base = [
+          (it.equipped ? '> ' : '') + it.name + (it.attuned ? ' (sintonizzato)' : ''),
+          String(it.qty || 1),
+          it.weight ? String(it.weight).replace('.', ',') + ' kg' : '',
+        ];
+        if (conCariche) base.push(it.caricheMax
+          ? ((it.cariche != null ? it.cariche : it.caricheMax) + '/' + it.caricheMax
+             + (recBreve[it.recupero] ? ' · ' + recBreve[it.recupero] : ''))
+          : '');
+        base.push(it.notes || '');
+        S.trow(base, w);
+      });
       S.gap(4);
       S.text('Peso trasportato: ' + totalWeight(c).toFixed(1).replace('.0','').replace('.', ',') + ' kg', { size:8, color:PDFX.soft });
     }

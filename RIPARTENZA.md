@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.9** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.9.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -115,6 +115,12 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    costruire un personaggio che usa SOLO roba caricata e poi cercarlo in ogni schermata —
    vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
    test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
+
+0b. **Due mancanze note, segnalate e non scelte da Giova** (v7.9.1): il **cestino non
+   finisce nel backup** — ripristinando, quello cancellato negli ultimi 30 giorni non
+   torna; e il **vantaggio si dichiara solo dopo il tiro** (`repeatRoll`), mentre
+   `state.rollMode` e `setRollMode` sono codice morto, l'inizio mai finito di quella
+   funzione. Se un giorno si fa il vantaggio pre-tiro, si parte da lì.
 
 1. **Il master vede il gruppo** — PF, CA e percezione passiva dei giocatori visibili al
    master in tempo reale. Il salto più grande rimasto, ma tocca privacy e regole: va

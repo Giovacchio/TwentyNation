@@ -1,5 +1,32 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.9.1 — 31 agosto 2026
+**Seconda passata di controlli, con un metodo diverso: cercare i campi che qualcuno scrive e nessuno rilegge. Tre buchi.**
+
+### 💾 Ripristinare un backup non blocca più il telefono
+Era **l'unica importazione rimasta sulla via lenta** — una scrittura per voce, e ogni scrittura riscrive tutto l'archivio locale. Misurato su 1.500 creature: **3.001 scritture su `localStorage` e 4,6 secondi di app ferma**; con 4.000 sarebbero stati una decina di secondi su un archivio da megabyte. La via veloce esisteva già dalla v6.7 e la usavano l'importazione dei mostri e quella delle aggiunte in blocco: qui non era mai arrivata. Adesso **una sola scrittura locale e blocchi da 400 verso il server**, e se la memoria si riempie a metà te lo dice invece di lasciare l'importazione a metà in silenzio.
+
+### 🌙 I riposi fanno scadere gli effetti a tempo
+Una «Benedizione, 10 round» **sopravviveva a otto ore di sonno**: i riposi erano stati scritti prima che gli effetti a tempo esistessero (v7.8) e nessuno li aveva messi insieme. Un round dura sei secondi, un riposo ore.
+
+- **Riposo breve e lungo** tolgono tutto quello che ha un conto di round.
+- Quello che hai segnato «fino al riposo breve» se ne va col breve; col lungo se ne va comunque.
+- **Quello senza scadenza non si tocca**: «maledizione da togliere con Rimuovi Maledizione» è contabilità tua, non la cancella l'app.
+- Il riposo lungo dice quanti effetti ha fatto scadere.
+
+### 🖨️ La stampa era ferma a prima della v7.8
+Chi porta la scheda di carta al tavolo perdeva proprio le cose che cambiano di turno in turno. Adesso il PDF stampa:
+
+- **gli effetti attivi** coi round che restano, e **su cosa sei concentrato**;
+- **le cariche** di bacchette e bastoni, con quando si ricaricano — la colonna compare solo se hai qualcosa con le cariche;
+- **il multiclasse per intero**: «Druido (Circolo della Luna) 4 / Ladro 2 · 6° livello totale» invece del solo «Druido 4° livello».
+
+Trovato per strada: la sezione «Risorse e stato» era chiusa a chiave dietro risorse e condizioni, quindi un personaggio con **solo** effetti attivi non se la vedeva stampare affatto.
+
+> 22 prove nuove in `test-v791.mjs`, fra cui la rilettura del PDF generato per controllare che ci sia dentro quello che deve esserci. Suite completa verde, **1.447 interazioni ripercorse con zero rotture**, audit invariato.
+>
+> **Lasciati fuori di proposito** (segnalati, non scelti): il cestino non finisce nell'esportazione, quindi ripristinando un backup quello che avevi cancellato negli ultimi 30 giorni non torna; e il vantaggio si può solo chiedere *dopo* aver tirato (`state.rollMode` è codice morto, l'inizio mai finito di quella cosa).
+
 ## v7.9 — 31 agosto 2026
 **Le cose che carichi tu adesso arrivano fino in fondo: si leggono sulla scheda, restano agganciate e si trovano.**
 

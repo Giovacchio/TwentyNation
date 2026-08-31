@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.9';
+const APP_VERSION = '7.9.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2763,6 +2763,25 @@ function spendHitDice(charId, n, which){
 }
 /* Ricarica quello che torna con un riposo breve. Vale anche senza dadi
    vita da spendere: il riposo lo fai comunque. */
+/* Un riposo e' lungo ore; gli effetti a tempo si contano in round da sei
+   secondi. Una «Benedizione, 10 round» che sopravvive a otto ore di sonno
+   era semplicemente sbagliata, ed e' rimasta li' dalla v7.8 perche' i
+   riposi erano stati scritti prima che gli effetti esistessero.
+   Quelli SENZA round sono la contabilita' tua («maledizione da togliere
+   con Rimuovi Maledizione»): non li tocca nessuno, a meno che tu non ci
+   abbia scritto che finiscono col riposo. */
+function scadiEffettiRiposo(c, tipo){
+  const prima = (c.effetti || []).length;
+  if (!prima) return 0;
+  const parlaDiRiposo = (e) => {
+    const t = norm((e.durata || '') + ' ' + (e.nota || ''));
+    if (!t.includes('riposo')) return false;
+    return tipo === 'lungo' ? true : t.includes('breve');
+  };
+  c.effetti = c.effetti.filter(e => !(e && (e.round != null || parlaDiRiposo(e))));
+  return prima - c.effetti.length;
+}
+
 function concludiRiposoBreve(charId){
   const c = charById(charId); if (!c) return;
   let n = 0;
@@ -2782,6 +2801,7 @@ function concludiRiposoBreve(charId){
     c.pactUsed = 0;
   }
   n += ricaricaOggetti(c, ['sr']);
+  n += scadiEffettiRiposo(c, 'breve');
   scheduleSave('characters', c);
   closeModal(); render();
   toast(n ? ('☀️ Riposo breve: ' + n + (n===1?' risorsa recuperata':' risorse recuperate'))
@@ -2809,9 +2829,11 @@ function longRest(charId){
   (c.resources||[]).forEach(r => { r.left = Number(r.total)||0; });
   // un riposo lungo comprende un'alba: tornano anche quelle
   ricaricaOggetti(c, ['sr','lr','dn','']);
+  const scaduti = scadiEffettiRiposo(c, 'lungo');
   scheduleSave('characters', c);
   closeModal(); render();
-  toast('🌙 Riposo lungo: PF, slot e cariche ripristinati');
+  toast('🌙 Riposo lungo: PF, slot e cariche ripristinati'
+    + (scaduti ? ' · ' + scaduti + (scaduti === 1 ? ' effetto scaduto' : ' effetti scaduti') : ''));
 }
 
 /* ─── 17. ZAINO ─── */
@@ -4596,29 +4618,52 @@ async function instradaPdf(file){
   }
   toast('⚠️ Questo PDF non ha campi compilabili da leggere');
 }
-function doImport(data){
-  const mergeIn = (key, arr, mapper) => {
-    if (!Array.isArray(arr)) return 0;
-    let n = 0;
+/* Ripristinare un backup e' l'importazione con PIU' roba dentro, ed era
+   l'unica rimasta sulla via lenta: fsSet() una voce alla volta, e fsSet
+   riscrive tutto l'archivio locale a ogni chiamata. Misurato su 1.500
+   creature: 3.001 scritture su localStorage e 4,6 secondi di app ferma
+   (con 4.000 sarebbero stati una decina di secondi, su un archivio da
+   megabyte). La via veloce esisteva gia' — la usavano l'importazione
+   dei mostri e quella delle aggiunte in blocco — e qui non era arrivata. */
+async function doImport(data){
+  const raccolte = [
+    ['characters',   data.characters,                    migrateCharacter],
+    ['npcs',         data.npcs,                          null],
+    ['customSpells', data.customSpells || data.spells,   null],
+    ['spellTags',    data.spellTags,                     null],
+    ['homebrew',     data.homebrew,                      null],
+    ['journal',      data.journal,                       null],
+  ];
+  const conti = {};
+  const daMandare = [];
+  raccolte.forEach(([key, arr, mapper]) => {
+    conti[key] = 0;
+    if (!Array.isArray(arr)) return;
+    const nuovi = [];
     arr.forEach(item => {
       if (!item || !item.id) return;
       const obj = mapper ? mapper(item) : item;
       const idx = state[key].findIndex(x => x.id === obj.id);
       if (idx >= 0) state[key][idx] = obj; else state[key].push(obj);
-      fsSet(key, obj);
-      n++;
+      nuovi.push(obj); conti[key]++;
     });
-    return n;
-  };
-  const a = mergeIn('characters', data.characters, migrateCharacter);
-  const b = mergeIn('npcs', data.npcs);
-  const c = mergeIn('customSpells', data.customSpells || data.spells);
-  mergeIn('spellTags', data.spellTags);
-  mergeIn('homebrew', data.homebrew);
-  const d = mergeIn('journal', data.journal);
-  saveLocal();
+    if (nuovi.length) daMandare.push([key, nuovi]);
+  });
+
+  /* Una sola scrittura locale per tutto, poi i blocchi verso il server. */
+  if (!saveLocalOra()){
+    toast('⚠️ Non c\'è spazio per questo backup: libera qualcosa e riprova');
+    return;
+  }
+  let pieno = false;
+  for (const [key, nuovi] of daMandare){
+    const esito = await fsSetMany(key, nuovi);
+    if (esito === -1){ pieno = true; break; }
+  }
   state.offlineMode = true;
   render();
+  if (pieno){ toast('⚠️ Memoria piena a metà importazione: controlla «Salute dei dati»'); return; }
+  const a = conti.characters, b = conti.npcs, c = conti.customSpells, d = conti.journal;
   toast(`⤒ Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi${d?`, ${d} voci di diario`:''}`);
 }
 
