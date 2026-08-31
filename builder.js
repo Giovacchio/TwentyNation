@@ -14,6 +14,7 @@ function openBuilder(){
   bld = {
     step: 0,
     raceId: null, subraceId: null, raceBonusPick: [], raceSkills: [],
+    suppliche: [], pactBoon: '',
     classId: null, level: 1, subclassId: null, classSkills: [],
     bgId: null,
     method: 'pointbuy',
@@ -37,6 +38,7 @@ const BUILDER_STEPS = [
   { key:'bg',      title:'Background',      render:()=>stepBackground() },
   { key:'ability', title:'Caratteristiche', render:()=>stepAbilities() },
   { key:'spells',  title:'Incantesimi',     render:()=>stepSpells(),    skip:()=>{ const c = CLASS_BY_ID[bld.classId]; return !c || c.caster === 'none'; } },
+  { key:'supp',    title:'Suppliche',       render:()=>stepSuppliche(), skip:()=>!(bld.classId === 'warlock' && quanteSuppliche(bld.level) > 0) },
   { key:'gear',    title:'Equipaggiamento', render:()=>stepGear(),      skip:()=>!bld.classId || !CLASS_KITS[bld.classId] },
   { key:'done',    title:'Riepilogo',       render:()=>stepSummary() },
 ];
@@ -643,6 +645,8 @@ function buildCharacterFromBuilder(){
   if (bld.gearOn && bg && bg.equipment)
     ch.inventory.push({ name: 'Equipaggiamento da ' + bg.name, qty: 1, weight: '', attuned: false, notes: bg.equipment, equipped: false });
 
+  if ((bld.suppliche||[]).length) ch.suppliche = bld.suppliche.slice();
+  if (bld.pactBoon) ch.pactBoon = bld.pactBoon;
   ch.builder = { raceId: bld.raceId, subraceId: bld.subraceId, classId: bld.classId, subclassId: bld.subclassId, bgId: bld.bgId };
   return ch;
 }
@@ -837,3 +841,62 @@ function gearItems(){
   return [...map.values()];
 }
 function gearWeight(){ return gearItems().reduce((t, it) => t + (it.weight||0) * (it.qty||1), 0); }
+
+/* ─── Passo: suppliche occulte ───────────────────────────────────
+   Solo per il warlock, e solo dal 2° livello in su. Il personaggio non
+   esiste ancora, quindi i prerequisiti si controllano sulla bozza. */
+function bozzaPerSuppliche(){
+  return { level: bld.level, class2:'', level2:0, classField:'Warlock', classId:'warlock',
+           pactBoon: bld.pactBoon || '', knownSpells: (bld.spells||[]).map(id=>({id, source:'srd'})),
+           suppliche: bld.suppliche || [], abilities: finalAbilities() };
+}
+function bldToggleSupplica(id){
+  bld.suppliche = bld.suppliche || [];
+  const i = bld.suppliche.indexOf(id);
+  if (i >= 0){ bld.suppliche.splice(i,1); renderModalRoot(); return; }
+  const c = bozzaPerSuppliche();
+  const s = supplicaById(id); if (!s) return;
+  const motivo = perchePuoiNo(c, s);
+  if (motivo){ toast('⚠️ ' + motivo); return; }
+  if (bld.suppliche.length >= quanteSuppliche(bld.level)){
+    toast('Ne puoi scegliere ' + quanteSuppliche(bld.level) + ': togline una prima'); return;
+  }
+  bld.suppliche.push(id); renderModalRoot();
+}
+function bldPatto(id){ bld.pactBoon = (bld.pactBoon === id) ? '' : id; renderModalRoot(); }
+function stepSuppliche(){
+  const quante = quanteSuppliche(bld.level);
+  const scelte = bld.suppliche || [];
+  const c = bozzaPerSuppliche();
+  const tutte = tutteLeSuppliche();
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="row-between"><span>Suppliche da scegliere</span><b>${scelte.length} / ${quante}</b></div>
+    </div>
+    ${bld.level >= 3 ? `
+      <div class="divider"><span class="flourish">❧</span><span>Dono del patto</span></div>
+      <div class="muted" style="font-size:.75rem; margin-bottom:8px">Alcune suppliche lo richiedono: scegliendolo qui te le sblocca.</div>
+      <div class="chip-row">
+        ${Object.keys(DONI_PATTO).map(k=>`<button class="chip ${bld.pactBoon===k?'active':''}" onclick="bldPatto('${k}')">${escapeHtml(DONI_PATTO[k].nome)}</button>`).join('')}
+      </div>` : ''}
+    <div class="divider"><span class="flourish">❧</span><span>Le suppliche</span></div>
+    ${sceltaChip ? '' : ''}
+    <div class="list-gap">
+      ${tutte.map(s => {
+        const presa = scelte.includes(s.id);
+        const motivo = perchePuoiNo(c, s);
+        return `<button class="attack-row" style="width:100%; text-align:left; ${presa?'border-color:var(--gold)':''} ${motivo&&!presa?'opacity:.5':''}"
+                onclick="bldToggleSupplica('${jsStr(s.id)}')">
+          <span class="attack-main">
+            <span class="attack-name">${escapeHtml(s.nome)}${presa?' ✓':''}${s.fonte!=='srd'?' <span class="badge">tua</span>':''}</span>
+            <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(s.testo||'')}</span>
+            ${motivo && !presa ? `<span class="muted" style="font-size:.7rem; color:var(--warn)">${escapeHtml(motivo)}</span>` : ''}
+          </span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="muted" style="font-size:.75rem; margin-top:10px">
+      Ne mancano? Le carichi dalla scheda, dopo: restano nel tuo account.
+    </div>
+    ${bldNav(true)}`;
+}

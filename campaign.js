@@ -30,7 +30,7 @@ function detachCampaign(){ campUnsub.forEach(u=>{ try{u();}catch(e){} }); campUn
 /* ─── Aggancio ─── */
 function attachCampaign(){
   detachCampaign();
-  state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = [];
+  state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = []; state.sharedSuppliche = [];
   const id = state.campaign && state.campaign.id;
   if (!id || !currentUser || !firebaseReady) return;
   const base = db.collection('campaigns').doc(id);
@@ -79,6 +79,7 @@ function attachCampaign(){
   wireShared('homebrew', 'sharedHomebrew');
   wireShared('npcs', 'sharedNpcs');   // il bestiario del tavolo
   wireShared('party', 'sharedParty'); // le schede che i giocatori hanno scelto di mostrare
+  wireShared('suppliche', 'sharedSuppliche'); // le suppliche caricate da chi è al tavolo
 }
 function saveCampaignLocal(){
   try { localStorage.setItem('grimorio-campaign', JSON.stringify(state.campaign || null)); } catch(e){}
@@ -88,7 +89,7 @@ function loadCampaignLocal(){
 }
 function leaveCampaignLocal(msg){
   detachCampaign();
-  state.campaign = null; state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = [];
+  state.campaign = null; state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = []; state.sharedSuppliche = [];
   saveCampaignLocal(); render();
   if (msg) toast('⚠️ ' + msg);
 }
@@ -445,6 +446,7 @@ const COND_TIPI = [
   { kind:'spells',   condivisi:'sharedSpells',   etichetta:'incantesimo', plurale:'incantesimi' },
   { kind:'homebrew', condivisi:'sharedHomebrew', etichetta:'aggiunta',    plurale:'aggiunte' },
   { kind:'npcs',     condivisi:'sharedNpcs',     etichetta:'creatura',    plurale:'creature' },
+  { kind:'suppliche', condivisi:'sharedSuppliche', etichetta:'supplica',   plurale:'suppliche' },
 ];
 function condCollezione(kind){
   return COND_TIPI.some(t => t.kind === kind) ? kind : 'homebrew';
@@ -455,7 +457,8 @@ function mieCose(){
   const miei = (state.homebrew || []).filter(x => x && x.id && !x.fromCampaign);
   const spells = (state.customSpells || []).filter(x => x && x.id);
   const npcs = (state.npcs || []).filter(x => x && x.id && !x.fromCampaign);
-  return { spells, homebrew: miei, npcs };
+  const suppliche = (state.suppliche || []).filter(x => x && x.id && !x.fromCampaign);
+  return { spells, homebrew: miei, npcs, suppliche };
 }
 function giaSuTavolo(kind, id){
   const t = COND_TIPI.find(x => x.kind === kind) || COND_TIPI[1];

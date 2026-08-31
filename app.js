@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.0.3';
+const APP_VERSION = '8.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -404,7 +404,8 @@ const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
   characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [],
-  campaign: null, sharedSpells: [], sharedHomebrew: [], sharedParty: [],
+  campaign: null, sharedSpells: [], sharedHomebrew: [], sharedParty: [], sharedSuppliche: [],
+  suppliche: [], suppQ: '',
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
@@ -474,6 +475,7 @@ function loadLocal(){
     state.spellTags = data.spellTags || [];
     state.homebrew = data.homebrew || [];
     state.journal = data.journal || [];
+    state.suppliche = data.suppliche || [];
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 /* Salvataggio locale «a raffica». Aggiungendo 3000 mostri il vecchio
@@ -497,7 +499,7 @@ function pacchettoLocale(){
     diChi: __proprietarioLocale || null,
     characters: state.characters, npcs: state.npcs,
     customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
-    journal: state.journal
+    journal: state.journal, suppliche: state.suppliche
   });
 }
 let __proprietarioLocale = null;
@@ -703,6 +705,7 @@ function attachFirestore(uidUser){
   wire('spellTags');
   wire('homebrew');
   wire('journal');
+  wire('suppliche');
 }
 /* Quello che hai creato mentre non eri collegato (o mentre la rete era
    giù) vive solo su questo dispositivo: al primo collegamento lo
@@ -1006,7 +1009,7 @@ function cambiaCassetto(uid){
       const attuale = localStorage.getItem(LS_KEY);
       if (attuale) localStorage.setItem(cassettoDi('sconosciuto-' + Date.now()), attuale);
     } catch(e){ console.warn('Non riesco a mettere da parte i dati orfani', e); }
-    ['characters','npcs','customSpells','spellTags','homebrew','journal'].forEach(k => { state[k] = []; });
+    ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche'].forEach(k => { state[k] = []; });
     bestiarioScorda();
     __proprietarioLocale = uid;
     saveLocalOra();
@@ -1026,13 +1029,13 @@ function cambiaCassetto(uid){
     // riprendi il cassetto di chi sta entrando, se ne ha uno
     let suo = null;
     try { suo = localStorage.getItem(cassettoDi(uid)); } catch(e){}
-    ['characters','npcs','customSpells','spellTags','homebrew','journal']
+    ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche']
       .forEach(k => { state[k] = []; });
     bestiarioScorda();
     if (suo){
       try {
         const d = JSON.parse(suo);
-        ['characters','npcs','customSpells','spellTags','homebrew','journal']
+        ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche']
           .forEach(k => { if (Array.isArray(d[k])) state[k] = d[k]; });
         bestiarioScorda();
         localStorage.removeItem(cassettoDi(uid));
@@ -3225,6 +3228,8 @@ function renderSheetSpells(c){
       <span class="t">Concentrazione: ${escapeHtml(c.concentration.name)}</span>
       <button class="btn btn-sm btn-ghost" onclick="clearConcentration('${c.id}')">Interrompi</button>
     </div>` : ''}
+    ${(typeof spellRegalatiHTML === 'function') ? spellRegalatiHTML(c) : ''}
+    ${(typeof supplicheSchedaHTML === 'function') ? supplicheSchedaHTML(c) : ''}
 
     <div class="card" style="margin-bottom:12px;">
       <div class="form-row" style="margin-bottom:0;">
@@ -4674,7 +4679,7 @@ function exportData(){
       app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
       characters: state.characters, npcs: state.npcs,
       customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
-      journal: state.journal
+      journal: state.journal, suppliche: state.suppliche
     }, 'grimorio-backup');
     segnaBackupFatto();
     toast('⤓ Backup esportato');
@@ -4758,6 +4763,7 @@ async function doImport(data){
     ['spellTags',    data.spellTags,                     null],
     ['homebrew',     data.homebrew,                      null],
     ['journal',      data.journal,                       null],
+    ['suppliche',    data.suppliche,                     null],
   ];
   const conti = {};
   const daMandare = [];

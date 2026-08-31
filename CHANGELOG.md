@@ -1,5 +1,40 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.1 — 31 agosto 2026
+**Suppliche occulte e incantesimi che arrivano dalla sottoclasse. Con gli effetti veri, non solo il testo.**
+
+### ✨ Gli incantesimi della sottoclasse arrivano da soli
+Dominio del chierico, circolo del druido, giuramento del paladino, patrono del warlock: ora compaiono in scheda **al livello giusto**, in una sezione «Sempre con te».
+
+- **Sempre preparati, e fuori dal conteggio** di quelli che puoi preparare — è la regola, e prima non c'era proprio.
+- Non finiscono fra i «conosciuti»: **non li puoi togliere per sbaglio** e non falsano il numero.
+- Ognuno dice **da dove viene e da che livello** ce l'hai.
+- **Il Circolo della Terra ti chiede il terreno** (artico, costa, deserto, foresta, prateria, montagna, palude, sottosuolo): sono otto liste diverse, e senza la scelta non davano niente.
+- In **multiclasse** conta il livello nella classe che porta la sottoclasse: un chierico 3 / ladro 5 ha gli incantesimi di dominio da chierico 3, non da 8. E la sottoclasse viene riconosciuta anche quando sta sulla **seconda** classe.
+
+### 🕯️ Suppliche occulte
+Le 32 dell'SRD, riscritte in italiano, con **prerequisiti e effetti veri**:
+
+- **Quante ne conosci** cresce col livello da warlock (anche se il warlock è la tua seconda classe).
+- **I prerequisiti si controllano**: livello, dono del patto, trucchetto richiesto. Se non puoi prenderne una, l'app dice **perché**.
+- **Gli effetti funzionano davvero**: «raggio agonizzante» somma il Carisma ai danni del raggio occulto, «lancia occulta» porta la gittata a 90 m, «armatura di ombre» ti mette *armatura magica* fra gli incantesimi lanciabili a volontà, «influenza ammaliante» ti dà due competenze.
+
+### ⇪ Quelle che l'SRD non ha, le carichi tu
+L'app di serie porta **solo** le suppliche del System Reference Document. Se il tuo manuale ne ha altre, le carichi da **PDF o incollando il testo**: restano nel tuo account e, se vuoi, le condividi col tuo tavolo. Possedere il libro dà il diritto di usarlo, non di ripubblicarlo — quindi nei file dell'app non ci finiscono.
+
+- **Legge anche le TABELLE.** Le raccolte di suppliche girano quasi sempre come foglio di calcolo esportato in PDF, a colonne. Letto come fosse prosa veniva fuori una poltiglia: su un file vero, 11 blocchi confusi. Riconoscendo le colonne dall'intestazione: **35 suppliche pulite**, con le descrizioni che vanno a capo attaccate alla riga giusta.
+- **Capisce l'inglese**, perché è così che girano: «You can cast Mage Armor on yourself at will» diventa l'effetto giusto, e **300 feet diventano 90 metri** invece di 300.
+- **L'app propone, tu confermi.** Legge il testo, tenta di capire cosa fa, e te lo mostra già compilato con ⚙️: correggi quello che ha sbagliato prima di salvare. Sullo stesso file vero: 16 suppliche su 35 con un effetto proposto da sole, le altre restano promemoria finché non le imposti.
+
+### 🔎 Riconosciute dal lettore di schede e dal creatore
+- Importando una **scheda PDF**, le suppliche scritte fra i privilegi o nelle note vengono riconosciute per nome — in italiano o in inglese, di serie o fra le tue.
+- Nella **creazione guidata** c'è un passo apposta, che compare solo per il warlock dal 2° livello, con i prerequisiti già controllati sulla bozza.
+
+### ⚖️ E una cosa mia da correggere
+Controllando la licenza è saltato fuori che **16 incantesimi portavano nomi che l'SRD toglie apposta**: «Disco Fluttuante di Tenser», «Risata Isterica di Tasha», «Freccia Acida di Melf»… Quei nomi sono proprietà, non regole, e l'SRD li chiama semplicemente «Disco Fluttuante», «Risata Isterica», «Freccia Acida». Allineati tutti e sedici.
+
+> 30 prove nuove in `test-v81.mjs`, fra cui due che controllano che nell'app non sia entrato materiale fuori SRD. Suite completa verde, **1.506 interazioni con zero rotture**, audit invariato.
+
 ## v8.0.3 — 31 agosto 2026
 **«Due armi da guerra a scelta» te ne faceva scegliere una sola.**
 

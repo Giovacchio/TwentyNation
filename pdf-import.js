@@ -415,6 +415,33 @@ function analyzeSheet(fields){
     }
   }
 
+  /* ── Suppliche occulte ──────────────────────────────────────────
+     Su una scheda da warlock stanno scritte fra i privilegi o nelle
+     note, una per riga o separate da virgole. Si cercano per nome fra
+     quelle SRD E fra quelle che hai caricato tu: il nome può essere
+     scritto in italiano o in inglese, e vale lo stesso. */
+  if (typeof tutteLeSuppliche === 'function'){
+    const dove = [c.features, c.notesExtra, c.notesRace,
+                  pickField(idx, ['Suppliche','Invocations','Eldritch Invocations','Supplica'])]
+      .filter(Boolean).join('\n');
+    if (dove){
+      const testo = norm(dove);
+      const prese = [];
+      tutteLeSuppliche().forEach(s => {
+        const nomi = [s.nome, s.en].filter(Boolean).map(norm).filter(x => x.length > 5);
+        if (nomi.some(x => testo.includes(x)) && !prese.includes(s.id)) prese.push(s.id);
+      });
+      if (prese.length){
+        c.suppliche = prese;
+        const mie = prese.map(id => tutteLeSuppliche().find(x => x.id === id)).filter(x => x && x.fonte !== 'srd');
+        info.push(prese.length + (prese.length === 1 ? ' supplica riconosciuta' : ' suppliche riconosciute') +
+                  (mie.length ? ' (' + mie.length + ' fra le tue)' : '') + '.');
+      } else if (/warlock|stregone del patto/i.test(c.classField || '')){
+        warn.push('Non ho trovato suppliche scritte in questa scheda: aggiungile dalla scheda Magie.');
+      }
+    }
+  }
+
   // ── personalità e legami ──
   c.traits = pickField(idx, ['Tratti car','PersonalityTraits ','PersonalityTraits','Tratti']);
   c.ideals = pickField(idx, ['Ideali1','Ideals','Ideali']);

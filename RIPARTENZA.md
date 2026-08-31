@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.0.3** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -115,6 +115,13 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    costruire un personaggio che usa SOLO roba caricata e poi cercarlo in ogni schermata —
    vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
    test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
+
+0+. **Le suppliche (v8.1) sono il modello di come si aggiunge materiale al confine della
+   licenza**: quelle SRD dentro l'app con gli effetti veri, quelle del manuale caricate
+   dall'utente e residenti nel suo account. `suppliche-data.js` contiene SOLO SRD, e due
+   prove di `test-v81.mjs` stanno lì apposta per accorgersi se un giorno ci finisce altro.
+   Nella stessa passata sono stati tolti da `spells-it.js` i 16 nomi di proprietà
+   («di Tenser», «di Tasha», «di Melf»…) che l'SRD sostituisce col nome nudo.
 
 0-. **Il finto cloud delle prove (`mock-cloud.js`) deve MENTIRE IL MENO POSSIBILE.**
    Non rimandava indietro le scritture come fa Firestore, e la funzione per staccarsi
