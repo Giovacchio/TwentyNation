@@ -227,6 +227,63 @@ const ARMOR_BY_ID = Object.fromEntries(SRD_ARMORS.map(a=>[a.id,a]));
 const GEAR_BY_ID = Object.fromEntries(SRD_GEAR.map(g=>[g.id,g]));
 const GEAR_KINDS = ['attrezzatura','attrezzi','strumento','munizioni','focus','cavalcatura'];
 
+/* ─── Dal nome scritto a mano alla voce di tabella ───────────────
+   I pacchetti iniziali delle classi sono scritti in italiano corrente
+   («Armatura di cuoio», «Due pugnali», «Torce»), le tabelle SRD hanno
+   il nome secco e singolare («Cuoio», «Pugnale», «Torcia»). Finche' il
+   confronto era fatto sul nome nudo, meta' del pacchetto non si
+   riconosceva: il ladro partiva con CA 9 perche' la sua armatura di
+   cuoio non veniva vista, e il paladino non aveva NESSUNA riga
+   d'attacco perche' «Giavellotti» non e' «Giavellotto». Qui i due
+   mondi si parlano. */
+const GEAR_ALIAS = {
+  // armature
+  'armatura di cuoio':'leather', 'cuoio':'leather',
+  'armatura di cuoio borchiato':'studded-leather',
+  'armatura di squame':'scale-mail', 'corazza di squame':'scale-mail',
+  'scudo di legno':'shield',
+  'cotta di maglia':'chain-mail',
+  // armi al plurale o con l'articolo
+  'due pugnali':'dagger', 'pugnali':'dagger',
+  'giavellotti':'javelin',
+  'dardi':'dart',
+  'due asce':'handaxe', 'asce':'handaxe', 'ascia':'handaxe',
+  'due spade corte':'shortsword', 'spade corte':'shortsword',
+  // munizioni
+  'frecce':'arrows', 'freccia':'arrows',
+  'quadrelli':'crossbow-bolts', 'quadrello':'crossbow-bolts',
+  'proiettili da fionda':'sling-bullets',
+  // roba comune al plurale
+  'torce':'torch', 'pitoni':'piton', 'candele':'candle',
+  "fiasche d'olio":'oil', "fiasca d'olio":'oil',
+  'palline di metallo':'ball-bearings',
+  'carta':'paper', 'pergamena':'parchment',
+  'profumo':'perfume', 'costumi':'clothes-costume', 'costume':'clothes-costume',
+  'vesti cerimoniali':'robes', 'abiti raffinati':'clothes-fine',
+  'libro di sapienza':'book',
+  'corda di seta (3 m)':'rope-silk',
+  'razioni (1 giorno)':'rations',
+  'strumento musicale a scelta':'lute',
+};
+/* Cerca una voce nelle tabelle: prima per nome esatto, poi per alias.
+   Torna { tipo, obj } oppure null se e' roba senza voce (le cose
+   narrative dei pacchetti: turibolo, scatola per elemosine…). */
+function gearTrova(nome){
+  const n = norm(nome);
+  const perNome = (arr) => arr.find(x => norm(gearName(x)) === n || norm(x.it || '') === n);
+  let w = perNome(SRD_WEAPONS); if (w) return { tipo:'arma', obj:w };
+  let a = perNome(SRD_ARMORS);  if (a) return { tipo:'armatura', obj:a };
+  let g = perNome(SRD_GEAR);    if (g) return { tipo:'roba', obj:g };
+  const id = GEAR_ALIAS[n];
+  if (!id) return null;
+  w = SRD_WEAPONS.find(x => x.id === id); if (w) return { tipo:'arma', obj:w };
+  a = SRD_ARMORS.find(x => x.id === id);  if (a) return { tipo:'armatura', obj:a };
+  g = SRD_GEAR.find(x => x.id === id);    if (g) return { tipo:'roba', obj:g };
+  return null;
+}
+function gearArma(nome){ const r = gearTrova(nome); return (r && r.tipo === 'arma') ? r.obj : null; }
+function gearArmatura(nome){ const r = gearTrova(nome); return (r && r.tipo === 'armatura') ? r.obj : null; }
+
 function gearName(x){ return (typeof state !== 'undefined' && state.spellLang === 'en' && x.n) ? x.n : (x.it || x.n); }
 
 /* La CA che ti dà un'armatura, tenendo conto della Destrezza */

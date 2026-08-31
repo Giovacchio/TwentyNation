@@ -103,9 +103,13 @@ function rigaClasse(c){
   if (c.class2 && c.level2) return uno.trim() + ' / ' + c.class2 + ' ' + c.level2;
   return uno.trim();
 }
+/* «Alto elfo», non «Elfo»: sulla scheda ci va la sottorazza, ed e'
+   quello che c.race contiene gia'. La razza di serie serve solo come
+   ripiego quando la scritta manca del tutto. */
 function nomeRazzaScheda(c){
+  if (c.race) return c.race;
   if (typeof razzaDi === 'function'){ const r = razzaDi(c); if (r && r.name) return r.name; }
-  return c.race || '';
+  return '';
 }
 function nomeBackgroundScheda(c){
   if (typeof backgroundDi === 'function'){ const b = backgroundDi(c); if (b && b.name) return b.name; }
@@ -117,6 +121,19 @@ function nomeSottoclasseScheda(c){
   return s ? s.name : '';
 }
 function segno(n){ const v = Number(n)||0; return (v >= 0 ? '+' : '') + v; }
+/* Le schede in giro scrivono i tiri salvezza in inglese («ST Wisdom»):
+   cercandoli solo col nome italiano non li si scriveva MAI, e nella
+   scheda restavano i numeri di chi c'era prima. */
+const SKILL_CODICI = { acrobatics:'ACRO', animalHandling:'ANIM', arcana:'ARC', athletics:'ATH',
+  deception:'DEC', history:'HIST', insight:'INS', intimidation:'INTI', investigation:'INV',
+  medicine:'MED', nature:'NAT', perception:'PERC', performance:'PERF', persuasion:'PERS',
+  religion:'REL', sleightOfHand:'SLE', stealth:'STLTH', survival:'SURV' };
+const TS_EN = { str:'Strength', dex:'Dexterity', con:'Constitution',
+                int:'Intelligence', wis:'Wisdom', cha:'Charisma' };
+function nomiTS(a){
+  const code = a.key.toUpperCase();
+  return ['ST ' + TS_EN[a.key], 'ST ' + a.label, code + 'save', 'ST' + code, 'ST ' + a.abbr];
+}
 
 function riempiCaratteristiche(form, lib, idx, c, e){
   const S = (n,v)=>scriviCampo(form, lib, idx, n, v, e);
@@ -127,16 +144,12 @@ function riempiCaratteristiche(form, lib, idx, c, e){
     S([code, a.label], val);
     S([code+'mod', code+' mod', 'mod'+code], segno(mod(val)));
     // tiri salvezza
-    S(['ST '+a.label, code+'save', 'ST'+code], segno(saveMod(c, a.key)));
-    C([code+'prof', 'ST '+a.label+' prof', code+'save'], (c.saveProf||[]).includes(a.key));
+    S(nomiTS(a), segno(saveMod(c, a.key)));
+    C([code+'prof', 'ST '+a.label+' prof', 'ST '+TS_EN[a.key]+' prof'], (c.saveProf||[]).includes(a.key));
   });
   // abilità: valore e spunta di competenza/esperienza
-  const CODICI = { acrobatics:'ACRO', animalHandling:'ANIM', arcana:'ARC', athletics:'ATH',
-    deception:'DEC', history:'HIST', insight:'INS', intimidation:'INTI', investigation:'INV',
-    medicine:'MED', nature:'NAT', perception:'PERC', performance:'PERF', persuasion:'PERS',
-    religion:'REL', sleightOfHand:'SLE', stealth:'STLTH', survival:'SURV' };
   SKILLS.forEach(s => {
-    const code = CODICI[s.key];
+    const code = SKILL_CODICI[s.key];
     S([s.label, code], segno(skillMod(c, s)));
     if (!code) return;
     const liv = skillLevel(c, s.key);
@@ -262,7 +275,7 @@ function riempiZaino(form, lib, idx, c, e){
 function riempiMagia(form, lib, idx, c, e){
   const S = (n,v)=>scriviCampo(form, lib, idx, n, v, e);
   if (!c.casterType || c.casterType === 'none') return;
-  S(['SpellcastingClass 2','SpellcastingClass','Classe incantatore'], c.classField);
+  S(['Spellcasting Class 2','SpellcastingClass 2','Spellcasting Class','SpellcastingClass','Classe incantatore'], c.classField);
   const ab = ABILITIES.find(a => a.key === (c.spellAbility||'int'));
   S(['SpellcastingAbility 2','SpellcastingAbility','Caratteristica'], ab ? ab.label : '');
   S(['SpellSaveDC  2','SpellSaveDC 2','SpellSaveDC','CD'], 8 + spellcastingMod(c));
@@ -348,6 +361,65 @@ function riempiIncantesimi(form, lib, idx, c, campi, e){
    compagnia) le righe avanzate resterebbero li' sotto, mescolate alle
    nuove. Quelle sezioni le riscrive l'app per intero, quindi prima le
    svuota. Tutto il resto del modulo non viene toccato. */
+/* Ogni casella che l'app sa scrivere, l'app la possiede: prima di
+   scriverci il personaggio nuovo va svuotata. Se no riusando lo stesso
+   modulo per il secondo personaggio della compagnia ti ritrovi l'eta',
+   gli ideali, le monete e i punti esperienza del primo — scritti sotto
+   il nome del secondo, che e' peggio di una casella vuota. */
+const CAMPI_POSSEDUTI = [
+  ['CharacterName','CharacterName 2','Nome','Nome personaggio'],['PlayerName','Giocatore'],
+  ['Race ','Race','Razza'],['Background','Backgroud','Retroscena'],['Alignment','Allineamento'],
+  ['XP','EXP','Punti esperienza','Esperienza'],['Nex_XP','NextLevel','Prossimo livello'],
+  ['ClassLevel','Class','Classe','Classe e livello'],
+  ['Sottoclasse','Subclass','Archetipo','Archetype','Specializzazione'],
+  ['Sesso','Sex','Gender','Genere'],['ProfBonus','Bonus di competenza'],
+  ['AC','CA','Classe Armatura'],['Initiative','Iniziativa'],['Speed','Velocita','Velocità'],
+  ['Vision','Sensi','Senses'],['HPMax','PF Massimi','HP Max'],['HPCurrent','PF Attuali'],
+  ['HPTemp','PF Temporanei'],['HD','Dado Vita','HitDice'],['HDTotal','HD Total','HDTotal2'],
+  ['HDLeft','Dadi vita rimasti'],['HD2'],['Exhaustion','Sfinimento'],
+  ['Languages 1','ProficienciesLang','Linguaggi'],['Languages 2'],
+  ['TOOLS 1','Strumenti'],['TOOLS 2'],['TOOLS 3'],['Armor','Armatura'],
+  ['Talenti1','Talenti','Feats'],['Testo2'],['Testo3','Features and Traits','Privilegi'],
+  ['Testo6','Note'],['Suppliche','Invocations','Eldritch Invocations','Supplica'],
+  ['PesoTrasportabile','PesoMassimo','Capacita'],['Passive','PASSIVE','Percezione passiva'],
+  ['Tratti car','PersonalityTraits ','PersonalityTraits','Tratti'],['Ideali1','Ideals','Ideali'],
+  ['LEgami1','Bonds','Legami'],['DIfetti1','Flaws','Difetti'],['Nemici1','Nemici'],
+  ['Alleati','Allies','Allies and Organizations'],['Fazione','FactionName','Faction'],
+  ['SymbolNAME','Simbolo'],['Backstory','Storia','CharacterBackstory'],
+  ['AGE','Age','Eta','Età'],['HEIGHT','Height','Altezza'],['WEIGHT','Weight','Peso'],
+  ['EYES','Eyes','Occhi'],['SKIN','Skin','Pelle'],['HAIR','Hair','Capelli'],
+  ['AppearanceText','Appearance','Aspetto'],
+  ['CP'],['SP'],['EP'],['GP'],['PP'],
+  ['Spellcasting Class 2','SpellcastingClass 2','Spellcasting Class','SpellcastingClass','Classe incantatore'],
+  ['SpellcastingAbility 2','SpellcastingAbility','Caratteristica'],
+  ['SpellSaveDC  2','SpellSaveDC 2','SpellSaveDC','CD'],
+  ['SpellAtkBonus 2','SpellAtkBonus','Bonus attacco magico'],
+];
+function svuotaTutto(form, lib, idx, campi, e){
+  const vuota = (nomi) => {
+    const nome = campoVero(idx, nomi); if (!nome) return;
+    try {
+      const f = form.getField(nome);
+      if (typeof f.setText === 'function') f.setText('');
+      else if (typeof f.uncheck === 'function') f.uncheck();
+    } catch(err){}
+  };
+  CAMPI_POSSEDUTI.forEach(vuota);
+  ABILITIES.forEach(a => {
+    const code = a.key.toUpperCase();
+    vuota([code, a.label]); vuota([code+'mod', code+' mod', 'mod'+code]);
+    vuota(nomiTS(a));
+    vuota([code+'prof', 'ST '+a.label+' prof', 'ST '+TS_EN[a.key]+' prof']);
+  });
+  Object.keys(SKILL_CODICI).forEach(k => {
+    const code = SKILL_CODICI[k];
+    const s = SKILLS.find(x => x.key === k);
+    vuota([s ? s.label : code, code]); vuota([code+'P']); vuota([code+'PE']);
+  });
+  ['insp1','Inspiration','Ispirazione','ArmorLight','ArmorMed','ArmorHea','Shield','Shields','WpnSim','WpnMar','StealthDisv']
+    .forEach(n => vuota([n]));
+  svuotaSezioniRipetute(form, lib, idx, campi, e);
+}
 function svuotaSezioniRipetute(form, lib, idx, campi, e){
   const scarto = { scritti:0, mancanti:[], rifiutati:[], troppi:[] };
   const vuota = (nomi) => {
@@ -363,6 +435,7 @@ function svuotaSezioniRipetute(form, lib, idx, campi, e){
     vuota(['Wpn'+i+' AtkBonus', 'Wpn'+i+' AtkBonus ', 'Wpn'+i+'AtkBonus']);
     vuota(['Wpn'+i+' Damage', 'Wpn'+i+' Damage ', 'Wpn'+i+'Damage']);
     vuota(['Limited Feat '+i]); vuota(['FeatTot '+i]); vuota(['FeatLeft '+i]);
+    vuota(['RecoverySR '+i]); vuota(['RecoveryDN '+i]); vuota(['RecoveryLR '+i]);
   }
   for (let i=1;i<=40;i++){ vuota(['eq '+i, 'eq'+i]); vuota(['Peso'+i]); }
   vuota(['Equipment','Equipaggiamento']);
@@ -386,7 +459,7 @@ async function riempiSchedaCompilabile(charId, buffer){
 
   const idx = indiceNomi(form);
   const e = { scritti:0, mancanti:[], rifiutati:[], troppi:[] };
-  svuotaSezioniRipetute(form, lib, idx, campi, e);
+  svuotaTutto(form, lib, idx, campi, e);
   riempiAnagrafica(form, lib, idx, c, e);
   riempiCaratteristiche(form, lib, idx, c, e);
   riempiCombattimento(form, lib, idx, c, e);

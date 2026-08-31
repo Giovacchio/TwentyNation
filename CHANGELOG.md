@@ -1,5 +1,45 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.5 — 31 agosto 2026
+**Il percorso di creazione ripassato dall'inizio alla fine, con la domanda giusta: la scheda che ne esce è una scheda vera?**
+
+Ho percorso il creatore premendo ogni pulsante, per quattro personaggi diversi, e poi ho confrontato quello che ne usciva con quello che una scheda 5e ha davvero. Quello che segue è quello che mancava.
+
+### 🛡️ Metà delle classi partiva con la CA sbagliata
+Il pacchetto iniziale del ladro dice «Armatura di cuoio». La tabella delle armature la chiama «Cuoio». Il confronto era fatto sul nome nudo, quindi **non combaciava mai**: bardo, druido, ladro, warlock e ranger arrivavano in scheda **senza armatura indossata**, con la CA del corpo nudo. Un ladro appena creato aveva CA 9.
+
+Stessa storia per le armi: «Giavellotti» non è «Giavellotto», «Due pugnali» non è «Pugnale». Risultato, il **paladino non aveva nessuna riga d'attacco** — la sua unica arma di partenza era scritta al plurale. E «Due pugnali ×2» voleva dire quattro pugnali.
+
+Adesso c'è un traduttore fra i due mondi (`gearTrova`): i nomi al plurale sono stati messi al singolare, e per quelli che restano diversi apposta perché si leggono meglio («Armatura di cuoio») c'è una tabella di corrispondenze. Una prova nuova passa in rassegna **tutti e dodici i pacchetti** e fallisce se un oggetto non si riconosce.
+
+### 🪓 Il barbaro e il monaco senza armatura hanno la LORO CA
+Difesa senza armatura: 10 + Destrezza + Costituzione per il barbaro, 10 + Destrezza + Saggezza per il monaco. Non veniva applicata: un barbaro nasceva con CA 12 invece di 15, sbagliata proprio nella casella che si guarda per prima.
+
+### ⚔️ Non si esce più con «a scelta» nello zaino
+«Un'arma da guerra a scelta» era un vero oggetto dello zaino se non la sceglievi — e senza arma vera, niente riga d'attacco. Ora «Avanti» aspetta, e dice quante scelte mancano e perché.
+
+### 🎯 Le caselline degli usi limitati
+Una scheda vera non ha solo i privilegi scritti: ha **le caselline**. Quante ire ti restano, quanti punti ki, quante ispirazioni bardiche. Il lettore di schede le sapeva già leggere; il creatore non ne produceva **nessuna**. Adesso ira, ispirazione bardica, incanalare divinità, forma selvatica, recuperare energie, azione impetuosa, indomabile, punti ki, imposizione delle mani, percezione del divino, punti stregoneria, recupero arcano e arcanum mistico nascono già contate, col loro tipo di riposo.
+
+### ✦ Le scelte che erano solo frasi
+«Conosci un trucchetto da mago» e «conosci una lingua in più a tua scelta» stavano scritte fra i tratti dell'alto elfo e **finivano lì**: nessuna casella dove decidere, e in scheda non arrivava niente. Adesso si scelgono, e il trucchetto entra fra gli incantesimi conosciuti come tutti gli altri.
+
+### 🕯️ La competenza regalata da una supplica ora conta
+«Influenza ammaliante: ottieni competenza in Inganno e Persuasione.» La funzione che calcolava quelle competenze **esisteva e non la chiamava nessuno**: la scheda diceva a parole che le avevi e poi ti stampava Persuasione senza il bonus di competenza — in scheda, in stampa e nella scheda compilabile. Adesso il calcolo passa da un posto solo, e tutti e tre lo vedono.
+
+### 📋 Quello che una scheda ha in cima, e il creatore non chiedeva
+**Allineamento** e **nome del giocatore** non venivano chiesti mai: restavano vuoti per sempre e il PDF usciva senza. Ora si scelgono nel riepilogo. Insieme a loro arrivano da soli: **sensi** (la scurovisione è un dato, non una nota), **capacità di carico**, **soglia dei punti esperienza del livello successivo**, e le **monete iniziali del background** — i 15 mo del Ciarlatano erano scritti solo dentro una riga di testo dello zaino, e la borsa restava a zero.
+
+### 🖊️ La scheda compilabile riempita meglio
+- I **tiri salvezza** non si scrivevano mai: cercavo «ST Saggezza» e le schede scrivono «ST Wisdom». Restavano i numeri di chi c'era prima.
+- La **classe incantatore** finiva nel vuoto per uno spazio: «Spellcasting Class 2», non «SpellcastingClass 2».
+- Nella casella razza ci va la **sottorazza** («Alto elfo»), che è quello che la scheda mostra.
+- Ogni casella che l'app sa scrivere ora viene **svuotata prima**: riusando lo stesso modulo per il secondo personaggio della compagnia ti restavano l'età, gli ideali, le monete e i punti esperienza del primo, scritti sotto il nome del secondo — peggio di una casella vuota.
+- I bonus d'attacco escono col segno: «+6», non «6».
+
+### Prove
+`test-creazione.mjs` — **47 prove** che percorrono il creatore dal pulsante al riepilogo premendo tutto, poi controllano la scheda campo per campo, poi i due PDF. Le ultime tre sono quelle che contano: il PDF disegnato dall'app deve contenere nome, giocatore, allineamento, razza, CA, tiri salvezza, abilità, attacchi, sensi, lingue, monete, suppliche, privilegi e la nota OGL; la scheda compilabile deve avere le stesse cose nelle sue caselle; e riempiendo lo stesso modulo con un secondo personaggio non deve restare **niente** del primo.
+
 ## v8.4 — 31 agosto 2026
 **Le finestre non si buttano più via a vicenda, e l'esportazione sa rimettere i dati dove la tua scheda li tiene.**
 

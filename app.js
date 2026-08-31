@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.4';
+const APP_VERSION = '8.5';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1371,15 +1371,27 @@ function migrateCharacter(c){
 }
 
 /* ─── 8. CALCOLI DERIVATI ─── */
+/* Alcune competenze non stanno scritte in `skillProf`: le regala una
+   supplica («Influenza ammaliante: competenza in Inganno e Persuasione»).
+   Finche' il calcolo le ignorava, la scheda diceva a parole che le avevi
+   e poi ti stampava il modificatore senza il bonus di competenza — in
+   scheda, in stampa e nella scheda compilabile. Il posto giusto per
+   tenerne conto e' qui, una volta sola: da qui passano tutti. */
+function competenzeRegalate(c){
+  if (typeof competenzeDaSuppliche !== 'function') return [];
+  try { return competenzeDaSuppliche(c) || []; } catch(e){ return []; }
+}
 function skillMod(c, s){
   const base = mod(getPath(c,'abilities.'+s.ability,10));
   const p = profBonus(c.level);
   if ((c.skillExpert||[]).includes(s.key)) return base + p*2;
-  return base + ((c.skillProf||[]).includes(s.key) ? p : 0);
+  const competente = (c.skillProf||[]).includes(s.key) || competenzeRegalate(c).includes(s.key);
+  return base + (competente ? p : 0);
 }
 function skillLevel(c, key){
   if ((c.skillExpert||[]).includes(key)) return 2;
-  return (c.skillProf||[]).includes(key) ? 1 : 0;
+  if ((c.skillProf||[]).includes(key)) return 1;
+  return competenzeRegalate(c).includes(key) ? 1 : 0;
 }
 function saveMod(c, abilityKey){ return mod(getPath(c,'abilities.'+abilityKey,10)) + ((c.saveProf||[]).includes(abilityKey) ? profBonus(c.level) : 0); }
 function hpPctFor(c){ const max = getPath(c,'hp.max',1)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }

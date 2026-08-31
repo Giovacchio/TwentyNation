@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.4** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.5** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -32,6 +32,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `pdf-import.js` | legge una scheda PDF compilabile |
 | `pdf-export.js` | esporta la scheda in PDF (foglio suo, da stampa) |
 | **`pdf-riempi.js`** | **riempie la scheda compilabile DELL'UTENTE: stessi nomi di casella del lettore** |
+| `gear-data.js` | …e `gearTrova()`/`GEAR_ALIAS`: dal nome scritto nei pacchetti alla voce di tabella |
 | `spell-pdf.js` | estrae testo dai PDF a colonne e riconosce incantesimi |
 | `homebrew.js` | contenuti tuoi: sottoclassi, razze, background |
 | `homebrew-bulk.js` | legge interi manuali e ne ricava le voci |
@@ -116,6 +117,23 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    costruire un personaggio che usa SOLO roba caricata e poi cercarlo in ogni schermata —
    vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
    test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
+
+0*. **Il pacchetto iniziale passa da `gearTrova()` (v8.5), non dal nome nudo.** I pacchetti
+   sono scritti in italiano corrente («Armatura di cuoio», «Giavellotti»), le tabelle SRD
+   hanno il nome secco e singolare («Cuoio», «Giavellotto»): finche' il confronto era sul
+   nome, meta' delle classi partiva senza armatura (ladro con CA 9) e il paladino senza
+   nessuna riga d'attacco. Chi aggiunge una voce a `CLASS_KITS` **deve** usare un nome che
+   `gearTrova` risolve, o aggiungere l'alias in `GEAR_ALIAS`: una prova di
+   `test-creazione.mjs` passa in rassegna tutti e dodici i pacchetti e fallisce se no.
+
+0**. **La domanda di controllo ha una risposta scritta (v8.5): `test-creazione.mjs`.**
+   Percorre il creatore premendo ogni pulsante, confronta la scheda che ne esce con quello
+   che una scheda 5e ha davvero, e finisce sui due PDF. Quando si aggiunge qualcosa al
+   creatore, la prova da estendere e' quella — non un test nuovo che chiama le funzioni.
+   **Cosa cercare quando si aggiunge un privilegio o una razza:** ci sono scelte scritte
+   come frasi («conosci un trucchetto da mago») che vanno rese caselle vere? Ci sono
+   caselline di usi limitati (`CLASS_RISORSE`)? La CA cambia? Il calcolo passa da un posto
+   solo o e' duplicato?
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**

@@ -13,10 +13,11 @@ const STANDARD_ARRAY = [15,14,13,12,10,8];
 function openBuilder(){
   bld = {
     step: 0,
-    raceId: null, subraceId: null, raceBonusPick: [], raceSkills: [],
+    raceId: null, subraceId: null, raceBonusPick: [], raceSkills: [], raceCantrip: null, raceLingue: [],
     suppliche: [], pactBoon: '', asi: {},
     classId: null, level: 1, subclassId: null, classSkills: [],
     bgId: null,
+    alignment: '', playerName: '',
     method: 'pointbuy',
     base: { str:8, dex:8, con:8, int:8, wis:8, cha:8 },
     rolled: null,
@@ -77,6 +78,10 @@ function stepRace(){
   const needSub = race && race.subraces.length && !sub;
   const needBonus = race && race.bonusChoice && bld.raceBonusPick.length < race.bonusChoice.count;
   const needSkills = race && race.skillChoice && bld.raceSkills.length < race.skillChoice;
+  const scelte = sceltaTrucchettoRazza();
+  const needCantrip = !!scelte && !bld.raceCantrip;
+  const quanteLingue = lingueDaScegliere();
+  const needLingue = bld.raceLingue.length < quanteLingue;
   return `
     ${sceltaChip(allRaces(), bld.raceId, 'pickRace', 'raceQ', 'Cerca fra le ' + allRaces().length + ' razze\u2026',
         r => escapeHtml(r.name) + (r.notSrd?' *':'') + (r.fromCampaign?' ⚔️':(r.homebrew?' ✦':'')))}
@@ -112,12 +117,60 @@ function stepRace(){
             <button class="chip ${bld.raceSkills.includes(sk.key)?'active':''}" onclick="toggleRaceSkill('${sk.key}')">${sk.label}</button>`).join('')}</div>
           <div class="field-hint">${bld.raceSkills.length}/${race.skillChoice} scelte</div>
         </div>` : ''}
+      ${scelte ? `
+        <div class="field"><label>${escapeHtml(scelte.label || 'Trucchetto a scelta')}</label>
+          <div class="chip-row">${trucchettiScegliibili(scelte).map(sp=>`
+            <button class="chip ${bld.raceCantrip===sp.id?'active':''}" onclick="bldTrucchettoRazza('${jsStr(sp.id)}')">${escapeHtml(spellName(sp))}</button>`).join('')}</div>
+          <div class="field-hint">${bld.raceCantrip ? 'Scelto: ' + escapeHtml(spellName(spellByRef({id:bld.raceCantrip,source:'srd'})) || '') : 'Scegline uno: finisce fra i tuoi incantesimi conosciuti.'}</div>
+        </div>` : ''}
+      ${quanteLingue ? `
+        <div class="field"><label>${quanteLingue === 1 ? 'Una lingua a scelta' : quanteLingue + ' lingue a scelta'}</label>
+          <div class="chip-row">${LINGUE_SRD.filter(l => !race.languages.includes(l)).map(l=>`
+            <button class="chip ${bld.raceLingue.includes(l)?'active':''}" onclick="bldLinguaRazza('${jsStr(l)}')">${escapeHtml(l)}</button>`).join('')}</div>
+          <div class="field-hint">${bld.raceLingue.length}/${quanteLingue} scelte</div>
+        </div>` : ''}
       ${race.notSrd ? `<div class="spell-source-note">* Variante non compresa nell'SRD: le meccaniche sono riassunte, il talento va scritto a mano.</div>` : ''}
     ` : `<p class="muted">Scegli una razza per vedere cosa comporta.</p>`}
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">📚 Aggiungi una razza tua</button>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">📖 Leggile tutte dal tuo manuale</button>
-    ${bldNav(!!race && !needSub && !needBonus && !needSkills)}
+    ${bldNav(!!race && !needSub && !needBonus && !needSkills && !needCantrip && !needLingue)}
   `;
+}
+/* ─── Le scelte che la razza porta con se' ───────────────────────
+   Erano scritte fra i tratti come frasi («Conosci un trucchetto da
+   mago», «Conosci una lingua in piu' a tua scelta») e finivano li':
+   nessuna casella dove decidere, e in scheda non arrivava niente. */
+function sceltaTrucchettoRazza(){
+  const race = raceById(bld.raceId);
+  if (!race) return null;
+  const sub = race.subraces && race.subraces.find(s => s.id === bld.subraceId);
+  return (sub && sub.cantripChoice) || race.cantripChoice || null;
+}
+function trucchettiScegliibili(scelta){
+  if (typeof allSpells !== 'function') return [];
+  return allSpells().filter(sp => sp.level === 0 && (spellClasses(sp)||[]).includes(scelta.classe))
+    .sort((a,b)=>spellName(a).localeCompare(spellName(b),'it'));
+}
+function bldTrucchettoRazza(id){
+  bld.raceCantrip = (bld.raceCantrip === id) ? null : id;
+  renderModalRoot();
+}
+/* Quante lingue in piu' ti fanno scegliere razza e sottorazza. Le
+   riconosciamo dalla frase, perche' e' li' che stanno scritte. */
+function lingueDaScegliere(){
+  const race = raceById(bld.raceId);
+  if (!race) return 0;
+  const sub = race.subraces && race.subraces.find(s => s.id === bld.subraceId);
+  let n = (race.languages || []).filter(l => /a scelta/i.test(l)).length;
+  const testi = [...(race.traits||[]), ...((sub && sub.traits) || [])].map(t => (t.name||'') + ' ' + (t.desc||''));
+  testi.forEach(t => { if (/lingua (in piu'|in più|aggiuntiva).{0,30}a (tua )?scelta|una lingua in più a tua scelta/i.test(t)) n += 1; });
+  return Math.min(n, 3);
+}
+function bldLinguaRazza(l){
+  const i = bld.raceLingue.indexOf(l);
+  if (i >= 0) bld.raceLingue.splice(i,1);
+  else if (bld.raceLingue.length < lingueDaScegliere()) bld.raceLingue.push(l);
+  renderModalRoot();
 }
 function bonusLine(b){
   const parts = ABILITIES.filter(a=>b && b[a.key]).map(a=>`${a.abbr} +${b[a.key]}`);
@@ -125,7 +178,7 @@ function bonusLine(b){
 }
 function pickBackground(id){ bldSet({ bgId: id }); }
 function pickRace(id){
-  bld.raceId = id; bld.subraceId = null; bld.raceBonusPick = []; bld.raceSkills = [];
+  bld.raceId = id; bld.subraceId = null; bld.raceBonusPick = []; bld.raceSkills = []; bld.raceCantrip = null; bld.raceLingue = [];
   const r = raceById(id);
   if (r && r.subraces.length === 1) bld.subraceId = r.subraces[0].id;
   renderModalRoot();
@@ -648,6 +701,8 @@ function buildCharacterFromBuilder(){
   const ch = newCharacter();
   ch.name = bld.name.trim() || 'Senza nome';
   ch.sex = bld.sex || '';
+  ch.alignment = bld.alignment || '';
+  ch.playerName = (bld.playerName || '').trim();
   ch.avatar = bld.avatar;
   ch.portrait = bld.portrait;
   ch.race = race ? (sub ? sub.name : race.name) : '';
@@ -662,16 +717,33 @@ function buildCharacterFromBuilder(){
   ch.hp = { current: hpMax, max: hpMax, temp: 0 };
   ch.hitDie = c.hitDie;
   ch.ac = 10 + mod(ab.dex);
-  // se il pacchetto include un'armatura, la CA la calcoliamo davvero
-  if (bld.gearOn && typeof SRD_ARMORS !== 'undefined'){
-    const names = gearItems().map(x => norm(x.name));
-    const worn = SRD_ARMORS.filter(a => a.cat !== 'scudo').find(a => names.includes(norm(gearName(a))));
-    const shield = SRD_ARMORS.find(a => a.cat === 'scudo' && names.includes(norm(gearName(a))));
+  /* Se il pacchetto include un'armatura, la CA la calcoliamo davvero.
+     Il riconoscimento passa da gearTrova(), che sa che «Armatura di
+     cuoio» e' la voce «Cuoio»: prima il confronto era sul nome nudo e
+     mezza classe partiva senza armatura, con CA 9 in scheda. */
+  if (bld.gearOn && typeof gearTrova === 'function'){
+    let worn = null, wornNome = '', shield = null;
+    gearItems().forEach(x => {
+      const a = gearArmatura(x.name);
+      if (!a) return;
+      if (a.cat === 'scudo'){ if (!shield) shield = a; }
+      else if (!worn || a.ac > worn.ac){ worn = a; wornNome = x.name; }  // la migliore, se ce n'e' piu' d'una
+    });
     if (worn){
       ch.ac = armorAC(worn, mod(ab.dex));
-      ch.armor = gearName(worn) + (worn.stealth ? ' (svantaggio a Furtività)' : '');
+      // in scheda si scrive il nome che hai visto nel pacchetto
+      // («Armatura di cuoio»), non quello secco della tabella («Cuoio»)
+      ch.armor = wornNome + (worn.stealth ? ' (svantaggio a Furtività)' : '');
     }
     if (shield) ch.ac += shield.ac;
+    /* Difesa senza armatura: barbaro e monaco hanno una CA loro quando
+       non indossano niente. Senza questo un barbaro appena creato
+       arrivava in scheda con CA 12 invece di 14 — un numero sbagliato
+       proprio nella casella che si guarda per prima. */
+    if (!worn){
+      if (c.id === 'barbarian') ch.ac = 10 + mod(ab.dex) + mod(ab.con) + (shield ? shield.ac : 0);
+      else if (c.id === 'monk' && !shield) ch.ac = 10 + mod(ab.dex) + mod(ab.wis);
+    }
   }
   ch.initiative = mod(ab.dex);
   ch.speed = race ? race.speed : 9;
@@ -683,6 +755,10 @@ function buildCharacterFromBuilder(){
   ch.casterType = c.caster;
   ch.spellAbility = c.spellAbility || 'int';
   ch.knownSpells = [...bld.cantrips, ...bld.spells];
+  // il trucchetto della razza e' un incantesimo conosciuto a tutti gli
+  // effetti, non una riga di nota: entra qui, senza doppioni
+  if (bld.raceCantrip && !ch.knownSpells.some(k => k.id === bld.raceCantrip))
+    ch.knownSpells.push({ id: bld.raceCantrip, source:'srd' });
   if (c.spellType === 'prepared') ch.preparedSpells = bld.spells.map(s => s.id);
 
   // privilegi, tratti e competenze in testo
@@ -702,7 +778,10 @@ function buildCharacterFromBuilder(){
     bg ? ('Equipaggiamento iniziale del background: ' + bg.equipment) : ''
   ].filter(Boolean).join('\n\n');
 
-  ch.languages = race ? race.languages.join(', ') + (bg && bg.languages ? ` · +${bg.languages} dal background` : '') : '';
+  ch.languages = race
+    ? [...race.languages.filter(l => !/a scelta/i.test(l)), ...bld.raceLingue].join(', ')
+      + (bg && bg.languages ? ` · +${bg.languages} dal background` : '')
+    : bld.raceLingue.join(', ');
   ch.tools = [c.tools !== '—' ? c.tools : '', bg && bg.tools !== '—' ? bg.tools : ''].filter(Boolean).join(' · ');
   ch.profOther = [c.armor !== 'Nessuna' ? c.armor : '', c.weapons].filter(Boolean).join(' · ');
 
@@ -710,10 +789,10 @@ function buildCharacterFromBuilder(){
   // Le armi che hai scelto diventano subito righe d'attacco calcolate.
   // I pacchetti scrivono "Cotta di maglia", le tabelle "Cotta di Maglia":
   // il confronto va fatto senza badare a maiuscole e accenti.
-  if (bld.gearOn && typeof WEAPON_BY_ID !== 'undefined'){
+  if (bld.gearOn && typeof gearArma === 'function'){
     const seen = new Set();
     gearItems().forEach(it => {
-      const w = SRD_WEAPONS.find(x => norm(gearName(x)) === norm(it.name));
+      const w = gearArma(it.name);
       if (!w || seen.has(w.id)) return;
       seen.add(w.id);
       const abm = (w.r === 'distanza' || (w.p||[]).some(p=>/accurata/.test(p)))
@@ -721,7 +800,8 @@ function buildCharacterFromBuilder(){
         : mod(ab.str);
       const prof = profBonus(bld.level);
       ch.attacks.push({
-        name: it.name, atk: String(abm + prof),
+        // col segno: una scheda vera scrive «+6», non «6»
+        name: it.name, atk: (abm + prof >= 0 ? '+' : '') + (abm + prof),
         dmg: w.d + (abm ? (abm > 0 ? '+' + abm : String(abm)) : ''),
         notes: [w.dt, (w.p||[]).join(', ')].filter(Boolean).join(' · '),
         gearId: w.id,
@@ -737,6 +817,35 @@ function buildCharacterFromBuilder(){
   }));
   if (bld.gearOn && bg && bg.equipment)
     ch.inventory.push({ name: 'Equipaggiamento da ' + bg.name, qty: 1, weight: '', attuned: false, notes: bg.equipment, equipped: false });
+
+  /* ── Quello che una scheda vera ha e che prima restava vuoto ──
+     Il lettore di schede sa leggere tutti questi campi; il creatore non
+     li scriveva, e un personaggio creato con la procedura guidata
+     arrivava piu' povero di uno importato da PDF. La domanda di
+     controllo del progetto e' proprio questa: i due devono arrivare
+     alla stessa scheda. */
+  // Sensi: la scurovisione e' un tratto razziale, non una nota
+  const senso = [];
+  const traittiTutti = [...(race ? race.traits : []), ...((sub && sub.traits) || [])];
+  traittiTutti.forEach(t => {
+    const m = /(\d+)\s*met/i.exec(t.desc || '');
+    if (/scurovision/i.test(t.name)) senso.push('Scurovisione ' + (m ? m[1] : '18') + ' m');
+    else if (/vista.*superiore|visione superiore/i.test(t.name)) senso.push(t.name);
+  });
+  ch.senses = senso.join(' · ');
+  // Capacita' di carico: Forza x 7,5 kg, come dice il manuale
+  ch.carryCapacity = String(Math.round(ab.str * 7.5 * 10) / 10);
+  // Soglia del livello successivo, cosi' la barra dei px ha un fondo
+  const soglia = (typeof xpForNextLevel === 'function') ? xpForNextLevel(bld.level) : null;
+  ch.xpNext = soglia != null ? String(soglia) : '';
+  // Le caselline degli usi limitati: ire, ki, ispirazioni…
+  if (typeof risorseDiClasse === 'function')
+    ch.resources = risorseDiClasse(c.id, bld.level, { cha:mod(ab.cha), wis:mod(ab.wis), con:mod(ab.con) });
+  // Le monete del background: stanno scritte nell'equipaggiamento («…, 15 mo»)
+  if (bg && bg.equipment){
+    const mo = /(\d+)\s*mo\b/i.exec(bg.equipment);
+    if (mo) ch.coins = Object.assign({}, ch.coins, { gp: parseInt(mo[1], 10) });
+  }
 
   if ((bld.suppliche||[]).length) ch.suppliche = bld.suppliche.slice();
   if (bld.pactBoon) ch.pactBoon = bld.pactBoon;
@@ -755,6 +864,17 @@ function stepSummary(){
       <div class="chip-row">
         ${SEXES.map(x=>`<button class="chip ${bld.sex===x.id?'active':''}" onclick="bldSet({sex: bld.sex==='${x.id}' ? '' : '${x.id}'})">${x.label}</button>`).join('')}
       </div>
+    </div>
+    ${/* Due caselle che una scheda vera ha in cima e il creatore non
+          chiedeva mai: restavano vuote per sempre, e il PDF usciva
+          senza allineamento e senza il nome di chi gioca. */''}
+    <div class="field"><label>Allineamento</label>
+      <div class="chip-row">
+        ${ALLINEAMENTI.map(a=>`<button class="chip ${bld.alignment===a?'active':''}" onclick="bldSet({alignment: bld.alignment==='${jsStr(a)}' ? '' : '${jsStr(a)}'})">${escapeHtml(a)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Giocatore <span class="muted" style="font-weight:400">— chi lo interpreta</span></label>
+      <input id="bld-player" value="${attr(bld.playerName||'')}" placeholder="Il tuo nome" oninput="bld.playerName=this.value">
     </div>
     <div class="field"><label>Ritratto</label>
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
@@ -852,7 +972,11 @@ function stepGear(){
         <div class="row-between" style="margin-top:4px"><span>Peso totale</span><b>${gearWeight().toFixed(1).replace('.0','')} kg</b></div>
       </div>
       ${(()=>{ const ph = gearPlaceholders(); if (!ph.length) return '';
+        const scelte = ph.filter(p => pickedWeapon(p.key)).length;
         return `<div class="divider"><span class="flourish">❧</span><span>Quali armi?</span></div>
+          ${scelte < ph.length ? `<div class="card" style="margin-bottom:10px; border-color:var(--garnet)">
+            <div class="muted" style="font-size:.8rem">Scegline ancora <b>${ph.length - scelte}</b>: senza, nello zaino resterebbe scritto «a scelta» al posto di un'arma vera, e non avresti la riga d'attacco.</div>
+          </div>` : ''}
           ${ph.map(p=>{
             const list = (typeof SRD_WEAPONS !== 'undefined') ? SRD_WEAPONS.filter(w=>w.cat===p.cat) : [];
             const sel = pickedWeapon(p.key);
@@ -865,7 +989,7 @@ function stepGear(){
           }).join('')}`;
       })()}
     ` : `<div class="muted" style="text-align:center; padding:22px 10px">Parti con lo zaino vuoto. Il tuo master ti dirà quanto oro hai.</div>`}
-    ${bldNav(true)}`;
+    ${bldNav(!bld.gearOn || gearPlaceholders().every(p => pickedWeapon(p.key)))}`;
 }
 function bldToggleGear(){ bld.gearOn = !bld.gearOn; renderModalRoot(); }
 function bldPickGear(gi, oi){ bld.gear[gi] = oi; renderModalRoot(); }

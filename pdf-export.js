@@ -459,7 +459,10 @@ async function drawSheet(S, c, lib, doc, fonts){
         S.trow(base, w);
       });
       S.gap(4);
-      S.text('Peso trasportato: ' + totalWeight(c).toFixed(1).replace('.0','').replace('.', ',') + ' kg', { size:8, color:PDFX.soft });
+      // col massimo accanto: «15,8 / 60 kg» dice qualcosa, «15,8 kg» no
+      S.text('Peso trasportato: ' + totalWeight(c).toFixed(1).replace('.0','').replace('.', ',')
+             + (c.carryCapacity ? ' / ' + String(c.carryCapacity).replace('.', ',') : '') + ' kg',
+             { size:8, color:PDFX.soft });
     }
   }
 
