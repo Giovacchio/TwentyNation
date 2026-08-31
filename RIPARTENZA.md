@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.0** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.0.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -115,6 +115,15 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    costruire un personaggio che usa SOLO roba caricata e poi cercarlo in ogni schermata —
    vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
    test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
+
+0. **Le prove che chiamano la funzione invece di premere il tasto sono il difetto
+   ricorrente di questo progetto** (v8.0.1: «Ripristina» nel cestino rotto da chissà
+   quando, con 13 prove verdi sopra). Due regole che ne sono uscite:
+   **(a)** quando si prova un comando, si preme il pulsante nel DOM, non la funzione;
+   **(b)** una schermata visitata ma VUOTA è una schermata non provata — il crawl adesso
+   si semina cestino, campagna e compagni prima di partire, e solo così quei pulsanti
+   esistono nel momento in cui ci passa. Prima di dire che una parte è coperta, guarda se
+   in quella schermata c'era davvero qualcosa dentro.
 
 0a. **La falla degli account (v8.0) è la cosa da non far ricadere.** Il proprietario
    dell'archivio locale sta DENTRO l'archivio (`diChi`), non più in una chiave separata:

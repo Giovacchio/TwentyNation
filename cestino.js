@@ -51,9 +51,15 @@ function nelCestino(collezione, obj){
     }
   } catch(e){ console.warn('Non riesco a conservare la copia', e); }
 }
+/* I due pulsanti passavano `v.id`, ma qui si cerca per `v.chiave` — e la
+   chiave c'e' sempre, quindi il confronto non andava mai a buon fine e il
+   tasto sembrava morto. La chiave e' separata dall'id apposta: lo stesso
+   oggetto puo' finire nel cestino piu' di una volta, quindi l'id non
+   basta a distinguere le voci. E se una voce non si trova lo si dice,
+   invece di non fare niente in silenzio. */
 function ripristinaDalCestino(chiave){
   const i = cestino.findIndex(v => (v.chiave || v.id) === chiave);
-  if (i < 0) return;
+  if (i < 0){ toast('⚠️ Non trovo più questa voce nel cestino'); renderModalRoot(); return; }
   const v = cestino[i];
   const coll = v.collezione;
   state[coll] = state[coll] || [];
@@ -61,9 +67,17 @@ function ripristinaDalCestino(chiave){
     toast('C\'è già qualcosa con questo identificativo');
     return;
   }
-  const obj = JSON.parse(JSON.stringify(v.copia));
+  let obj = JSON.parse(JSON.stringify(v.copia));
   delete obj.syncedAt;                 // deve risalire come cosa nuova
   obj.updatedAt = Date.now();
+  /* Una copia messa nel cestino da una versione vecchia dell'app torna
+     su con la forma di allora: va normalizzata come si fa con quella di
+     un backup, se no la scheda si apre e si rompe. */
+  if (coll === 'characters' && typeof safeMigrate === 'function'){
+    const m = safeMigrate(obj);
+    if (!m){ toast('⚠️ Questa copia è illeggibile, non riesco a rimetterla a posto'); return; }
+    obj = m;
+  }
   state[coll].push(obj);
   cestino.splice(i, 1); salvaCestino();
   saveLocal();
@@ -73,6 +87,7 @@ function ripristinaDalCestino(chiave){
 }
 function buttaDefinitivamente(chiave){
   const v = cestino.find(x => (x.chiave || x.id) === chiave);
+  if (!v){ toast('⚠️ Non trovo più questa voce nel cestino'); renderModalRoot(); return; }
   confirmDialog('Eliminare per sempre?',
     '«' + ((v && v.nome) || '') + '» non sarà più recuperabile.',
     () => {
@@ -106,8 +121,8 @@ function cestinoHTML(){
           <div class="attack-name">${k.icona} ${escapeHtml(v.nome)}</div>
           <div class="muted" style="font-size:.72rem">${k.label} · ancora ${g} ${g===1?'giorno':'giorni'}${v.senzaRitratto?' · senza ritratto':''}</div>
         </div>
-        <button class="btn btn-sm btn-gold" style="min-width:auto; padding:7px 11px" onclick="ripristinaDalCestino('${jsStr(v.id)}')">Ripristina</button>
-        <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Elimina per sempre" onclick="buttaDefinitivamente('${jsStr(v.id)}')">✕</button>
+        <button class="btn btn-sm btn-gold" style="min-width:auto; padding:7px 11px" onclick="ripristinaDalCestino('${jsStr(v.chiave || v.id)}')">Ripristina</button>
+        <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Elimina per sempre" onclick="buttaDefinitivamente('${jsStr(v.chiave || v.id)}')">✕</button>
       </div>`;
     }).join('')}</div>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="svuotaCestino()">Svuota il cestino</button>`

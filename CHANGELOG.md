@@ -1,5 +1,23 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.0.1 — 31 agosto 2026
+**«Ripristina» nel cestino cliccava a vuoto. E il motivo per cui nessuna prova l'aveva visto è la cosa più utile di questo giro.**
+
+### 🗑️ Il cestino restituisce di nuovo le cose
+Il pulsante passava alla funzione l'**identificativo dell'oggetto**, ma la funzione cerca per **chiave della voce nel cestino** — e la chiave c'è sempre, quindi il confronto non andava mai a buon fine. La funzione usciva senza dire niente: tasto morto. Stesso identico difetto sul ✕ «elimina per sempre», che quindi non eliminava.
+
+Le due cose sono separate apposta: **lo stesso personaggio può finire nel cestino più di una volta** (lo cancelli, lo recuperi, lo ricancelli), quindi l'identificativo non basta a distinguere le voci. Adesso i pulsanti passano la chiave giusta, e se una voce non si trova più **l'app lo dice** invece di non fare niente in silenzio.
+
+### 🩹 E una copia vecchia non fa più esplodere la scheda
+Trovato per strada: quello che torna dal cestino veniva rimesso in elenco **così com'era**. Una copia messa via da una versione vecchia dell'app torna su con la forma di allora, e aprendo la scheda l'app si rompeva. Adesso passa dalla stessa normalizzazione che si usa per i backup.
+
+### 🔍 Perché nessuna prova l'aveva visto
+Questa è la parte da ricordare. Le prove sul cestino c'erano — 13, tutte verdi — ma **chiamavano la funzione, non premevano il tasto**. E il crawl che tocca ogni cosa toccabile visitava il cestino... **vuoto**: nessuna voce dentro, nessun pulsante da toccare.
+
+**Una schermata visitata ma vuota è una schermata non provata.** Adesso il crawl si semina da solo il cestino e i compagni della campagna prima di partire: da 1.447 a **1.476 elementi toccati**, cioè 29 pulsanti che prima non esistevano nel momento in cui passava. Uno di quei 29 era «Ripristina», e il primo giro col cestino pieno ha trovato subito anche il crash della scheda vecchia.
+
+> 8 prove nuove in `test-v801.mjs`, e stavolta **premono i pulsanti veri sullo schermo**, non le funzioni sotto. Suite completa verde, 1.476 interazioni con zero rotture, audit invariato.
+
 ## v8.0 — 31 agosto 2026
 **Una falla chiusa e i Compagni della campagna. Prima versione pensata per stare in mano ad altre persone.**
 
