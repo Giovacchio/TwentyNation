@@ -1,5 +1,33 @@
 # TwentyNation — lista dei cambiamenti
 
+## v7.9 — 31 agosto 2026
+**Le cose che carichi tu adesso arrivano fino in fondo: si leggono sulla scheda, restano agganciate e si trovano.**
+
+Controllando punto per punto dove finisce il materiale caricato è saltato fuori che il grosso funzionava (creatore, lettore di schede, grimorio, turno, incontri, compagni, condivisione col tavolo, cestino), ma **le ultime quattro tappe erano scoperte**.
+
+### 📜 Il riquadro «Origini»
+Razza, background e sottoclasse li potevi scegliere, ma **non leggere**: nella Storia c'erano le pastiglie e il menu a tendina — cioè i comandi per sceglierli — e da nessuna parte il testo di quello che avevi scelto. Se ti caricavi un background dal tuo manuale, dalla scheda non c'era modo di rivederne i benefici.
+
+- **Nella Storia**, tre carte: nome, da dove viene («Manuale mio», «dal tavolo di Marco», «di serie») e quanti tratti porta. Toccandone una si apre per intero — i tratti della razza, le competenze e il privilegio del background, i privilegi della sottoclasse.
+- **Della sottoclasse mostra solo i privilegi che hai già raggiunto**, non quelli dei livelli che devi ancora fare.
+- **In Panoramica**, una riga stretta coi tre nomi e un ✦ su quelli che vengono da roba tua: un tocco e sei nella Storia.
+- Se il nome l'hai scritto a mano e non corrisponde a niente, **te lo dice** invece di far finta che i tratti non esistano.
+
+### 🔗 Il legame con la scheda adesso è vero
+`raceId` e `bgId` si scrivevano quando creavi il personaggio e **poi non li leggeva più nessuno**: la scheda teneva solo il nome scritto. Scegliendo un background dalle pastiglie il legame si perdeva del tutto. Adesso:
+
+- Scrivere o scegliere il nome di una cosa tua **la riaggancia**; scrivere qualcos'altro **stacca** il legame invece di lasciarlo a puntare nel vuoto.
+- **Se rinomini una tua razza o un tuo background, le schede attaccate seguono** — prima restavano col vecchio nome.
+- Una sottorazza («Alto Elfo» sopra «Elfo») non fa perdere il legame: era la trappola più facile in cui cadere.
+
+### 🔎 La ricerca vede anche la roba del master
+La ricerca globale trovava le tue razze e i tuoi mostri, ma **non quelli messi in comune dal master** — gli incantesimi condivisi saltavano fuori solo perché il grimorio li mescola ai tuoi. Adesso ci sono anche razze, sottoclassi, background e creature del tavolo, in un gruppo **«Dal tavolo»** con scritto chi le ha messe.
+
+### 🖨️ La sottoclasse sul PDF
+La riga sotto il nome stampava classe, livello, razza e background e si dimenticava la sottoclasse: un Druido senza circolo.
+
+> 22 prove nuove in `test-v79.mjs`. Suite completa verde, **1.447 interazioni ripercorse una per una con zero rotture**, audit mobile invariato.
+
 ## v7.8.1 — 30 agosto 2026
 **Ricontrollo completo della v7.8. Un solo ritocco.**
 

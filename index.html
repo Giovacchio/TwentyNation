@@ -606,6 +606,19 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
    serve a vederla, non a impedirtela — le regole hanno eccezioni. */
 .turno-spenta { opacity:.5; }
 .attack-row.promemoria { background: transparent; border-style: dashed; opacity: .88; cursor: default; }
+/* Origini: la riga stretta in Panoramica e le tre carte nella Storia */
+.origini-riga { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 10px; padding: 8px 10px;
+  background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); text-align: left; }
+.origini-voci { display: flex; flex-wrap: wrap; gap: 4px 12px; flex: 1 1 auto; min-width: 0; }
+.origini-voce { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.origini-ico { font-size: .95rem; flex-shrink: 0; }
+.origini-nome { font-size: .78rem; color: var(--ink); }
+.origini-mio { color: var(--gold-dim); font-size: .68rem; }
+.origini-freccia { color: var(--gold-dim); flex-shrink: 0; font-size: 1.1rem; }
+.origini-card { width: 100%; text-align: left; margin-bottom: 6px; }
+.origini-card:last-child { margin-bottom: 0; }
+@media (max-width: 360px){ .origini-nome { font-size: .72rem; } }
 .lista-vuota { text-align:center; padding:18px 10px; font-size:.8rem; color:var(--ink-faint); }
 .filtro-riga { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:10px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 .filtro-riga::-webkit-scrollbar { display:none; }

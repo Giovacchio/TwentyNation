@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '7.8.1';
+const APP_VERSION = '7.9';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1828,6 +1828,9 @@ function saveCharacterDraft(isEdit){
   if (!draftChar.hp.current) draftChar.hp.current = draftChar.hp.max || 10;
   draftChar.hp.current = clamp(draftChar.hp.current, 0, draftChar.hp.max || 9999);
   migrateCharacter(draftChar);
+  /* La razza qui si scrive a mano: se e' una che hai caricato tu, la
+     scheda se la riaggancia invece di tenere solo il nome. */
+  if (typeof riallineaOrigini === 'function') riallineaOrigini(draftChar);
   const idx = state.characters.findIndex(c=>c.id===draftChar.id);
   if (idx>=0) state.characters[idx] = draftChar; else state.characters.push(draftChar);
   if (!currentUser) state.offlineMode = true;
@@ -1866,6 +1869,9 @@ function doDeleteCharacter(id){
 function updateCharField(id, path, value){
   const c = charById(id); if (!c) return;
   setPath(c, path, value);
+  /* Scrivendo a mano «razza» o «background» il legame con la roba che hai
+     caricato va riagganciato, se no la scheda tiene il nome e perde i tratti. */
+  if ((path === 'race' || path === 'background') && typeof riallineaOrigini === 'function') riallineaOrigini(c);
   scheduleSave('characters', c);
 }
 function updateAbility(charId, key, value){
@@ -2103,6 +2109,7 @@ function renderSheetOverview(c){
         <button class="status-chip ${c.exhaustion?'warn':''}" onclick="bumpExhaustion('${c.id}')" title="Tocca per aumentare, tieni a 0 per azzerare">💀 Sfinimento ${c.exhaustion||0}</button>
       </div>
       ${conditionsRowHTML(c)}
+      ${origineRigaHTML(c)}
       ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
 
       <div class="divider"><span class="flourish">❧</span><span>Attacchi</span></div>
@@ -3248,9 +3255,116 @@ function impostaSottoclasse(charId, id){
   if (sc) toast('⚔️ ' + sc.name);
 }
 
+/* ─── 19b. ORIGINI ─── Razza, background e sottoclasse sulla scheda.
+   Prima si potevano scegliere ma non leggere: nella Storia c'erano le
+   pastiglie e il menu a tendina — cioè i comandi per SCEGLIERLI — e da
+   nessuna parte i tratti della razza, i benefici del background o i
+   privilegi della sottoclasse. Chi caricava un background dal proprio
+   manuale non aveva modo di rivederne il testo dalla scheda. */
+function origineFonte(x){
+  if (!x) return '';
+  if (x.fromCampaign) return 'dal tavolo' + (x.sharedByName ? ' di ' + x.sharedByName : '');
+  /* Se la fonte l'hai scritta tu vale piu' di un'etichetta generica:
+     «Manuale mio» dice da dove viene, «dal tuo materiale» no. */
+  if (x.homebrew) return x.source || 'dal tuo materiale';
+  return 'di serie';
+}
+/* I tratti in forma uniforme, da qualunque delle tre cose vengano */
+function origineTratti(kind, x, c){
+  if (!x) return [];
+  if (kind === 'race'){
+    const t = (x.traits || []).map(t => ({ name: t.name || t[0], desc: t.desc || t[1] }));
+    const sr = (x.subraces || []).find(s => norm(s.name) === norm(c.race || ''));
+    if (sr) (sr.traits || []).forEach(y => t.push({ name: y.name || y[0], desc: y.desc || y[1] }));
+    return t;
+  }
+  if (kind === 'background'){
+    const nomiAb = (x.skills || []).map(k => { const s = SKILLS.find(y => y.key === k); return s ? s.label : k; });
+    const out = [];
+    if (nomiAb.length) out.push({ name: 'Competenze', desc: nomiAb.join(', ') });
+    if (x.tools && x.tools !== '—') out.push({ name: 'Strumenti', desc: x.tools });
+    if (x.languages) out.push({ name: 'Linguaggi', desc: x.languages + (Number(x.languages) === 1 ? ' linguaggio a scelta' : ' linguaggi a scelta') });
+    if (x.feature) out.push({ name: 'Privilegio', desc: x.feature + (x.desc ? ('\n' + x.desc) : '') });
+    if (x.equipment) out.push({ name: 'Equipaggiamento', desc: x.equipment });
+    return out;
+  }
+  /* sottoclasse: solo i privilegi che hai già raggiunto */
+  const lv = (typeof livelloTotale === 'function') ? livelloTotale(c) : (c.level || 1);
+  return featureRowsFromMap(x.features || {})
+    .filter(f => !f.level || f.level <= lv)
+    .map(f => ({ name: f.name + (f.level ? (' · ' + f.level + '°') : ''), desc: f.desc }));
+}
+function origineVoci(c){
+  const razza = (typeof razzaDi === 'function') ? razzaDi(c) : null;
+  const bg    = (typeof backgroundDi === 'function') ? backgroundDi(c) : null;
+  const sc    = (typeof sottoclasseDi === 'function') ? sottoclasseDi(c) : null;
+  const cl    = (typeof classeDi === 'function') ? classeDi(c) : null;
+  return [
+    { kind:'race',       icona:'🧝', etichetta:'Razza',      nome: c.race || '', x: razza },
+    { kind:'background', icona:'📜', etichetta:'Background', nome: c.background || '', x: bg },
+    { kind:'subclass',   icona:'⚔️', etichetta: (cl && cl.subclassLabel) || 'Sottoclasse',
+      nome: sc ? sc.name : '', x: sc },
+  ].filter(v => v.nome || v.x);
+}
+/* La riga stretta in Panoramica: i tre nomi, e si va alla Storia */
+function origineRigaHTML(c){
+  const voci = origineVoci(c);
+  if (!voci.length) return '';
+  /* Tre colonne affiancate tagliavano i nomi a meta' («Cacciatore ...»):
+     a colpo d'occhio serve il nome INTERO, e l'icona dice gia' se e'
+     razza, background o sottoclasse. Cosi' va a capo invece di troncare. */
+  return `<button class="origini-riga" onclick="setSheetTab('background')" title="Origini" aria-label="Origini: vai alla Storia">
+    <span class="origini-voci">
+      ${voci.map(v => `<span class="origini-voce" title="${attr(v.etichetta)}">
+        <span class="origini-ico">${v.icona}</span><span class="origini-nome">${escapeHtml(v.nome || '—')}</span>${v.x && (v.x.homebrew || v.x.fromCampaign) ? '<span class="origini-mio">✦</span>' : ''}</span>`).join('')}
+    </span>
+    <span class="origini-freccia">›</span>
+  </button>`;
+}
+function origineApri(charId, kind){
+  const c = charById(charId); if (!c) return;
+  const v = origineVoci(c).find(y => y.kind === kind); if (!v) return;
+  const tratti = origineTratti(kind, v.x, c);
+  openModal({ render: () => `
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="max-width:460px">
+        <h3 style="font-family:var(--font-head); color:var(--gold); margin-bottom:2px">${v.icona} ${escapeHtml(v.nome || v.etichetta)}</h3>
+        <div class="muted" style="font-size:.72rem; margin-bottom:10px">${escapeHtml(v.etichetta)}${v.x ? ' · ' + escapeHtml(origineFonte(v.x)) : ''}</div>
+        ${tratti.length ? tratti.map(t => `<div class="attack-row promemoria" style="display:block; margin-bottom:8px">
+            <div class="attack-name" style="margin-bottom:3px">${escapeHtml(t.name)}</div>
+            <div class="muted" style="font-size:.8rem; white-space:pre-wrap">${escapeHtml(t.desc || '')}</div>
+          </div>`).join('')
+          : `<p class="muted" style="font-size:.84rem">${v.x ? 'Questa voce non porta con sé nessun tratto scritto.' : 'Il nome è scritto a mano: non è agganciato a niente che tu abbia caricato, quindi non ci sono tratti da mostrare.'}</p>`}
+        <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModal()">Chiudi</button>
+      </div>
+    </div>` });
+}
+/* Il riquadro grande, nella Storia */
+function origineRiquadroHTML(c){
+  const voci = origineVoci(c);
+  if (!voci.length) return '';
+  return `
+    <div class="divider"><span class="flourish">❧</span><span>Origini</span></div>
+    <div class="card" style="padding:6px">
+      ${voci.map(v => {
+        const tratti = origineTratti(v.kind, v.x, c);
+        return `<button class="attack-row origini-card" onclick="origineApri('${c.id}','${v.kind}')">
+          <span class="origini-ico">${v.icona}</span>
+          <span class="attack-main">
+            <span class="attack-name">${escapeHtml(v.nome || '— non scelto —')}</span>
+            <span class="muted" style="font-size:.72rem">${escapeHtml(v.etichetta)}${v.x ? ' · ' + escapeHtml(origineFonte(v.x)) : ' · scritto a mano'}</span>
+          </span>
+          <span class="badge">${tratti.length ? tratti.length + (tratti.length === 1 ? ' tratto' : ' tratti') : '—'}</span>
+        </button>`;
+      }).join('')}
+    </div>`;
+}
+
 /* ─── 19. STORIA / BACKGROUND ─── */
 function renderSheetBackground(c){
   return `
+    ${origineRiquadroHTML(c)}
+    <div class="divider"><span class="flourish">❧</span><span>Scegli</span></div>
     <div class="field">
       <label>Background</label>
       <div class="chip-row" style="margin-bottom:8px;">
@@ -3303,7 +3417,12 @@ function renderSheetBackground(c){
     <div class="field"><textarea style="min-height:220px;" placeholder="Da dove viene questo personaggio? Cosa lo spinge all'avventura?" oninput="updateCharField('${c.id}','backstory',this.value)">${escapeHtml(c.backstory||'')}</textarea></div>
   `;
 }
-function setBackgroundPreset(charId, val){ updateCharField(charId, 'background', val); render(); }
+function setBackgroundPreset(charId, val){
+  updateCharField(charId, 'background', val);
+  const c = charById(charId);
+  if (c && typeof riallineaOrigini === 'function'){ riallineaOrigini(c); scheduleSave('characters', c); }
+  render();
+}
 
 /* ─── 20. GRIMORIO — compendio incantesimi ─── */
 function allSpells(){
@@ -5099,6 +5218,16 @@ function globalSearchResults(q){
       push('I tuoi PNG', '👤', p.name || 'Senza nome', p.type || '', `closeModal(); openNpcForm('${p.id}')`);
   });
 
+  /* Le creature che il master ha messo in comune col tavolo si cercavano
+     da nessuna parte: gli incantesimi condivisi saltavano fuori solo
+     perche' allSpells() li mescola ai tuoi, i mostri no. */
+  (state.sharedNpcs || []).forEach(p => {
+    if (norm(p.name||'').includes(n) || norm(p.type||'').includes(n))
+      push('Dal tavolo', '⚔️', p.name || 'Senza nome',
+        [p.type || '', p.sharedByName ? ('condiviso da ' + p.sharedByName) : ''].filter(Boolean).join(' · '),
+        `closeModal(); apriMostroCondiviso('${jsStr(p.id)}')`);
+  });
+
   if (typeof CONDITIONS !== 'undefined') CONDITIONS.forEach(cd => {
     if (norm(cd.name).includes(n))
       push('Condizioni', cd.icon, cd.name, cd.desc, `closeModal(); infoDialog('${jsStr(cd.icon + ' ' + cd.name)}','${jsStr(cd.desc)}')`);
@@ -5125,9 +5254,16 @@ function globalSearchResults(q){
         `closeModal(); goView('dm'); setDmTab('journal'); openJournalEntry('${e.id}')`);
   });
 
-  (state.homebrew || []).forEach(h => {
+  /* Le tue aggiunte E quelle del tavolo: homebrewOf() le mescola gia'
+     saltando i doppioni, la ricerca leggeva solo le tue. */
+  const aggiunte = (typeof homebrewOf === 'function')
+    ? ['race','subclass','background'].reduce((a,k)=>a.concat(homebrewOf(k).map(h=>({...h, kind:k}))), [])
+    : (state.homebrew || []);
+  aggiunte.forEach(h => {
     if (norm(h.name||'').includes(n))
-      push('Aggiunte personali', '✍️', h.name, (HB_KINDS[h.kind] ? HB_KINDS[h.kind].label : ''), `closeModal(); goView('settings')`);
+      push(h.fromCampaign ? 'Dal tavolo' : 'Aggiunte personali', h.fromCampaign ? '⚔️' : '✍️', h.name,
+        [(HB_KINDS[h.kind] ? HB_KINDS[h.kind].label : ''), h.sharedByName ? ('condiviso da ' + h.sharedByName) : ''].filter(Boolean).join(' · '),
+        `closeModal(); goView('settings')`);
   });
 
   return out.slice(0, 60);

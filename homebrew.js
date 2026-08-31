@@ -58,13 +58,76 @@ function subclassesFor(classId){
   })));
 }
 
+/* ─── Il legame fra una scheda e la roba che hai caricato tu ───
+   raceId e bgId si scrivevano alla creazione del personaggio e poi non
+   li leggeva piu' nessuno: la scheda teneva solo il nome scritto, cosi'
+   i tratti della tua razza e i benefici del tuo background non
+   arrivavano da nessuna parte. La sottoclasse invece il legame ce
+   l'aveva gia' (e infatti le sue meccaniche funzionavano). */
+function razzaDi(c){
+  if (!c) return null;
+  const tutte = allRaces();
+  if (c.raceId){ const r = tutte.find(x => x.id === c.raceId); if (r) return r; }
+  const n = norm(c.race || ''); if (!n) return null;
+  return tutte.find(x => norm(x.name) === n) || null;
+}
+function backgroundDi(c){
+  if (!c) return null;
+  const tutti = allBackgrounds();
+  if (c.bgId){ const b = tutti.find(x => x.id === c.bgId); if (b) return b; }
+  const n = norm(c.background || ''); if (!n) return null;
+  return tutti.find(x => norm(x.name) === n) || null;
+}
+/* Quando il nome lo scrivi a mano: se quello che hai scritto e' una cosa
+   che hai caricato, la scheda la riaggancia; se non lo e' piu', il
+   legame si stacca invece di restare a puntare nel vuoto. */
+function riallineaOrigini(c){
+  if (!c) return;
+  const nR = norm(c.race || '');
+  /* Un id gia' buono non si tocca: chi ha creato il personaggio con la
+     procedura guidata puo' avere scritto la SOTTORAZZA («Alto Elfo»)
+     mentre l'id punta alla razza («Elfo»). Azzerarlo sarebbe stato un
+     danno, non una pulizia. */
+  const raz = allRaces();
+  const combacia = (x) => x && (norm(x.name) === nR || (x.subraces || []).some(sr => norm(sr.name) === nR));
+  const attuale = c.raceId ? raz.find(x => x.id === c.raceId) : null;
+  if (!combacia(attuale)) c.raceId = (raz.find(combacia) || {}).id || '';
+
+  const nB = norm(c.background || '');
+  const bgs = allBackgrounds();
+  const bgAttuale = c.bgId ? bgs.find(x => x.id === c.bgId) : null;
+  if (!bgAttuale || norm(bgAttuale.name) !== nB){
+    const b = bgs.find(x => norm(x.name) === nB);
+    c.bgId = b ? b.id : '';
+  }
+}
+/* Se rinomini una tua razza o un tuo background, le schede che ci sono
+   attaccate seguono: altrimenti il legame resta buono ma sulla scheda
+   si continua a leggere il vecchio nome. */
+function rinominaSulleSchede(obj, nomePrima){
+  if (!obj || !nomePrima || nomePrima === obj.name) return 0;
+  let quante = 0;
+  (state.characters || []).forEach(c => {
+    if (obj.kind === 'race' && c.raceId === obj.id && c.race !== obj.name){
+      c.race = obj.name; scheduleSave('characters', c); quante++;
+    }
+    if (obj.kind === 'background' && c.bgId === obj.id && c.background !== obj.name){
+      c.background = obj.name; scheduleSave('characters', c); quante++;
+    }
+  });
+  return quante;
+}
+
 /* ─── Salvataggio ─── */
 function saveHomebrew(obj){
   obj.updatedAt = Date.now();
   const i = (state.homebrew || []).findIndex(h => h.id === obj.id);
+  const nomePrima = i >= 0 ? state.homebrew[i].name : '';
   if (i >= 0) state.homebrew[i] = obj; else state.homebrew.push(obj);
+  const seguite = rinominaSulleSchede(obj, nomePrima);
   saveLocal();
   fsSet('homebrew', obj);
+  if (seguite) toast('✍️ Aggiornato anche su ' + seguite + (seguite === 1 ? ' scheda' : ' schede'));
 }
 function deleteHomebrew(id){
   if (typeof nelCestino === 'function') nelCestino('homebrew', (state.homebrew||[]).find(h => h.id === id));

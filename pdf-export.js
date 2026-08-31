@@ -255,7 +255,11 @@ async function drawSheet(S, c, lib, doc, fonts){
   }
   S.page.drawText(wa(c.name || 'Senza nome'), { x:textLeft, y:S.y-20, size:21, font:fonts.bold, color:rgb(...PDFX.ink) });
   S.y -= 26;
-  const sub = [c.classField || 'Avventuriero', (c.level||1) + '° livello', c.race, c.background, c.alignment].filter(Boolean).join('  ·  ');
+  /* La sottoclasse mancava dalla riga sotto il nome: chi stampava la
+     scheda si ritrovava un Druido senza circolo. */
+  const sc = (typeof sottoclasseDi === 'function') ? sottoclasseDi(c) : null;
+  const sub = [c.classField || 'Avventuriero', sc ? sc.name : '', (c.level||1) + '° livello',
+               c.race, c.background, c.alignment].filter(Boolean).join('  ·  ');
   S.page.drawText(wa(sub), { x:textLeft, y:S.y-9, size:9.2, font:fonts.it, color:rgb(...PDFX.soft), maxWidth:S.right-textLeft-90 });
   if (c.playerName){
     const t = 'Giocatore: ' + c.playerName;

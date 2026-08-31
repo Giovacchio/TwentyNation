@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 7.8** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 7.9** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -107,6 +107,14 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 ---
 
 ## Da dove ripartire
+
+0. **L'integrazione col materiale caricato è stata ripassata punto per punto nella v7.9**
+   e le quattro falle trovate sono chiuse: il riquadro «Origini» sulla scheda, il legame
+   `raceId`/`bgId` reso vero e non più scritto-e-dimenticato, la ricerca globale estesa a
+   `sharedHomebrew` e `sharedNpcs`, la sottoclasse sul PDF. Il metodo che le ha trovate —
+   costruire un personaggio che usa SOLO roba caricata e poi cercarlo in ogni schermata —
+   vale la pena rifarlo dopo ogni funzione nuova: tre delle quattro erano invisibili ai
+   test perché i test partivano già dall'oggetto giusto invece che dalla scheda.
 
 1. **Il master vede il gruppo** — PF, CA e percezione passiva dei giocatori visibili al
    master in tempo reale. Il salto più grande rimasto, ma tocca privacy e regole: va
