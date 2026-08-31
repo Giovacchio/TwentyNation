@@ -1,5 +1,31 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.2.1 — 31 agosto 2026
+**Ritocchi alla scheda, e due difetti veri nel creatore.**
+
+### 🧹 La scheda si alleggerisce
+- **Le condizioni sono passate nel menu «⋯».** Ne metti una ogni tanto, e tenevano una riga fissa in cima alla scheda per un pulsante «＋ Condizione» quasi sempre da solo. **Quelle attive restano visibili** e si tolgono toccandole: quelle contano.
+- **Gli effetti a tempo restano in scheda**, perché cambiano di turno in turno.
+- **I riposi via dal blocco dei punti ferita**: erano già nel menu «⋯» e nel 🏕️ in cima. Tre pulsanti per la stessa cosa.
+- **Il tiro salvezza di Costituzione non è più ripetuto**: stava nel riquadro insieme a competenza e CD, ed era già nell'elenco dei tiri salvezza due dita più sotto.
+
+### ✦ Un privilegio apre solo sé stesso
+Toccando «Anima Radiosa» si apriva **tutto l'archetipo**, con dentro anche i privilegi che non c'entravano: si cercava una riga e usciva un muro di tre schede. Adesso ognuno apre soltanto sé stesso, col suo testo e da dove viene.
+
+### ⌨️ Scrivere le caratteristiche a mano: adesso si può
+Era **impossibile**. A ogni tasto si ridisegnava tutta la finestra e il numero veniva subito riportato dentro i limiti: scrivendo «14», il primo «1» diventava 8 e da lì in poi si scriveva a caso. La casella per giunta non aveva un identificativo, quindi il ridisegno le portava via anche il fuoco.
+
+Adesso **mentre scrivi si aggiorna solo quello che dipende dal valore** — punteggio finale, modificatore, punti spesi — senza ridisegnare niente, e la correzione entro i limiti avviene **quando esci dalla casella**.
+
+> Trovato per strada: quella correzione, chiamata all'uscita dal campo, **faceva esplodere la finestra** — «il nodo non è più figlio di questo nodo». Riscrivere la finestra mentre il browser sta smontando il fuoco non si può fare: adesso il ridisegno è rimandato di un giro.
+
+### 💪 Gli aumenti di caratteristica si mettono lì
+Prima c'era solo un cartello: «hai 2 punti, mettili a mano con l'opzione *A mano*». Cioè: cambia metodo, ricordati da solo quanti punti hai, e sommali tu.
+
+Adesso ci sono i comandi veri, sotto le caratteristiche: **+2 su una** o **+1 su due**, per ogni aumento. Si vede il punteggio prima e dopo (`15 → 17`), il tetto di **20** non si sfonda, i punti in più vengono rifiutati, e c'è un «ricomincia da capo». Contano anche gli aumenti della **seconda classe** in un multiclasse.
+
+> 23 prove nuove in `test-v821.mjs`. Suite completa verde, 1.531 interazioni con zero rotture, audit invariato.
+
 ## v8.2 — 31 agosto 2026
 **Quattro schede invece di cinque, e la principale riordinata per come si gioca davvero.**
 

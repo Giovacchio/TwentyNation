@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.2';
+const APP_VERSION = '8.2.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2205,10 +2205,6 @@ function renderSheetOverview(c){
         </div>
         <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="rollDeathSave('${c.id}')">💀 Tiro salvezza contro morte</button>
         ` : ''}
-        <div class="btn-row" style="margin-top:12px">
-          <button class="btn btn-ghost btn-sm" onclick="openRestModal('${c.id}','short')">☀️ Riposo breve</button>
-          <button class="btn btn-ghost btn-sm" onclick="openRestModal('${c.id}','long')">🌙 Riposo lungo</button>
-        </div>
       </div>
 
       <div class="combat-grid" style="margin-top:10px">
@@ -2246,7 +2242,6 @@ function renderSheetOverview(c){
       </div>
       <div class="combat-grid">
         <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
-        <div class="combat-stat"><div class="v">${signStr(saveMod(c,'con'))}</div><div class="l">TS Cost.</div></div>
         <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
       </div>
       ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
@@ -2575,14 +2570,18 @@ function weaponPickerButton(c){
   return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openGear('${c.id}','armi')">⚔️ Scegli un'arma dalle tabelle</button>`;
 }
 
+/* Gli EFFETTI restano in scheda: cambiano di turno in turno ed è quello
+   che guardi mentre giochi. Le CONDIZIONI sono passate nel menu «⋯»:
+   se ne mette una ogni tanto, e teneva una riga fissa in cima alla
+   scheda per un pulsante «＋ Condizione» quasi sempre da solo.
+   Quelle attive restano visibili, perché quelle contano. */
 function conditionsRowHTML(c){
   const active = (c.conditions||[]).map(id => CONDITION_BY_ID[id]).filter(Boolean);
   const eff = c.effetti || [];
-  return `<div class="chip-row" style="margin-top:10px; align-items:center">
+  return `${active.length ? `<div class="chip-row" style="margin-top:10px; align-items:center">
     ${active.map(cond=>`<button class="chip active" style="background:var(--garnet); border-color:var(--garnet-bright)" onclick="toggleCondition('${c.id}','${cond.id}')" title="${attr(cond.desc)}">${cond.icon} ${cond.name} ✕</button>`).join('')}
-    <button class="chip" onclick="openConditionPicker('${c.id}')">＋ Condizione</button>
-  </div>
-  <div class="chip-row" style="margin-top:8px; align-items:center">
+  </div>` : ''}
+  <div class="chip-row" style="margin-top:${active.length?8:10}px; align-items:center">
     ${eff.map((e,k)=>`<button class="chip effetto ${e.round!=null && e.round<=1?'ultimo':''}" onclick="togliEffettoPg('${c.id}',${k})" title="Tocca per toglierlo">
       ${escapeHtml(e.nome)}${e.round!=null?` <b>${e.round}</b>`:''}${e.durata?` <span class="muted">${escapeHtml(e.durata)}</span>`:''}</button>`).join('')}
     <button class="chip" onclick="apriEffettoPg('${c.id}')">⏳ Effetto</button>
@@ -3510,17 +3509,42 @@ function privilegiAttiviHTML(c){
   const righe = [];
   voci.forEach(v => origineTratti(v.kind, v.x, c).forEach(t => righe.push({ ...t, da: v.nome, kind: v.kind })));
   if (!righe.length) return '';
+  /* Toccandone uno si apriva TUTTO l'archetipo, con dentro anche i
+     privilegi che non c'entravano: si cercava «Anima Radiosa» e usciva
+     un muro di tre schede. Adesso ognuno apre soltanto sé stesso. */
   return `
     <div class="divider"><span class="flourish">❧</span><span>Privilegi</span></div>
     <div class="list-gap">
-      ${righe.map(r => `<button class="attack-row" style="width:100%; text-align:left"
-          onclick="origineApri('${c.id}','${r.kind}')">
+      ${righe.map((r, i) => `<button class="attack-row" style="width:100%; text-align:left"
+          onclick="apriPrivilegio('${c.id}',${i})">
         <span class="attack-main">
           <span class="attack-name">${escapeHtml(r.name)}</span>
           <span class="muted" style="font-size:.73rem; display:block">${escapeHtml((r.desc||'').slice(0,110))}${(r.desc||'').length>110?'…':''}</span>
         </span>
       </button>`).join('')}
     </div>`;
+}
+/* Le righe si ricalcolano allo stesso modo, così l'indice del pulsante
+   e quello di qui non possono scollarsi. */
+function privilegiAttiviDi(c){
+  const voci = origineVoci(c).filter(v => v.kind !== 'background' && v.x);
+  const righe = [];
+  voci.forEach(v => origineTratti(v.kind, v.x, c).forEach(t => righe.push({ ...t, da: v.nome, kind: v.kind })));
+  return righe;
+}
+function apriPrivilegio(charId, i){
+  const c = charById(charId); if (!c) return;
+  const r = privilegiAttiviDi(c)[i]; if (!r) return;
+  const icona = r.kind === 'race' ? '🧝' : '⚔️';
+  openModal({ render: () => `
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="max-width:440px">
+        <h3 style="font-family:var(--font-head); color:var(--gold); margin-bottom:2px">${icona} ${escapeHtml(r.name)}</h3>
+        <div class="muted" style="font-size:.72rem; margin-bottom:12px">${escapeHtml(r.da || '')}</div>
+        <p style="font-size:.88rem; line-height:1.55; white-space:pre-wrap">${escapeHtml(r.desc || 'Nessun testo per questo privilegio.')}</p>
+        <button class="btn btn-ghost btn-block" style="margin-top:14px" onclick="closeModal()">Chiudi</button>
+      </div>
+    </div>` });
 }
 
 /* Il riquadro grande, nella Storia */
@@ -5398,6 +5422,7 @@ function openSheetMenu(charId){
   openModal({ render: () => modalShell('⋯ ' + escapeHtml(c.name || 'Scheda'), `
     <div class="list-gap">
       ${item('🏕️', 'Riposo', 'Breve o lungo, con i dadi vita e le risorse', `openRestModal('${c.id}')`)}
+      ${item('🩸', 'Condizioni', ((c.conditions||[]).length ? (c.conditions||[]).map(id => (CONDITION_BY_ID[id]||{}).name || id).join(', ') : 'Prono, avvelenato, affascinato…'), `openConditionPicker('${c.id}')`)}
       ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
       ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
       ${(state.campaign && state.campaign.id && typeof apriCondividiPg === 'function')

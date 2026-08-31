@@ -14,7 +14,7 @@ function openBuilder(){
   bld = {
     step: 0,
     raceId: null, subraceId: null, raceBonusPick: [], raceSkills: [],
-    suppliche: [], pactBoon: '',
+    suppliche: [], pactBoon: '', asi: {},
     classId: null, level: 1, subclassId: null, classSkills: [],
     bgId: null,
     method: 'pointbuy',
@@ -66,7 +66,7 @@ function builderHTML(){
 function bldNav(canGo, label){
   return `<div class="btn-row" style="margin-top:18px">
     ${bld.step > 0 ? `<button class="btn btn-ghost" onclick="bldBack()">← Indietro</button>` : `<button class="btn btn-ghost" onclick="closeModal()">Annulla</button>`}
-    <button class="btn btn-primary" ${canGo?'':'disabled'} onclick="${bld.step === BUILDER_STEPS.length-1 ? 'finishBuilder()' : 'bldNext()'}">${label || 'Avanti →'}</button>
+    <button class="btn btn-primary" id="bld-avanti" ${canGo?'':'disabled'} onclick="${bld.step === BUILDER_STEPS.length-1 ? 'finishBuilder()' : 'bldNext()'}">${label || 'Avanti →'}</button>
   </div>`;
 }
 
@@ -342,10 +342,41 @@ function racialBonusMap(){
 }
 function finalAbilities(){
   const bonus = racialBonusMap();
+  const asi = bld.asi || {};
   const out = {};
-  ABILITIES.forEach(a => { out[a.key] = clamp((bld.base[a.key]||8) + bonus[a.key], 1, 30); });
+  /* 20 e' il tetto di un personaggio: gli aumenti non lo superano */
+  ABILITIES.forEach(a => {
+    const senzaAsi = (bld.base[a.key]||8) + bonus[a.key];
+    out[a.key] = clamp(senzaAsi + (asi[a.key]||0), 1, 30);
+  });
   return out;
 }
+/* Quanti punti di aumento ti spettano, e quanti ne hai messi. */
+function asiTotali(){
+  const c = CLASS_BY_ID[bld.classId];
+  const uno = c ? c.asi.filter(l => l <= bld.level).length : 0;
+  const due = (bld.classId2 && CLASS_BY_ID[bld.classId2])
+    ? CLASS_BY_ID[bld.classId2].asi.filter(l => l <= (bld.level2||0)).length : 0;
+  return (uno + due) * 2;
+}
+function asiSpesi(){
+  return ABILITIES.reduce((n,a) => n + ((bld.asi||{})[a.key]||0), 0);
+}
+function bldAsi(key, d){
+  bld.asi = bld.asi || {};
+  const ora = bld.asi[key] || 0;
+  if (d > 0){
+    if (asiSpesi() >= asiTotali()) { toast('Hai già distribuito tutti i punti'); return; }
+    const bonus = racialBonusMap();
+    if ((bld.base[key]||8) + bonus[key] + ora >= 20){ toast('20 è il massimo'); return; }
+    bld.asi[key] = ora + 1;
+  } else {
+    if (ora <= 0) return;
+    bld.asi[key] = ora - 1;
+  }
+  renderModalRoot();
+}
+function bldAsiAzzera(){ bld.asi = {}; renderModalRoot(); }
 function pointsSpent(){
   return ABILITIES.reduce((n,a) => n + (POINT_COSTS[bld.base[a.key]] != null ? POINT_COSTS[bld.base[a.key]] : 0), 0);
 }
@@ -361,7 +392,7 @@ function stepAbilities(){
         `<button class="${bld.method===k?'active':''}" onclick="setBldMethod('${k}')">${l}</button>`).join('')}
     </div>
     ${bld.method==='pointbuy' ? `<div class="card" style="margin-bottom:12px; ${spent>27?'border-color:var(--garnet)':''}">
-      <div class="row-between"><span class="muted">Punti spesi</span><b style="${spent>27?'color:var(--garnet-bright)':''}">${spent} / 27</b></div>
+      <div class="row-between"><span class="muted">Punti spesi</span><b id="bld-spesi" style="${spent>27?'color:var(--garnet-bright)':''}">${spent} / 27</b></div>
       <div class="muted" style="font-size:.74rem; margin-top:6px">Da 8 a 15. I valori alti costano di più: 14 costa 7 punti, 15 ne costa 9.</div>
     </div>` : ''}
     ${bld.method==='array' ? `<div class="card" style="margin-bottom:12px"><div class="muted" style="font-size:.8rem">Assegna 15, 14, 13, 12, 10 e 8 alle sei caratteristiche: ognuno una volta sola.</div></div>` : ''}
@@ -380,15 +411,12 @@ function stepAbilities(){
           </div>
           ${abilityControl(a.key)}
           <div style="text-align:right; min-width:56px">
-            <div style="font-family:var(--font-head); font-size:1.15rem; color:var(--gold)">${fin[a.key]}</div>
-            <div class="muted" style="font-size:.7rem">${modStr(fin[a.key])}</div>
+            <div id="bld-fin-${a.key}" style="font-family:var(--font-head); font-size:1.15rem; color:var(--gold)">${fin[a.key]}</div>
+            <div class="muted" id="bld-mod-${a.key}" style="font-size:.7rem">${modStr(fin[a.key])}</div>
           </div>
         </div>`).join('')}
     </div>
-    ${asiCount ? `<div class="card" style="margin-top:12px; border-color:var(--gold-dim)">
-      <b style="font-size:.85rem">Hai ${asiCount*2} punti da aumenti di caratteristica</b>
-      <div class="muted" style="font-size:.78rem">Al ${c.asi.filter(l=>l<=bld.level).join('°, ')}° livello. Aggiungili pure qui sopra con "A mano", oppure lasciali e prendi dei talenti.</div>
-    </div>` : ''}
+    ${asiHTML()}
     ${bldNav(bld.method!=='pointbuy' || spent<=27)}
   `;
 }
@@ -413,16 +441,54 @@ function abilityControl(key){
   const max = bld.method === 'pointbuy' ? 15 : 20;
   return `<div style="display:flex; align-items:center; gap:5px">
     <button class="stepper-btn" style="width:32px;height:32px;font-size:1rem" onclick="setBase('${key}', ${v-1})">−</button>
-    <input type="number" inputmode="numeric" min="${min}" max="${max}" value="${v}" style="width:52px; text-align:center; padding:7px; border-radius:9px; border:1px solid var(--line); background:var(--bg-1); font-family:var(--font-ui); font-weight:700"
-      oninput="setBase('${key}', this.value)">
+    <input type="number" inputmode="numeric" min="${min}" max="${max}" value="${v}" id="bld-ab-${key}"
+      style="width:52px; text-align:center; padding:7px; border-radius:9px; border:1px solid var(--line); background:var(--bg-1); font-family:var(--font-ui); font-weight:700"
+      oninput="setBaseScrivendo('${key}', this.value)" onchange="setBase('${key}', this.value)">
     <button class="stepper-btn" style="width:32px;height:32px;font-size:1rem" onclick="setBase('${key}', ${v+1})">+</button>
   </div>`;
 }
+/* Scrivere «14» a mano era impossibile: a ogni tasto si ridisegnava
+   tutta la finestra e il numero veniva subito riportato dentro i limiti,
+   quindi il primo «1» diventava 8 e da lì in poi si scriveva a caso.
+   Adesso mentre scrivi si aggiorna soltanto quello che dipende dal
+   valore — niente ridisegno, niente numero corretto sotto le dita — e la
+   correzione entro i limiti avviene quando esci dalla casella. */
+function setBaseScrivendo(key, val){
+  if (val === '' || val === '-') return;          // stai ancora scrivendo
+  const n = parseInt(val, 10);
+  if (!Number.isFinite(n)) return;
+  bld.base[key] = n;
+  aggiornaDerivate();
+}
+function aggiornaDerivate(){
+  const fin = finalAbilities();
+  ABILITIES.forEach(a => {
+    const f = document.getElementById('bld-fin-' + a.key);
+    const m = document.getElementById('bld-mod-' + a.key);
+    if (f) f.textContent = fin[a.key];
+    if (m) m.textContent = modStr(fin[a.key]);
+  });
+  const sp = document.getElementById('bld-spesi');
+  const spent = pointsSpent();
+  if (sp){
+    sp.textContent = spent + ' / 27';
+    sp.style.color = spent > 27 ? 'var(--garnet-bright)' : '';
+  }
+  const av = document.getElementById('bld-avanti');
+  if (av && bld.method === 'pointbuy') av.disabled = spent > 27;
+}
+/* Chiamata quando ESCI dalla casella (onchange): qui si riporta il
+   numero dentro i limiti. Il ridisegno va rimandato di un giro: uscendo
+   dal campo il browser sta ancora smontando il fuoco, e riscrivere la
+   finestra in quell'istante fa fallire l'operazione con «il nodo non è
+   più figlio di questo nodo». */
 function setBase(key, val){
   const min = bld.method === 'pointbuy' ? 8 : 1;
   const max = bld.method === 'pointbuy' ? 15 : 20;
+  const prima = bld.base[key];
   bld.base[key] = val === '' ? min : clamp(parseInt(val)||min, min, max);
-  renderModalRoot();
+  if (bld.base[key] === prima){ aggiornaDerivate(); return; }   // niente da ridisegnare
+  setTimeout(() => { if (state.modal) renderModalRoot(); }, 0);
 }
 function setBldMethod(m){
   bld.method = m;
@@ -899,4 +965,50 @@ function stepSuppliche(){
       Ne mancano? Le carichi dalla scheda, dopo: restano nel tuo account.
     </div>
     ${bldNav(true)}`;
+}
+
+/* ─── Aumenti di caratteristica, qui e adesso ─────────────────────
+   Prima c'era solo un cartello: «hai 2 punti, mettili a mano con
+   l'opzione A mano». Cioè: cambia metodo, ricordati da solo quanti
+   punti hai, e sommali tu. Adesso si spendono qui, sopra il punteggio
+   base, e restano riconoscibili — così sai sempre quanto viene dal
+   tiro e quanto dai livelli. */
+function asiHTML(){
+  const tot = asiTotali();
+  if (!tot) return '';
+  const c = CLASS_BY_ID[bld.classId];
+  const spesi = asiSpesi();
+  const bonus = racialBonusMap();
+  const livelli = c ? c.asi.filter(l => l <= bld.level) : [];
+  return `
+    <div class="card" style="margin-top:14px; border-color:var(--gold-dim)">
+      <div class="row-between" style="margin-bottom:4px">
+        <b style="font-size:.85rem">Aumenti di caratteristica</b>
+        <b style="color:${spesi===tot?'var(--gold)':'var(--ink-soft)'}">${spesi} / ${tot}</b>
+      </div>
+      <div class="muted" style="font-size:.75rem; margin-bottom:10px">
+        ${livelli.length ? 'Dal ' + livelli.join('°, dal ') + '° livello. ' : ''}
+        Puoi mettere <b>+2 su una</b> caratteristica o <b>+1 su due</b>, per ogni aumento.
+        Oppure lasciali stare e prendi un talento.
+      </div>
+      <div class="list-gap">
+        ${ABILITIES.map(a => {
+          const messo = (bld.asi||{})[a.key] || 0;
+          const senza = (bld.base[a.key]||8) + bonus[a.key];
+          const alTetto = senza + messo >= 20;
+          return `<div class="attack-row" style="${messo?'border-color:var(--gold)':''}">
+            <div class="attack-main" style="pointer-events:none">
+              <div class="attack-name">${a.label}</div>
+              <div class="muted" style="font-size:.71rem">${senza}${messo?` → <b style="color:var(--gold)">${senza+messo}</b>`:''}${alTetto?' · al massimo':''}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px">
+              <button class="stepper-btn" style="width:32px;height:32px" onclick="bldAsi('${a.key}',-1)" ${messo?'':'disabled'}>−</button>
+              <div style="width:34px; text-align:center; font-family:var(--font-ui); font-weight:800; color:${messo?'var(--gold)':'var(--ink-soft)'}">${messo?'+'+messo:'—'}</div>
+              <button class="stepper-btn" style="width:32px;height:32px" onclick="bldAsi('${a.key}',1)" ${(spesi>=tot||alTetto)?'disabled':''}>+</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${spesi ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="bldAsiAzzera()">Ricomincia da capo</button>` : ''}
+    </div>`;
 }

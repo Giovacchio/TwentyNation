@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.2** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.2.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
