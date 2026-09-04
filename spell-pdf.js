@@ -8,10 +8,135 @@
    non tocca il contenuto pubblico dell'app.
    ══════════════════════════════════════════════════════════════ */
 
+/* ═══ LA LETTURA DEI PDF, UNA VOLTA SOLA ═══════════════════════
+   Ogni lettore dell'app si ricostruiva le righe per conto suo, e il piu'
+   ingenuo raggruppava i pezzi per coordinata Y **su tutta la pagina**:
+   su un manuale a due colonne questo incolla insieme la riga di sinistra
+   e quella di destra. Il risultato lo si vedeva sulle suppliche —
+   «Sguardo del Nulla Passo di Cenere», due nomi fusi in uno, e i testi
+   delle due colonne mescolati riga per riga.
+
+   Qui le colonne si CONTANO, non si danno per scontate: si guarda dove
+   il testo non arriva mai (i corridoi bianchi verticali) e si taglia li'.
+   Una pagina a colonna unica resta una colonna sola; una a tre, tre.
+   Insieme alle righe torna anche il corpo del carattere, che e' il modo
+   piu' affidabile di riconoscere un titolo: nei manuali il nome di una
+   voce e' scritto piu' grande del testo, e questo lo sa la pagina, non
+   una regola sulla lunghezza della riga. */
+
+/* I corridoi bianchi fra le colonne. Torna i confini in x. */
+function corridoiVerticali(pezzi, larghezza){
+  if (pezzi.length < 40) return [];                 // troppo poco testo per fidarsi
+  const passo = Math.max(4, larghezza / 120);
+  const celle = new Array(Math.ceil(larghezza / passo)).fill(0);
+  pezzi.forEach(p => {
+    const da = Math.max(0, Math.floor(p.x / passo));
+    const a  = Math.min(celle.length - 1, Math.floor((p.x + (p.w || 0)) / passo));
+    for (let i = da; i <= a; i++) celle[i]++;
+  });
+  // il margine esterno non e' un corridoio: si guarda solo dentro al testo
+  let primo = celle.findIndex(c => c > 0);
+  let ultimo = celle.length - 1; while (ultimo > 0 && !celle[ultimo]) ultimo--;
+  if (primo < 0 || ultimo - primo < 10) return [];
+  const minLargo = Math.max(2, Math.round((larghezza * 0.035) / passo));  // ~3,5% della pagina
+  const tagli = [];
+  let i = primo;
+  while (i <= ultimo){
+    if (celle[i] === 0){
+      let j = i; while (j <= ultimo && celle[j] === 0) j++;
+      if (j - i >= minLargo) tagli.push(((i + j) / 2) * passo);
+      i = j;
+    } else i++;
+  }
+  /* Un corridoio va bene solo se le colonne che ritaglia hanno davvero
+     del testo per conto loro: un rientro largo o un titolo centrato
+     lasciano buchi che non sono colonne. */
+  return tagli.filter(x => {
+    const sin = pezzi.filter(p => p.x + (p.w||0) <= x).length;
+    const des = pezzi.filter(p => p.x > x).length;
+    return sin >= 12 && des >= 12;
+  });
+}
+
+/* Da una pagina di pdf.js alle sue righe, colonna per colonna.
+   Ogni riga: { t, x, y, dim, col } — `dim` e' il corpo piu' grande
+   usato nella riga, che serve a capire se e' un titolo. */
+function pdfRighePagina(tc, larghezza){
+  const pezzi = tc.items
+    .map(i => ({ t: String(i.str || ''), x: i.transform[4], y: i.transform[5],
+                 w: i.width || 0, h: i.height || 0 }))
+    .filter(p => p.t && p.t.trim());
+  if (!pezzi.length) return [];
+
+  const tagli = corridoiVerticali(pezzi, larghezza || 595);
+  const colonnaDi = (p) => { let n = 0; tagli.forEach(x => { if (p.x >= x) n++; }); return n; };
+
+  const perCol = new Map();
+  pezzi.forEach(p => {
+    const c = colonnaDi(p);
+    if (!perCol.has(c)) perCol.set(c, []);
+    perCol.get(c).push(p);
+  });
+
+  const righe = [];
+  [...perCol.keys()].sort((a,b)=>a-b).forEach(c => {
+    const col = perCol.get(c).sort((a,b) => (b.y - a.y) || (a.x - b.x));
+    let cur = null;
+    col.forEach(p => {
+      /* stessa riga entro mezza altezza di carattere: arrotondare la y
+         a numero intero spezzava le righe con apici e accenti */
+      const tolleranza = Math.max(2, (p.h || 10) * 0.5);
+      if (!cur || Math.abs(p.y - cur.y) > tolleranza){
+        cur = { t: p.t, x: p.x, y: p.y, dim: p.h || 10, col: c, fine: p.x + p.w };
+        righe.push(cur);
+        return;
+      }
+      /* spazio vero o parola spezzata? lo dice la distanza, non il caso */
+      const buco = p.x - cur.fine;
+      const largo = buco > Math.max(0.9, (p.h || 10) * 0.18);
+      const gia = /\s$/.test(cur.t) || /^\s/.test(p.t);
+      if (largo && !gia) cur.t += ' ';
+      else if (!largo && gia) cur.t = cur.t.replace(/\s+$/, '');
+      cur.t += p.t;
+      cur.fine = p.x + p.w;
+      if ((p.h || 0) > cur.dim) cur.dim = p.h;
+    });
+  });
+  return righe.map(r => ({ ...r, t: r.t.replace(/\s+/g, ' ').trim() })).filter(r => r.t);
+}
+
+/* Tutte le righe di un PDF, gia' in ordine di lettura. */
+async function pdfRighe(buffer, from, to){
+  const lib = await loadPdfJs();
+  const doc = await lib.getDocument({ data: new Uint8Array(bufferCopia(buffer)) }).promise;
+  const primo = clamp(from || 1, 1, doc.numPages);
+  const ultimo = clamp(to || doc.numPages, primo, doc.numPages);
+  const fuori = [];
+  for (let p = primo; p <= ultimo; p++){
+    const pagina = await doc.getPage(p);
+    const vp = pagina.getViewport({ scale: 1 });
+    const tc = await pagina.getTextContent();
+    pdfRighePagina(tc, vp.width).forEach(r => fuori.push({ ...r, pagina: p }));
+    if (p % 12 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+  const pagine = doc.numPages;
+  try { doc.destroy(); } catch(e){}
+  return { righe: fuori, pagine };
+}
+/* Il corpo del testo normale: la dimensione piu' usata nella pagina.
+   Tutto quello che e' scritto piu' grande e' un titolo. */
+function corpoDelTesto(righe){
+  const conti = {};
+  righe.forEach(r => { const k = Math.round((r.dim || 10) * 2) / 2; conti[k] = (conti[k] || 0) + r.t.length; });
+  let vinc = 10, max = -1;
+  Object.keys(conti).forEach(k => { if (conti[k] > max){ max = conti[k]; vinc = Number(k); } });
+  return vinc;
+}
+
 /* Estrae il testo tenendo conto delle colonne e delle righe */
 async function extractPdfColumns(buffer, from, to, onProgress){
   const lib = await loadPdfJs();
-  const doc = await lib.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const doc = await lib.getDocument({ data: new Uint8Array(bufferCopia(buffer)) }).promise;
   const first = clamp(from || 1, 1, doc.numPages);
   const last = clamp(to || doc.numPages, first, doc.numPages);
   const chunks = [];
@@ -21,16 +146,21 @@ async function extractPdfColumns(buffer, from, to, onProgress){
     const page = await doc.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
-    const mid = vp.width / 2;
-
-    // due colonne: sinistra e destra rispetto alla metà della pagina
-    const cols = [[], []];
-    tc.items.forEach(it => {
-      if (!it.str || !it.str.trim()) return;
-      const x = it.transform ? it.transform[4] : 0;
-      const y = it.transform ? it.transform[5] : 0;
-      cols[x < mid ? 0 : 1].push({ s: it.str, x, y, w: it.width || 0, h: it.height || 10 });
-    });
+    /* Le colonne si CONTANO guardando i corridoi bianchi, invece di
+       tagliare sempre a meta' pagina. Tagliare a meta' funziona sui
+       manuali a due colonne e rovina tutto il resto: su una pagina a
+       colonna unica spezzava ogni riga in due, e la meta' destra di
+       tutte le righe finiva in fondo, staccata dalla sua. */
+    const pezzi = tc.items
+      .map(it => ({ s: it.str, x: it.transform ? it.transform[4] : 0,
+                    y: it.transform ? it.transform[5] : 0,
+                    w: it.width || 0, h: it.height || 10 }))
+      .filter(it => it.s && it.s.trim());
+    const tagli = corridoiVerticali(pezzi.map(p => ({ x:p.x, w:p.w })), vp.width);
+    const quale = (x) => { let n = 0; tagli.forEach(t => { if (x >= t) n++; }); return n; };
+    const cols = [];
+    for (let i = 0; i <= tagli.length; i++) cols.push([]);
+    pezzi.forEach(it => cols[quale(it.x)].push(it));
 
     /* Molti PDF spezzano le parole in tanti pezzetti ("c rac kling"):
        non sono spazi veri, sono solo frammenti vicini. Invece di

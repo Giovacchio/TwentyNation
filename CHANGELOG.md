@@ -1,5 +1,31 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.6 — 4 settembre 2026
+**Le colonne dei PDF si contano, invece di darle per scontate.**
+
+### 🪄 Le suppliche non escono più fuse
+Caricando le suppliche da un manuale uscivano voci come **«Sguardo del Nulla Passo di Cenere»** — due nomi in uno — e i testi delle due colonne mescolati riga per riga.
+
+Il motivo: il lettore rimetteva insieme le righe raggruppando i pezzi **per altezza su tutta la pagina**. Su un foglio a due colonne, la riga di sinistra e quella di destra stanno alla stessa altezza: venivano incollate. Su una pagina piena ogni riga usciva sbagliata, e il guaio si propagava a valle — nomi fusi, prerequisiti finiti nella voce sbagliata, descrizioni tagliate a metà.
+
+Adesso le colonne si **contano**, guardando dove il testo non arriva mai: i corridoi bianchi verticali. Una pagina a colonna unica resta una colonna, una a due ne dà due, una a tre ne dà tre.
+
+### ✒️ Il nome di una supplica si riconosce da com'è scritto
+Prima era tutta un'ipotesi sul testo: riga corta, senza punto finale, in maiuscola. Bastava un nome lungo, o una riga di descrizione breve, per sbagliare — e infatti «Ottieni competenza nell'abilità Furtività e puoi» veniva presa per il nome di una supplica.
+
+Il PDF però lo dice già: nei manuali il nome è scritto **più grande** del testo. Adesso è quello il segnale. Quando la pagina distingue davvero i corpi, ci si fida solo di quelli; l'ipotesi sul testo resta come ripiego per i PDF scritti tutti con lo stesso carattere.
+
+### 📄 Un solo lettore per tutti i PDF
+C'erano tre modi diversi di ricostruire le righe da un PDF, sparsi in tre file, e il più ingenuo era quello usato dalle suppliche. Adesso ce n'è uno solo, e ci passano tutti: suppliche, incantesimi, manuali di razze e sottoclassi, bestiari.
+
+*Onestamente:* sui file di prova che ho, il lettore dei manuali trova **le stesse cose di prima** (5 razze, 6 sottoclassi). Il guadagno misurabile è tutto sulle suppliche — da voci fuse a **19 su 19** pulite. Sul resto è robustezza: le righe ora vengono ordinate davvero invece di arrivare nell'ordine interno del file, e le colonne non si danno più per due.
+
+### 🐛 Lo stesso PDF si può rileggere due volte
+pdf.js si **prende** il buffer che gli dai: dopo una lettura quello di partenza resta svuotato, e una seconda lettura dello stesso file falliva con «detached ArrayBuffer». Adesso ogni lettore gliene passa una copia.
+
+### Prove
+`test-supp-pdf.mjs` (16) su un PDF di prova impaginato **come quelli veri** — due colonne, nome in grassetto più grande, prerequisito in corsivo, testo che va a capo. Controlla che nessun nome sia la fusione di due voci, che nessuna descrizione contenga il nome della successiva, che i prerequisiti restino attaccati alla loro supplica, e poi carica il file **dal pulsante vero** fino all'archivio.
+
 ## v8.5.1 — 3 settembre 2026
 **Controllo completo di tutte le prove, e la ricaduta della pila delle finestre che ci ha trovato dentro.**
 

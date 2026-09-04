@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.5.1** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.6** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -142,6 +142,14 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    ridisegnano da sole (rileggi il PDF), `modalPopTo(fn)` per i «← torna al modulo».
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
+
+0§. **Un solo lettore di PDF (v8.6): `pdfRighe()` in `spell-pdf.js`.** Le colonne si CONTANO
+   coi corridoi bianchi (`corridoiVerticali`), non si tagliano a meta' pagina; le righe
+   tornano col corpo del carattere, che e' il modo giusto di riconoscere un titolo
+   (`corpoDelTesto`). Chi scrive un lettore nuovo passa da li': raggruppare i pezzi per Y
+   su tutta la pagina incolla le due colonne fra loro, ed e' cosi' che uscivano suppliche
+   con due nomi in uno. **pdf.js si prende il buffer**: passargli sempre `bufferCopia()`,
+   se no la seconda lettura dello stesso file fallisce.
 
 0!. **Dopo una CANCELLAZIONE la pila si chiude tutta (v8.5.1).** Con la pila delle finestre,
    il gradino sotto una conferma di eliminazione e' lo schermo che mostrava la cosa appena

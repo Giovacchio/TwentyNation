@@ -165,6 +165,61 @@ function suppDaTabella(righeTutte){
    Un blocco per supplica: la prima riga è il nome, il resto è il testo.
    Si riconosce il nome perché è corto, senza punto finale, e quello che
    segue è una descrizione. */
+/* ─── Spezzare le voci sapendo com'e' IMPAGINATA la pagina ───────
+   Il testo nudo costringe a indovinare quale riga sia un nome: corta,
+   senza punto finale, in maiuscola. Funziona finche' non incontri un
+   nome lungo o una riga di testo breve. Le righe di `pdfRighe` portano
+   con se' il corpo del carattere e la colonna: nei manuali il nome di
+   una voce e' scritto piu' GRANDE del testo, e quello e' un segnale che
+   non si sbaglia. L'euristica sul testo resta come ripiego per i PDF
+   che usano un corpo solo. */
+function suppSpezzaRighe(righe){
+  if (!righe || !righe.length) return [];
+  const corpo = corpoDelTesto(righe);
+  const grande = (r) => (r.dim || 10) >= corpo + 0.6;   // titolo per come e' scritto
+  /* Se la pagina distingue davvero i titoli col corpo del carattere, ci
+     si fida SOLO di quello. Tenere acceso anche il ripiego sul testo
+     faceva danni: «Ottieni competenza nell'abilita' Furtivita' e puoi»
+     e' corta, comincia in maiuscolo e non finisce con un punto — cioe'
+     somiglia a un nome, e si prendeva il posto della voce vera. Il
+     ripiego serve ai PDF scritti con un corpo solo. */
+  const quanteGrandi = righe.filter(grande).length;
+  const tipografiaAffidabile = quanteGrandi >= 2 && quanteGrandi <= righe.length * 0.6;
+  const voci = [];
+  let corrente = null;
+  const chiudi = () => { if (corrente && corrente.testo.trim()) voci.push(corrente); corrente = null; };
+
+  righe.forEach(r => {
+    const t = r.t.trim();
+    if (!t) return;
+    // i prerequisiti vanno controllati PRIMA: cominciano in maiuscolo e
+    // sono corti, quindi somigliano a un nome
+    const pre = /^(prerequisit[oi]|prerequisite)s?\s*[:.]?\s*(.+)$/i.exec(t);
+    if (pre && corrente){
+      corrente.prereqGrezzo = (corrente.prereqGrezzo ? corrente.prereqGrezzo + ', ' : '') + pre[2];
+      return;
+    }
+    const parentesi = /^(.{3,60}?)\s*\(([^)]{3,90})\)\s*$/.exec(t);
+    const nudoBreve = t.length <= 60 && !/[.:;]$/.test(t) && /^[A-ZÀ-Ú0-9]/.test(t) && t.split(/\s+/).length <= 7;
+    const eTitolo = tipografiaAffidabile
+      ? (grande(r) && t.length <= 80 && !/[.;]$/.test(t))
+      : (!!parentesi || nudoBreve);
+    if (eTitolo){
+      chiudi();
+      corrente = { nome: (parentesi ? parentesi[1] : t).trim(),
+                   prereqGrezzo: parentesi ? parentesi[2] : '', testo: '' };
+      return;
+    }
+    if (!corrente) return;
+    /* una riga che finisce senza punto continua in quella dopo: si
+       riattacca con uno spazio, non con un a capo */
+    corrente.testo += (corrente.testo ? ' ' : '') + t;
+  });
+  chiudi();
+  return voci
+    .map(v => ({ ...v, testo: v.testo.replace(/\s+/g, ' ').trim() }))
+    .filter(v => v.nome && v.testo.length > 12);
+}
 function suppSpezza(testo){
   const righe = String(testo || '').replace(/\r/g,'').split('\n').map(r => r.trim());
   const voci = [];
@@ -295,19 +350,24 @@ async function suppUsaFile(input){
   try {
     if (/\.pdf$/i.test(f.name) || /pdf/i.test(f.type||'')){
       toast('Leggo il PDF…');
+      const buf = await f.arrayBuffer();
+      /* La tabella si riconosce dalle coordinate, quindi serve ancora la
+         lettura per righe grezze; la prosa passa dal lettore che CONTA
+         le colonne, se no su un manuale a due colonne le voci di
+         sinistra e di destra si incollano fra loro. */
       const lib = await loadPdfJs();
-      const pdf = await lib.getDocument({ data: await f.arrayBuffer() }).promise;
-      let righe = [], testo = '';
+      const pdf = await lib.getDocument({ data: new Uint8Array(bufferCopia(buf)) }).promise;
+      let griglia = [];
       for (let i = 1; i <= pdf.numPages; i++){
-        const p = await pdf.getPage(i);
-        const tc = await p.getTextContent();
-        righe = righe.concat(pezziPerRiga(tc));
-        testo += righeDaPdf(tc) + '\n';
+        const tc = await (await pdf.getPage(i)).getTextContent();
+        griglia = griglia.concat(pezziPerRiga(tc));
       }
-      /* prima si prova a leggerlo come tabella; se non lo è, come prosa */
-      const daTab = suppDaTabella(righe);
-      if (daTab.length) suppApplica(daTab, 'tabella');
-      else suppAnalizza(testo);
+      try { pdf.destroy(); } catch(e){}
+      const daTab = suppDaTabella(griglia);
+      if (daTab.length){ suppApplica(daTab, 'tabella'); return; }
+
+      const { righe } = await pdfRighe(buf);
+      suppApplica(suppSpezzaRighe(righe), 'prosa');
     } else {
       suppAnalizza(await f.text());
     }
@@ -316,17 +376,11 @@ async function suppUsaFile(input){
     toast('⚠️ Non sono riuscito a leggere il file');
   }
 }
-/* pdf.js dà pezzi sparsi con le coordinate: si rimettono in righe
-   guardando l'altezza, se no il nome e il testo finiscono attaccati. */
-function righeDaPdf(tc){
-  const pezzi = tc.items.map(i => ({ t: i.str, x: i.transform[4], y: Math.round(i.transform[5]) }));
-  const perRiga = new Map();
-  pezzi.forEach(p => { if (!perRiga.has(p.y)) perRiga.set(p.y, []); perRiga.get(p.y).push(p); });
-  return [...perRiga.entries()]
-    .sort((a,b) => b[0] - a[0])
-    .map(([,ps]) => ps.sort((a,b)=>a.x-b.x).map(p=>p.t).join(' ').replace(/\s+/g,' ').trim())
-    .filter(Boolean).join('\n');
-}
+/* ARCHIVIATA: raggruppava i pezzi per coordinata Y su TUTTA la pagina,
+   quindi su un manuale a due colonne incollava la riga di sinistra con
+   quella di destra — ed e' cosi' che uscivano nomi come «Sguardo del
+   Nulla Passo di Cenere». Adesso si usa pdfRighe(), che le colonne le
+   conta. La lascio scritta qui come promemoria di cosa NON rifare. */
 function suppSalva(){
   const tenute = suppDraft.voci.filter(v => v.tenere);
   if (!tenute.length){ toast('Non ne hai segnata nessuna da tenere'); return; }

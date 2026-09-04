@@ -479,6 +479,15 @@ function reopenHbEditor(){ modalPopTo(homebrewEditorHTML); }
 
 /* ─── Lettura di un PDF ─── */
 let __pdfjsPromise = null;
+/* pdf.js si PRENDE il buffer che gli dai: dopo la lettura quello di
+   partenza resta svuotato, e una seconda lettura dello stesso file
+   fallisce con «detached ArrayBuffer». Gliene diamo sempre una copia. */
+function bufferCopia(b){
+  if (!b) return b;
+  if (b instanceof ArrayBuffer) return b.slice(0);
+  if (ArrayBuffer.isView(b)) return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+  return b;
+}
 function loadPdfJs(){
   if (typeof pdfjsLib !== 'undefined') return Promise.resolve(pdfjsLib);
   if (__pdfjsPromise) return __pdfjsPromise;
@@ -498,25 +507,20 @@ function loadPdfJs(){
 // Ricostruisce gli a capo dalle coordinate: senza, il testo estratto
 // diventa un unico blocco e non si capisce più dove finisce un privilegio.
 async function extractPdfText(buffer, from, to){
-  const lib = await loadPdfJs();
-  const doc = await lib.getDocument({ data: new Uint8Array(buffer) }).promise;
-  const first = clamp(from||1, 1, doc.numPages);
-  const last = clamp(to||doc.numPages, first, doc.numPages);
-  const out = [];
-  for (let p = first; p <= last; p++){
-    const page = await doc.getPage(p);
-    const tc = await page.getTextContent();
-    let txt = '', lastY = null;
-    tc.items.forEach(it => {
-      const y = it.transform ? it.transform[5] : null;
-      if (lastY !== null && y !== null && Math.abs(y - lastY) > 3) txt += '\n';
-      txt += it.str;
-      lastY = y;
-    });
-    out.push(txt);
-  }
-  try { doc.destroy(); } catch(e){}
-  return { text: out.join('\n\n'), pages: doc.numPages };
+  /* Prima i pezzi si prendevano NELL'ORDINE in cui li sputa pdf.js, con
+     un a capo ogni volta che cambiava l'altezza. Su un manuale a due
+     colonne non basta: nessuno ordina le righe e nessuno separa le
+     colonne, quindi il testo esce nell'ordine interno del file, che
+     spesso non e' quello di lettura. Adesso passa dal lettore comune,
+     che le colonne le conta e le righe le mette in fila. */
+  const { righe, pagine } = await pdfRighe(buffer, from, to);
+  const perPagina = new Map();
+  righe.forEach(r => {
+    if (!perPagina.has(r.pagina)) perPagina.set(r.pagina, []);
+    perPagina.get(r.pagina).push(r.t);
+  });
+  const out = [...perPagina.keys()].sort((a,b)=>a-b).map(k => perPagina.get(k).join('\n'));
+  return { text: out.join('\n\n'), pages: pagine };
 }
 let hbPdfBuffer = null;
 function hbReadPdf(input){
