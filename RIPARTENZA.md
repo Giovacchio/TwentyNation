@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.5** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.5.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -142,6 +142,13 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    ridisegnano da sole (rileggi il PDF), `modalPopTo(fn)` per i «← torna al modulo».
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
+
+0!. **Dopo una CANCELLAZIONE la pila si chiude tutta (v8.5.1).** Con la pila delle finestre,
+   il gradino sotto una conferma di eliminazione e' lo schermo che mostrava la cosa appena
+   eliminata: tornarci significa mostrare un fantasma, o andare in errore. Chi aggiunge un
+   `confirmDialog` che cancella qualcosa usa `closeModalAll()`, non `closeModal()`.
+   `renderModalRoot` ha anche una rete: se il disegno fallisce scende di un gradino invece
+   di lasciare lo schermo bianco — ma e' una rete, non la soluzione. Prova: `test-cancella.mjs`.
 
 0=. **La scheda finta di prova mentiva (v8.4), e va ricordato.** Le sue caselle di spunta
    erano campi di testo travestiti: nessuna prova aveva mai verificato che competenze,

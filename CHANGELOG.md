@@ -1,5 +1,24 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.5.1 — 3 settembre 2026
+**Controllo completo di tutte le prove, e la ricaduta della pila delle finestre che ci ha trovato dentro.**
+
+Ho rifatto girare **tutte e 47 le suite**, non solo quelle recenti. Due erano rosse.
+
+### 🐛 Cancellare qualcosa lasciava aperta la finestra di quello che avevi cancellato
+Effetto collaterale della pila delle finestre della v8.4. Prima, chiudere chiudeva tutto; adesso chiudere torna indietro di un gradino — e dopo una **cancellazione** il gradino di sotto è proprio lo schermo che parlava della cosa appena eliminata.
+
+- **Diario:** eliminando una voce dal suo modulo, l'app andava in errore (schermo bianco, `TypeError` su una voce che non esisteva più). Questo l'ha trovato `test-v42`.
+- **Personaggio:** eliminandolo dal modulo di modifica, il modulo restava aperto sopra un party ormai vuoto.
+- **PNG, incantesimo tuo, oggetto dello zaino:** stessa cosa, in silenzio — la finestra restava lì a mostrare dati di qualcosa che non c'era più.
+
+Adesso dopo una cancellazione la pila si chiude tutta. E in più c'è una **rete di sicurezza**: se il disegno di una finestra fallisce, l'app scende di un gradino invece di lasciare lo schermo bianco — al massimo chiude, che è come si comportava prima della v8.4.
+
+> **Le mie 24 prove della v8.4 non l'hanno vista.** Provavano la pila con finestre finte, non con quelle vere, e nessuna cancellava niente. L'ha trovata una suite di aprile che non stavo più guardando. Adesso c'è `test-cancella.mjs` (8 prove): cancella davvero **ogni cosa cancellabile** dalla sua finestra — diario, PNG, incantesimo, attacco, oggetto, risorsa, personaggio intero — e controlla tre cose insieme: che non ci siano errori, che non resti aperta la finestra del defunto, e che la cosa sia sparita davvero anche dai dati.
+
+### Due attese di prova aggiornate (non difetti)
+`test-v46` si aspettava ancora il comportamento di prima della v8.5: l'armatura scritta «Cotta di **M**aglia» (ora si scrive col nome del pacchetto, «Cotta di maglia») e il bonus d'attacco senza segno («5» invece di «+5»). Corrette le attese, non l'app.
+
 ## v8.5 — 31 agosto 2026
 **Il percorso di creazione ripassato dall'inizio alla fine, con la domanda giusta: la scheda che ne esce è una scheda vera?**
 

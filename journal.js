@@ -109,6 +109,7 @@ function openJournalEntry(id){
 }
 function journalFormHTML(){
   const d = draftEntry;
+  if (!d) return '';          // la voce e' stata cancellata sotto i piedi
   const isEdit = (state.journal||[]).some(e => e.id === d.id);
   const inner = `
     <div class="two-col">
@@ -172,7 +173,10 @@ function deleteJournalEntry(id){
     fsDelete('journal', id);
     saveLocal();
     draftEntry = null;
-    closeModal(); render();
+    /* La voce non c'e' piu': sotto la conferma c'e' il modulo DI QUELLA
+       voce, e riaprirlo non avrebbe senso. Dopo una cancellazione si
+       chiude tutta la pila. */
+    closeModalAll(); render();
     toast('Voce eliminata');
   }, 'Elimina');
 }

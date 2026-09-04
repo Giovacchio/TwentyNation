@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.5';
+const APP_VERSION = '8.5.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1642,7 +1642,27 @@ function renderModalRoot(opts){
   const keepId = (ae && ae.id && root.contains(ae) && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) ? ae.id : null;
   const keepSel = keepId ? [ae.selectionStart, ae.selectionEnd] : null;
 
-  root.innerHTML = state.modal.render();
+  /* Una finestra della pila puo' parlare di una cosa che nel frattempo
+     e' stata cancellata (cancelli una voce del diario dalla finestra
+     che la mostra: sotto c'e' il modulo di quella voce, che non esiste
+     piu'). Prima della pila non succedeva, perche' chiudere chiudeva
+     tutto. Se il disegno fallisce non si lascia lo schermo bianco: si
+     scende di un gradino, fino a trovare qualcosa che regge — al
+     massimo si chiude, che e' come si comportava prima. */
+  let html;
+  try { html = state.modal.render(); }
+  catch(err){
+    console.warn('Finestra non piu\' valida, la chiudo', err);
+    if (__modalStack.length){
+      const sotto = __modalStack.pop();
+      state.modal = sotto.desc;
+      return renderModalRoot({ toTop:true });
+    }
+    state.modal = null; __modalDepth = 0;
+    root.innerHTML = ''; document.body.style.overflow = '';
+    return;
+  }
+  root.innerHTML = html;
   document.body.style.overflow = 'hidden';
 
   const nb = modalScrollBox();
@@ -2061,6 +2081,11 @@ function doDeleteCharacter(id){
   fsDelete('characters', id);
   saveLocal();
   if (state.activeCharId === id){ state.view='party'; state.activeCharId=null; replaceNav(); }
+  /* Se l'eliminazione parte dal modulo di modifica, sotto la conferma
+     resta il modulo DI QUESTO personaggio: riaprirlo mostrerebbe una
+     scheda che non esiste piu'. Dopo una cancellazione la pila si
+     chiude tutta. */
+  if (typeof closeModalAll === 'function') closeModalAll();
   render();
   toast('Personaggio eliminato');
 }
@@ -3175,7 +3200,9 @@ function removeInventoryItem(charId, i){
   const name = c.inventory[i].name;
   confirmDialog('Rimuovere ' + name + '?', 'L\'oggetto verrà tolto dallo zaino.', () => {
     c.inventory.splice(i,1);
-    scheduleSave('characters', c); render();
+    scheduleSave('characters', c);
+    closeModalAll();          // «Modifica oggetto» parlava di questo oggetto
+    render();
   }, 'Rimuovi');
 }
 function editInventoryItem(charId, i){
@@ -4152,7 +4179,9 @@ function confirmDeleteCustomSpell(id){
       c.knownSpells = (c.knownSpells||[]).filter(k=>!(k.id===id && k.source==='custom'));
       if (c.knownSpells.length !== before) fsSet('characters', c);
     });
-    saveLocal(); render();
+    saveLocal();
+    closeModalAll();          // la finestra sotto mostrava proprio questo incantesimo
+    render();
     toast('Incantesimo eliminato');
   }, 'Elimina');
 }
@@ -4381,7 +4410,9 @@ function confirmDeleteNpc(id){
     if (typeof nelCestino === 'function') nelCestino('npcs', n);
     state.npcs = state.npcs.filter(x=>x.id!==id); bestiarioScorda();
     fsDelete('npcs', id);
-    saveLocal(); render();
+    saveLocal();
+    closeModalAll();          // il modulo di questo PNG non ha piu' un PNG
+    render();
   }, 'Elimina');
 }
 
