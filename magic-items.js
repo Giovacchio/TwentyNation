@@ -106,7 +106,9 @@ function pickCharForMagicItem(itemId){
       </button>`).join('')}
     </div>`) });
 }
-function attunedCount(c){ return (c.inventory||[]).filter(i => i.attuned).length; }
+/* zainoDi() salta le voci malfatte: una riga nulla nello zaino non
+   deve far cadere la scheda. */
+function attunedCount(c){ return zainoDi(c).filter(i => i.attuned).length; }
 function addMagicItemToChar(charId, itemId){
   const c = charById(charId), m = MAGIC_ITEM_BY_ID[itemId];
   if (!c || !m) return;
@@ -132,7 +134,7 @@ function toggleAttune(charId, i){
   const c = charById(charId); if (!c) return;
   const it = (c.inventory||[])[i]; if (!it) return;
   if (!it.attuned && attunedCount(c) >= ATTUNEMENT_MAX){
-    const already = (c.inventory||[]).filter(x => x.attuned).map(x => x.name).join(', ');
+    const already = zainoDi(c).filter(x => x.attuned).map(x => x.name).join(', ');
     confirmDialog('Sei già a ' + ATTUNEMENT_MAX + ' oggetti sintonizzati',
       'Hai sintonizzato: ' + already + '. Per legarti a ' + it.name + ' devi prima staccarti da uno degli altri.',
       () => { closeModal(); }, 'Ho capito');
@@ -146,7 +148,7 @@ function toggleAttune(charId, i){
 /* Riga di riepilogo in cima allo zaino */
 function attunementRowHTML(c){
   const n = attunedCount(c);
-  const list = (c.inventory||[]).filter(x => x.attuned);
+  const list = zainoDi(c).filter(x => x.attuned);
   return `<div class="card" style="margin-bottom:10px; padding:10px 13px; ${n>ATTUNEMENT_MAX?'border-color:var(--warn)':''}">
     <div class="row-between">
       <span class="muted" style="font-size:.8rem">⚡ Sintonizzazione</span>

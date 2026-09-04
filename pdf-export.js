@@ -32,6 +32,9 @@ const WA_MAP = {
 };
 const WA_EXTRA = new Set([0x20AC,0x201A,0x0192,0x201E,0x2026,0x2020,0x2021,0x02C6,0x2030,0x0160,0x2039,0x0152,0x017D,
                           0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,0x02DC,0x2122,0x0161,0x203A,0x0153,0x017E,0x0178]);
+/* Nessuna riga di un foglio A4 tiene più di qualche centinaio di
+   lettere: cercare il taglio oltre questo tetto è tempo buttato. */
+const MAX_RIGA = 600;
 function wa(v){
   let s = String(v == null ? '' : v);
   s = s.replace(/[\u2018-\u201E\u2010-\u2015\u2212\u00A0\u2007\u2009\u202F\u200B\u2026\u2022\u25CF\u25CB\u25C7\u25AA\u2713\u2714\u2717\u2192\u2190\u00D7\u2044\u2264\u2265]/g, ch => WA_MAP[ch] != null ? WA_MAP[ch] : '');
@@ -80,13 +83,24 @@ function pdfDoc(lib, doc, fonts, title){
       if (!para.trim()){ out.push(''); return; }
       let line = '';
       para.split(/\s+/).forEach(word => {
-        // una parola più larga della colonna va spezzata a forza
-        while (font.widthOfTextAtSize(wa(word), size) > maxW){
-          let cut = word.length;
-          while (cut > 1 && font.widthOfTextAtSize(wa(word.slice(0,cut)), size) > maxW) cut--;
+        /* Una parola più larga della colonna va spezzata a forza.
+           Il taglio si cerca per DIMEZZAMENTI, partendo da un tetto
+           ragionevole: prima si partiva dalla lunghezza intera togliendo
+           una lettera per volta, e ogni tentativo misurava tutta la
+           stringa. Su una riga incollata senza spazi — un indirizzo web,
+           un blocco in base64 — erano centinaia di milioni di misure:
+           l'esportazione in PDF si piantava e basta. */
+        while (font.widthOfTextAtSize(wa(word.slice(0, MAX_RIGA)), size) > maxW){
+          let lo = 1, hi = Math.min(word.length, MAX_RIGA), cut = 1;
+          while (lo <= hi){
+            const mid = (lo + hi) >> 1;
+            if (font.widthOfTextAtSize(wa(word.slice(0, mid)), size) <= maxW){ cut = mid; lo = mid + 1; }
+            else hi = mid - 1;
+          }
           if (line){ out.push(line); line = ''; }
           out.push(word.slice(0, cut));
           word = word.slice(cut);
+          if (!word) break;
         }
         const test = line ? line + ' ' + word : word;
         if (font.widthOfTextAtSize(wa(test), size) <= maxW) line = test;
@@ -388,12 +402,13 @@ async function drawSheet(S, c, lib, doc, fonts){
   }
 
   /* ── Competenze ── */
-  if (c.profOther || c.languages || c.tools || c.armor || c.senses){
+  const sensi = (typeof sensiDi === 'function') ? sensiDi(c) : c.senses;
+  if (c.profOther || c.languages || c.tools || c.armor || sensi){
     S.heading('Competenze e lingue');
     S.row('Armi e armature', c.profOther || c.armor);
     S.row('Strumenti', c.tools);
     S.row('Lingue', c.languages);
-    S.row('Sensi', c.senses);
+    S.row('Sensi', sensi);
   }
 
   /* ── Incantesimi ── */
@@ -418,7 +433,14 @@ async function drawSheet(S, c, lib, doc, fonts){
       const names = list.map(k => {
         const prep = (c.preparedSpells||[]).includes(k.ref.id);
         const conc = k.sp.conc ? ' (C)' : '';
-        return (prep ? '* ' : '') + spellName(k.sp) + conc;
+        /* quello che una supplica cambia su questo incantesimo va
+           scritto accanto al nome: al tavolo si legge da qui */
+        let extra = '';
+        if (typeof ritoccoAttacco === 'function'){
+          try { const r = ritoccoAttacco(c, k.sp.id);
+                if (r && r.note && r.note.length) extra = ' [' + r.note.join(' · ') + ']'; } catch(e){}
+        }
+        return (prep ? '* ' : '') + spellName(k.sp) + conc + extra;
       });
       S.text(names.join('   ·   '), { size:8.4 });
       S.gap(3);
@@ -427,7 +449,7 @@ async function drawSheet(S, c, lib, doc, fonts){
   }
 
   /* ── Zaino ── */
-  const inv = (c.inventory || []).filter(i => i.name);
+  const inv = (c.inventory || []).filter(i => i && typeof i === 'object' && i.name);
   if (inv.length || (c.coins && Object.values(c.coins).some(v=>v))){
     S.heading('Zaino');
     if (c.coins){

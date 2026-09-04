@@ -178,7 +178,7 @@ function weaponToAttack(charId, weaponId){
     gearId: w.id,
   });
   // se non ce l'ha già, finisce anche nello zaino
-  if (!(c.inventory||[]).some(i => i.gearId === w.id)) buyGear(charId, 'arma', weaponId);
+  if (!zainoDi(c).some(i => i.gearId === w.id)) buyGear(charId, 'arma', weaponId);
   else { scheduleSave('characters', c); renderModalRoot(); render(); }
   toast('⚔️ ' + gearName(w) + ' fra gli attacchi (' + signStr(ab.m + prof) + ')');
 }
@@ -188,7 +188,7 @@ function wearArmor(charId, armorId){
   const c = charById(charId), a = ARMOR_BY_ID[armorId];
   if (!c || !a) return;
   const dex = mod(getPath(c,'abilities.dex',10));
-  const shieldOn = (c.inventory||[]).some(i => i.gearId === 'shield' && i.equipped);
+  const shieldOn = zainoDi(c).some(i => i.gearId === 'shield' && i.equipped);
 
   if (a.cat === 'scudo'){
     c.ac = (c.ac || 10) + a.ac;

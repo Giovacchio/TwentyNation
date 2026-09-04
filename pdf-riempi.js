@@ -165,7 +165,7 @@ function riempiCombattimento(form, lib, idx, c, e){
   S(['AC','CA','Classe Armatura'], c.ac);
   S(['Initiative','Iniziativa'], segno(c.initiative != null ? c.initiative : mod(getPath(c,'abilities.dex',10))));
   S(['Speed','Velocita','Velocità'], c.speed);
-  S(['Vision','Sensi','Senses'], c.senses);
+  S(['Vision','Sensi','Senses'], (typeof sensiDi === 'function') ? sensiDi(c) : c.senses);
   S(['HPMax','PF Massimi','HP Max'], getPath(c,'hp.max',0));
   S(['HPCurrent','PF Attuali'], getPath(c,'hp.current',0));
   S(['HPTemp','PF Temporanei'], getPath(c,'hp.temp',0) || '');
@@ -259,8 +259,9 @@ function riempiZaino(form, lib, idx, c, e){
   });
   /* Lo zaino: le schede hanno righe numerate «eq 1», «eq 2»… con il
      peso accanto. Se non ce ne sono, si ripiega sul campo unico. */
-  const righe = (c.inventory||[]).map(o => (o.qty > 1 ? o.qty + '× ' : '') + (o.name||''));
-  const pesi  = (c.inventory||[]).map(o => o.weight || '');
+  const zaino = (c.inventory||[]).filter(o => o && typeof o === 'object');
+  const righe = zaino.map(o => (o.qty > 1 ? o.qty + '× ' : '') + (o.name||''));
+  const pesi  = zaino.map(o => o.weight || '');
   let usateRighe = 0;
   for (let i = 0; i < righe.length && i < 40; i++){
     const nome = campoVero(idx, ['eq '+(i+1), 'eq'+(i+1)]);

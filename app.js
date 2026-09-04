@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.6';
+const APP_VERSION = '8.7';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1340,8 +1340,7 @@ function migrateCharacter(c){
   c.speed = toNum(c.speed, 9, 0, 999);
   c.initiative = toNum(c.initiative, Math.floor((c.abilities.dex - 10)/2), -20, 20);
   c.skillProf = c.skillProf || []; c.saveProf = c.saveProf || []; c.skillExpert = c.skillExpert || [];
-  c.attacks = c.attacks || []; c.resources = c.resources || [];
-  c.companions = c.companions || []; c.conditions = c.conditions || [];
+  // (attacks, resources, companions, conditions vengono ripuliti più sotto)
   if (c.activeForm === undefined) c.activeForm = null;
   c.appearance = Object.assign({ age:'', height:'', weight:'', eyes:'', skin:'', hair:'', text:'' }, c.appearance || {});
   ['playerName','xp','xpNext','sex','armor','senses','languages','tools','feats','profOther','faction','symbol','allies','enemies','notesRace','notesExtra','carryCapacity']
@@ -1353,9 +1352,26 @@ function migrateCharacter(c){
   if (c.inspiration == null) c.inspiration = false;
   c.exhaustion = clamp(c.exhaustion || 0, 0, 6);
   if (c.slotsOverride === undefined) c.slotsOverride = null;
-  c.knownSpells = c.knownSpells || []; c.preparedSpells = c.preparedSpells || [];
+  // (knownSpells e preparedSpells vengono ripuliti più sotto)
   c.spellNotes = c.spellNotes || {};
-  c.inventory = Array.isArray(c.inventory) ? c.inventory : [];
+  /* Le liste possono contenere voci nulle: un backup interrotto a metà,
+     una riga arrivata rotta dalla nuvola, un file scritto a mano. Una
+     sola voce nulla faceva fallire la normalizzazione — e siccome
+     safeMigrate ingoia l'errore e restituisce la scheda com'era, il
+     danno non era la voce rotta: era che TUTTA la scheda restava senza
+     normalizzare, e poi si rompeva lo zaino e l'esportazione in PDF.
+     Le voci che non sono oggetti si buttano qui, una volta sola. */
+  const soloOggetti = (a) => Array.isArray(a) ? a.filter(x => x && typeof x === 'object') : [];
+  const soloTesti   = (a) => Array.isArray(a) ? a.filter(x => typeof x === 'string' && x) : [];
+  c.inventory = soloOggetti(c.inventory);
+  c.attacks = soloOggetti(c.attacks);
+  c.resources = soloOggetti(c.resources);
+  c.companions = soloOggetti(c.companions);
+  c.effetti = soloOggetti(c.effetti);
+  c.knownSpells = soloOggetti(c.knownSpells).filter(k => k.id);
+  c.conditions = soloTesti(c.conditions);
+  c.preparedSpells = soloTesti(c.preparedSpells);
+  if (Array.isArray(c.suppliche)) c.suppliche = soloTesti(c.suppliche);
   c.inventory.forEach(it => { if (it.weight == null) it.weight = ''; if (it.attuned == null) it.attuned = false; });
   c.slotsUsed = c.slotsUsed || {};
   c.coins = Object.assign({ pp:0, gp:0, ep:0, sp:0, cp:0 }, c.coins || {});
@@ -1377,6 +1393,23 @@ function migrateCharacter(c){
    e poi ti stampava il modificatore senza il bonus di competenza — in
    scheda, in stampa e nella scheda compilabile. Il posto giusto per
    tenerne conto e' qui, una volta sola: da qui passano tutti. */
+/* I sensi: quelli scritti in scheda PIÙ quelli che una supplica
+   regala. L'effetto «senso» esisteva, si poteva perfino configurare
+   col ⚙️, e poi non arrivava da nessuna parte: né in scheda né sui due
+   PDF. Come per le competenze, il calcolo passa da qui, una volta sola. */
+function sensiDi(c){
+  const parti = [];
+  if (c && c.senses) parti.push(String(c.senses));
+  if (typeof effettiSuppliche === 'function'){
+    try {
+      effettiSuppliche(c, ['senso']).forEach(e => { if (e.testo) parti.push(String(e.testo)); });
+    } catch(err){}
+  }
+  const visti = new Set();
+  return parti.join(' · ').split(' · ')
+    .map(x => x.trim()).filter(x => x && !visti.has(norm(x)) && visti.add(norm(x)))
+    .join(' · ');
+}
 function competenzeRegalate(c){
   if (typeof competenzeDaSuppliche !== 'function') return [];
   try { return competenzeDaSuppliche(c) || []; } catch(e){ return []; }
@@ -2338,7 +2371,7 @@ function renderSheetOverview(c){
         <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
         <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
       </div>
-      ${c.senses ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(c.senses)}</div></div>` : ''}
+      ${sensiDi(c) ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(sensiDi(c))}</div></div>` : ''}
       ${/* I punti esperienza restano fuori dalla scheda principale: quasi
             nessun tavolo li conta, e chi gioca a traguardi si ritrovava
             una barra fissa per un numero che non tocca mai. Stanno nel
@@ -2805,42 +2838,13 @@ function bumpExhaustion(charId){
 }
 
 /* ─── Scheda Note ─── */
-function renderSheetNotes(c){
-  const f = (label, key, ph, big) => `<div class="field"><label>${label}</label>${big
-    ? `<textarea style="min-height:${big}px" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">${escapeHtml(c[key]||'')}</textarea>`
-    : `<input value="${attr(c[key]||'')}" placeholder="${ph}" oninput="updateCharField('${c.id}','${key}',this.value)">`}</div>`;
-  // i campi che spesso contengono elenchi lunghi sono aree di testo
-  const fl = (label, key, ph) => f(label, key, ph, 46);
-  return `
-    <div class="desk-2">
-      <div>
-        <div class="card-title">Competenze</div>
-        ${fl('Linguaggi','languages','Es. Comune, Elfico')}
-        ${fl('Strumenti e competenze','tools','Es. Kit da erborista, armi semplici')}
-        ${f('Armatura indossata','armor','Es. Vesti rinforzate')}
-        ${fl('Armature e armi','profOther','Es. Armature leggere, armi semplici')}
-        ${f('Sensi','senses','Es. Scurovisione 18 m')}
-        ${f('Capacità di carico (kg)','carryCapacity','Vuoto = Forza × 7,5')}
-        <div class="divider"><span class="flourish">❧</span><span>Talenti</span></div>
-        ${f('Talenti','feats','Es. Resiliente (Costituzione)','90')}
-      </div>
-      <div>
-        <div class="divider"><span class="flourish">❧</span><span>Privilegi</span></div>
-        ${f('Privilegi di classe e capacità','features','Privilegi, invocazioni, canalizzare divinità…','220')}
-        ${f('Razza e background','notesRace','Bonus di razza e background','110')}
-        ${f('Altre note','notesExtra','Famigli, compagni, promemoria…','160')}
-        <div class="divider"><span class="flourish">❧</span><span>Progressione</span></div>
-        <div class="form-row">
-          <div class="field"><label>Punti esperienza</label><input value="${attr(c.xp||'')}" oninput="updateCharField('${c.id}','xp',this.value)"></div>
-          <div class="field"><label>Al prossimo livello</label><input value="${attr(c.xpNext||'')}" oninput="updateCharField('${c.id}','xpNext',this.value)"></div>
-        </div>
-        <div class="field"><label>Giocatore</label><input value="${attr(c.playerName||'')}" oninput="updateCharField('${c.id}','playerName',this.value)"></div>
-      </div>
-    </div>`;
-}
+/* renderSheetNotes: tolta. Era la vecchia scheda «Note», sciolta nella
+   v8.2 dentro «Chi sei»: tutti i suoi campi si modificano da lì. */
+
 
 /* ─── 15. TIRI RAPIDI ─── */
-function setRollMode(m){ state.rollMode = m; }
+/* setRollMode: tolto. Era il vantaggio dichiarato PRIMA del tiro, mai
+   collegato a nessun pulsante: `state.rollMode` non lo leggeva nessuno. */
 function rollAbility(charId, key){
   const c = charById(charId); if (!c) return;
   performD20('Prova di ' + ABILITY_BY_KEY[key].label, mod(getPath(c,'abilities.'+key,10)), 'normal', {t:'ability', c:charId, k:key});
@@ -3040,13 +3044,8 @@ function concludiRiposoBreve(charId){
   toast(n ? ('☀️ Riposo breve: ' + n + (n===1?' risorsa recuperata':' risorse recuperate'))
           : '☀️ Riposo breve: non c\'era niente da recuperare');
 }
-function restorePactSlots(charId){
-  const c = charById(charId); if (!c) return;
-  c.slotsUsed = {};
-  scheduleSave('characters', c);
-  closeModal(); render();
-  toast('✦ Slot del Patto recuperati');
-}
+/* restorePactSlots: tolto. Gli slot del patto li rimette a posto
+   concludiRiposoBreve(), che è la strada vera. */
 function longRest(charId){
   const c = charById(charId); if (!c) return;
   const max = getPath(c,'hp.max',0);
@@ -3070,8 +3069,15 @@ function longRest(charId){
 }
 
 /* ─── 17. ZAINO ─── */
+/* Lo zaino, ripulito al volo. La normalizzazione toglie già le voci
+   malfatte, ma se una scheda arriva senza passarci (una riga rotta
+   dalla nuvola, un errore ingoiato da safeMigrate) il disegno non deve
+   comunque piantarsi: qui si legge da un posto solo. */
+function zainoDi(c){
+  return Array.isArray(c && c.inventory) ? c.inventory.filter(x => x && typeof x === 'object') : [];
+}
 function totalWeight(c){
-  return (c.inventory||[]).reduce((sum, it) => sum + ((parseFloat(String(it.weight).replace(',','.'))||0) * (it.qty||1)), 0);
+  return zainoDi(c).reduce((sum, it) => sum + ((parseFloat(String(it.weight).replace(',','.'))||0) * (it.qty||1)), 0);
 }
 function renderSheetInventory(c){
   const items = c.inventory||[];
@@ -3097,7 +3103,7 @@ function renderSheetInventory(c){
     </div>` : ''}
     ${attunedCount(c) ? attunementRowHTML(c) : ''}
     <div class="list-gap">
-      ${items.length ? items.map((it,i)=>invItemHTML(c,it,i)).join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
+      ${items.length ? items.map((it,i)=>(it && typeof it === 'object') ? invItemHTML(c,it,i) : '').join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
     </div>
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="addInventoryItem('${c.id}')">✦ A mano</button>
@@ -3136,7 +3142,7 @@ function invItemHTML(c, it, i){
 /* Quali oggetti tornano carichi con questo tipo di riposo. */
 function ricaricaOggetti(c, quali){
   let n = 0;
-  (c.inventory||[]).forEach(it => {
+  zainoDi(c).forEach(it => {
     const max = Number(it.caricheMax)||0;
     if (!max) return;
     if (!quali.includes(it.recupero || '')) return;
@@ -3411,6 +3417,14 @@ function clearSlotsOverride(charId){
   scheduleSave('characters', c); render();
   toast('↺ Slot ricalcolati da classe e livello');
 }
+/* Quello che le suppliche cambiano su UN incantesimo, pronto da
+   scrivere sotto il suo nome. Vuoto se non lo toccano. */
+function ritoccoSpell(c, sp){
+  if (typeof ritoccoAttacco !== 'function' || !sp) return '';
+  let r; try { r = ritoccoAttacco(c, sp.id); } catch(e){ return ''; }
+  if (!r || !r.note || !r.note.length) return '';
+  return `<div class="spell-item-meta" style="color:var(--gold-dim)">✦ ${escapeHtml(r.note.join(' · '))}</div>`;
+}
 function knownSpellRow(c, ref, sp){
   const isPrep = (c.preparedSpells||[]).includes(sp.id);
   return `<div class="spell-item">
@@ -3421,6 +3435,12 @@ function knownSpellRow(c, ref, sp){
         ? '📌 ' + escapeHtml(c.spellNotes[sp.id])
         : [spellAltName(sp), schoolIt(sp.school||''), sp.conc?'concentrazione':'', ref.source==='custom'?'personalizzato':'']
             .filter(Boolean).map(escapeHtml).join(' · ')}</div>
+      ${/* Le suppliche che cambiano un incantesimo — «+Carisma ai danni
+            del raggio occulto», «gittata 90 m», «spingi di 3 m» — erano
+            calcolate da ritoccoAttacco() e non le leggeva NESSUNO: al
+            tavolo tiravi il raggio occulto senza il bonus che avevi
+            scelto. Adesso stanno sulla riga dell'incantesimo. */''}
+      ${ritoccoSpell(c, sp)}
     </button>
     ${sp.level>0?`<button class="prep-star ${isPrep?'on':''}" onclick="togglePrepared('${c.id}','${sp.id}', this)" title="Preparato" aria-label="Preparato">★</button>`:''}
     <button class="spell-item-add" style="color:var(--garnet-bright)" onclick="removeKnownSpell('${c.id}','${sp.id}','${ref.source}')" aria-label="Rimuovi">✕</button>

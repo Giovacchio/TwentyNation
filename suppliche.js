@@ -72,10 +72,8 @@ function sottoclasseConClasse(c){
   }
   return null;
 }
-function livelloNellaClasseDi(c){
-  const t = sottoclasseConClasse(c);
-  return t ? t.livello : (Number(c && c.level) || 1);
-}
+/* livelloNellaClasseDi: tolta. Il livello da warlock lo ricavano già
+   perchePuoiNo() e supplicheSpettanti(), ognuna dove le serve. */
 /* Il Circolo della Terra chiede quale terreno: senza, non dà niente. */
 function serveTerreno(c){
   const t = sottoclasseConClasse(c);

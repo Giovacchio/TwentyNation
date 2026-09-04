@@ -1,5 +1,36 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.7 — 4 settembre 2026
+**Caccia ai difetti a tappeto: cinque veri, trovati cercandoli invece di aspettarli.**
+
+### 🕯️ Le suppliche che cambiano un incantesimo non le leggeva nessuno
+Il calcolo c'era, funzionava, e **non lo chiamava nessuna riga di codice**. «Raggio agonizzante: +4 ai danni», «gittata 90 metri», «spingi di 3 metri»: al tavolo tiravi il raggio occulto senza i bonus che avevi scelto. Il testo della supplica era stampato, i numeri no.
+
+Adesso stanno sulla riga dell'incantesimo, in scheda e sul PDF. È lo **stesso difetto** delle competenze regalate dalle suppliche, chiuso nella v8.5: una funzione scritta bene e mai collegata. Ho passato in rassegna tutte e 943 le funzioni dell'app per trovarne altre — di questa specie non ne restano.
+
+### 👁️ I sensi regalati da una supplica sparivano
+Stessa storia, più piccola: l'effetto «senso» si poteva perfino configurare col ⚙️, e poi non arrivava né in scheda né sui due PDF. Ora passa da un posto solo, come le competenze.
+
+### 🧨 Una riga rotta nello zaino spegneva tutta la scheda
+Una voce nulla nell'inventario — un backup interrotto, una riga arrivata male dalla nuvola — faceva fallire la normalizzazione della scheda. E siccome la normalizzazione ingoia i propri errori e restituisce la scheda **com'era**, il danno non era la riga rotta: era che **tutta la scheda restava senza normalizzare**. Poi si rompevano lo Zaino e l'esportazione in PDF.
+
+Adesso le voci malfatte si buttano durante la normalizzazione (zaino, attacchi, risorse, compagni, incantesimi, condizioni), e i punti che disegnano lo zaino le saltano comunque: una scheda non deve mai cadere per un dato storto.
+
+### ⏳ Un testo incollato senza spazi piantava l'esportazione in PDF
+Incolla un indirizzo web lungo, o un blocco in base64, nelle note: il PDF non usciva più. Il pezzo che spezza una parola troppo larga partiva dalla lunghezza intera e tornava indietro **una lettera per volta**, misurando ogni volta tutta la stringa — centinaia di milioni di misure. Adesso il taglio si cerca per dimezzamenti, con un tetto: **20.000 lettere senza spazi passano da «non finisce mai» a 34 millisecondi.**
+
+### 🧝 Una razza tua fatta male spegneva TUTTE le razze
+Le lingue di una razza tua si scrivono su una riga sola. Se una voce le portava come elenco — un backup, una razza arrivata dal tavolo — l'elenco completo delle razze andava in errore: creazione guidata, scheda e ricerca restavano senza. Ora si accettano tutte e due le forme.
+
+### 🧹 Pulizia
+Tolte quattro funzioni scritte e mai collegate: il vecchio pannello «Note» (sciolto dentro «Chi sei» nella v8.2), il recupero degli slot del patto (lo fa già il riposo breve), il livello nella classe (lo ricavano già i due punti che servono) e il vantaggio dichiarato prima del tiro, che non era mai stato attaccato a nessun pulsante.
+
+### Quello che ho controllato e che invece regge
+Per non dare l'impressione che sia tutto rotto: memoria del telefono piena a metà salvataggio, archivio locale corrotto in cinque modi diversi, backup senza campi o con campi del tipo sbagliato, cinquanta salvataggi nello stesso istante, HTML dentro il nome di un personaggio, giro completo dei dati annidati verso la nuvola. **Tutti gestiti bene, nessun difetto.** Due allarmi che avevo segnato erano difetti delle mie prove, non dell'app: l'ho verificato prima di scrivere una riga.
+
+### Prove
+`test-robustezza.mjs` (15): le suppliche che si vedono davvero in scheda e in stampa, la scheda con voci rotte che si apre lo stesso, il PDF che non si pianta e non perde lettere spezzando, e l'app che parte con l'archivio locale rotto in tre modi.
+
 ## v8.6 — 4 settembre 2026
 **Le colonne dei PDF si contano, invece di darle per scontate.**
 

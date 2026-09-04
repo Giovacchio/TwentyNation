@@ -30,12 +30,23 @@ function homebrewOf(kind){
   return miei.concat(dalTavolo);
 }
 
+/* Le lingue di una razza tua sono scritte come una riga sola
+   («Comune, Elfico»), ma un backup o una voce arrivata dal tavolo può
+   portarle come elenco — e una sola voce fatta così faceva fallire
+   allRaces(), cioè spegneva l'INTERO elenco delle razze: creazione,
+   scheda, ricerca. Qui si accetta l'una e l'altra forma. */
+function lingueDiRazza(v){
+  if (Array.isArray(v)) return v.map(x => String(x||'').trim()).filter(Boolean);
+  return String(v == null || v === '' ? 'Comune' : v).split(/\s*,\s*/).filter(Boolean);
+}
 /* Elenchi completi = contenuti di serie + i tuoi */
 function allRaces(){
   return RACES.concat(homebrewOf('race').map(h => ({
     id: h.id, name: h.name, speed: h.speed || 9, size: h.size || 'Media',
-    bonus: h.bonus || {}, languages: (h.languages || 'Comune').split(/\s*,\s*/).filter(Boolean),
-    traits: (h.traits || []).map(t => ({ name: t[0], desc: t[1] })),
+    bonus: h.bonus || {}, languages: lingueDiRazza(h.languages),
+    traits: (Array.isArray(h.traits) ? h.traits : []).map(t => Array.isArray(t)
+      ? ({ name: t[0], desc: t[1] })
+      : ({ name: (t && t.name) || '', desc: (t && t.desc) || '' })),
     grantSkills: h.grantSkills || [], subraces: [], homebrew: true, source: h.source || '',
     fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));

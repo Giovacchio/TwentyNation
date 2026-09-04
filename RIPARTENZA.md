@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.6** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.7** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -142,6 +142,18 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    ridisegnano da sole (rileggi il PDF), `modalPopTo(fn)` per i «← torna al modulo».
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
+
+0¤. **Il difetto tipico di questo progetto: la funzione scritta bene e mai collegata (v8.7).**
+   È successo due volte — `competenzeDaSuppliche` (v8.5) e `ritoccoAttacco` (v8.7): il
+   calcolo c'era, era giusto, e non lo chiamava nessuno. Dopo ogni aggiunta conviene
+   rifare la passata: cercare le funzioni dichiarate e mai referenziate (`morte.py` nello
+   scratchpad, o un grep) e chiedersi *chi legge questo*. Un effetto che si può
+   configurare col ⚙️ e non arriva in scheda è la stessa cosa.
+
+0#. **Una riga storta non deve spegnere la lista (v8.7).** `migrateCharacter` scartava
+   l'intera scheda per una voce nulla nello zaino, e `allRaces()` andava in errore per una
+   razza tua con le lingue nella forma sbagliata. Regola: chi costruisce un elenco da dati
+   dell'utente filtra le voci malfatte invece di fidarsi.
 
 0§. **Un solo lettore di PDF (v8.6): `pdfRighe()` in `spell-pdf.js`.** Le colonne si CONTANO
    coi corridoi bianchi (`corridoiVerticali`), non si tagliano a meta' pagina; le righe
