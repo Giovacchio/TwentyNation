@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.7';
+const APP_VERSION = '8.8';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -298,6 +298,11 @@ function getPath(obj, path, def){
   let o = obj;
   for (const p of parts){ if (o == null) return def; o = o[p]; }
   return o == null ? def : o;
+}
+/* Il testo degli incantesimi usa **così** per i sottotitoli: prima si mette in
+   sicurezza l'HTML, poi si trasformano gli asterischi in grassetto. */
+function conGrassetto(testo){
+  return escapeHtml(String(testo||'')).replace(/\*\*\*?(.+?)\*\*\*?/g, '<b>$1</b>');
 }
 function formatComponents(comp, mat){
   if (!comp) return '—';
@@ -3433,7 +3438,7 @@ function knownSpellRow(c, ref, sp){
       <div class="spell-item-name">${escapeHtml(spellName(sp))}</div>
       <div class="spell-item-meta">${(c.spellNotes||{})[sp.id]
         ? '📌 ' + escapeHtml(c.spellNotes[sp.id])
-        : [spellAltName(sp), schoolIt(sp.school||''), sp.conc?'concentrazione':'', ref.source==='custom'?'personalizzato':'']
+        : [quantoFa(sp, c), schoolIt(sp.school||''), sp.conc?'concentrazione':'', ref.source==='custom'?'personalizzato':'']
             .filter(Boolean).map(escapeHtml).join(' · ')}</div>
       ${/* Le suppliche che cambiano un incantesimo — «+Carisma ai danni
             del raggio occulto», «gittata 90 m», «spingi di 3 m» — erano
@@ -3888,7 +3893,10 @@ function grimoireItemHTML(s, picking, pickChar){
     <div class="spell-lvl-badge">${s.level===0?'C':s.level}</div>
     <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${s.id}','${s.source}'${picking?`,'${pickChar.id}'`:''})">
       <div class="spell-item-name">${escapeHtml(spellName(s))}</div>
-      <div class="spell-item-meta">${alt?escapeHtml(alt)+' · ':''}${escapeHtml(schoolIt(s.school||''))}${classesIt?(' · '+escapeHtml(classesIt)):''}${s.source==='custom'?' · personalizzato':''}</div>
+      ${/* nel grimorio non c'è un personaggio: i dadi mostrati sono quelli
+            di partenza, in scheda diventano quelli del tuo livello */''}
+      <div class="spell-item-meta">${[quantoFa(s, pickChar||null), alt, schoolIt(s.school||''), classesIt, s.source==='custom'?'personalizzato':'']
+        .filter(Boolean).map(escapeHtml).join(' · ')}</div>
     </button>
     ${picking
       ? `<button class="spell-item-add ${already?'added':''}" id="sp-add-${s.source}-${s.id}" onclick="toggleSpellFromGrimoire('${s.id}','${s.source}')" aria-label="Aggiungi">${already?'✓':'✦'}</button>`
@@ -3959,7 +3967,11 @@ function spellDetailHTML(sp, source, charId){
   const spClasses = spellClasses(sp);
   const classesIt = spClasses.map(en=>CLASSES_IT[en]||en);
   const alt = spellAltName(sp);
-  const descParas = (sp.desc||'').split(/\n+/).filter(Boolean);
+  /* l'italiano se c'è; l'inglese resta consultabile qui sotto, per
+     chi vuole controllare una traduzione che non lo convince */
+  const testoIt = (typeof spellDescIt === 'function') ? spellDescIt(sp) : (sp.desc||'');
+  const tradotto = (typeof haDescIt === 'function') && haDescIt(sp);
+  const descParas = String(testoIt||'').split(/\n+/).filter(Boolean);
   const inner = `
       <div style="margin-bottom:6px">
         <div class="spell-detail-name">${escapeHtml(spellName(sp))}</div>
@@ -3969,19 +3981,28 @@ function spellDetailHTML(sp, source, charId){
       <div class="spell-detail-tags">
         ${sp.conc?'<span class="badge garnet">Concentrazione</span>':''}
         ${sp.ritual?'<span class="badge">Rituale</span>':''}
-        ${sp.dmg?`<span class="badge arcane">${escapeHtml(sp.dmg)}</span>`:''}
+        ${(()=>{ /* i dadi dicono già il tipo: due pastiglie che ripetono
+                    «fuoco» accanto a «1d10 fuoco» sono rumore */
+                 const q = (typeof quantoFa==='function') ? quantoFa(sp, charById(state.activeCharId)) : '';
+                 if (q) return `<span class="badge gold">${escapeHtml(q)}</span>`;
+                 return sp.dmg ? `<span class="badge arcane">${escapeHtml(dmgTypeIt(sp.dmg))}</span>` : ''; })()}
         ${classesIt.map(x=>`<span class="badge">${escapeHtml(x)}</span>`).join('')}
         ${source==='custom'?'<span class="badge gold">Personalizzato</span>':''}
       </div>
       <div class="spell-detail-grid">
-        <div><b>Tempo di lancio</b><span>${escapeHtml(sp.cast||'—')}</span></div>
-        <div><b>Gittata</b><span>${escapeHtml(sp.range||'—')}</span></div>
-        <div><b>Componenti</b><span>${escapeHtml(formatComponents(sp.comp, sp.mat))}</span></div>
-        <div><b>Durata</b><span>${escapeHtml(sp.dur||'—')}</span></div>
+        <div><b>Tempo di lancio</b><span>${escapeHtml(spellCastIt(sp.cast)||'—')}</span></div>
+        <div><b>Gittata</b><span>${escapeHtml(spellRangeIt(sp.range)||'—')}</span></div>
+        <div><b>Componenti</b><span>${escapeHtml(formatComponents(sp.comp, (typeof spellMatIt==='function'? spellMatIt(sp) : sp.mat)))}</span></div>
+        <div><b>Durata</b><span>${escapeHtml(spellDurIt(sp.dur)||'—')}</span></div>
       </div>
-      <div class="spell-detail-desc">${descParas.map(p=>`<p>${escapeHtml(p)}</p>`).join('')}</div>
-      ${sp.higher?`<div class="spell-detail-desc" style="margin-top:10px"><p><b>Ai livelli superiori. </b>${escapeHtml(sp.higher)}</p></div>`:''}
-      ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a — lingua originale inglese.</div>` : ''}
+      <div class="spell-detail-desc">${descParas.map(p=>`<p>${conGrassetto(p)}</p>`).join('')}</div>
+      ${(() => { const su = (typeof spellHigherIt==='function') ? spellHigherIt(sp) : (sp.higher||'');
+         return su ? `<div class="spell-detail-desc" style="margin-top:10px"><p><b>Ai livelli superiori. </b>${conGrassetto(su)}</p></div>` : ''; })()}
+      ${tradotto ? `<details style="margin-top:10px">
+        <summary class="muted" style="font-size:.76rem; cursor:pointer">Testo originale in inglese</summary>
+        <div class="spell-detail-desc" style="margin-top:6px; opacity:.8">${String(sp.desc||'').split(/\n+/).filter(Boolean).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}</div>
+      </details>` : ''}
+      ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a.${tradotto?' Traduzione d\'uso al tavolo, non ufficiale.':' Lingua originale inglese.'}</div>` : ''}
       <div class="list-gap" style="margin-top:16px;">
         ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
         ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${jsStr(spellName(sp))}')">🌀 Concentrati su questo</button>` : ''}
@@ -4023,7 +4044,7 @@ function copySpellAsCustom(id, source){
   if (!sp) return;
   draftSpell = {
     id: uid(), name: spellName(sp) + ' (variante)', level: sp.level||0, school: schoolIt(sp.school||''),
-    cast: sp.cast||'', range: sp.range||'', comp: sp.comp||'', mat: sp.mat||'', dur: sp.dur||'',
+    cast: spellCastIt(sp.cast)||'', range: spellRangeIt(sp.range)||'', comp: sp.comp||'', mat: sp.mat||'', dur: spellDurIt(sp.dur)||'',
     conc: !!sp.conc, ritual: !!sp.ritual, classes: (spellClasses(sp)||[]).slice(),
     desc: sp.desc||'', higher: sp.higher||'', createdAt: Date.now()
   };
