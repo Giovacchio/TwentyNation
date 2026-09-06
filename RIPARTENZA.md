@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.7** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.8** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -22,6 +22,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `sw.js` | service worker: l'app parte offline e si aggiorna da sola |
 | `rules-data.js` | classi, razze, background, condizioni, abilità (SRD) |
 | `spells-data.js` · `spells-it.js` | incantesimi SRD e nomi italiani |
+| **`spells-desc-it.js`** | **i testi degli incantesimi in italiano: `SPELLS_DESC_IT` (319 descrizioni), `SPELLS_HIGHER_IT` (90 «ai livelli superiori»), `SPELLS_MAT_IT` (184 componenti materiali), più `spellDescIt`/`haDescIt`/`spellHigherIt`/`spellMatIt`** |
 | `monsters-data.js` | bestiario SRD (81 creature) |
 | `bestiary.js` | consultazione bestiario, PNG, compagni e forme selvatiche |
 | `gear-data.js` · `gear.js` | equipaggiamento |
@@ -142,6 +143,21 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    ridisegnano da sole (rileggi il PDF), `modalPopTo(fn)` per i «← torna al modulo».
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
+
+0€. **Le traduzioni degli incantesimi stanno in `spells-desc-it.js` (v8.8), e sono agganciate
+   per `id`.** Tre dizionari — descrizione, «ai livelli superiori», componenti materiali — con
+   dentro tutti e 319 gli SRD. Quattro cose da sapere prima di toccarli:
+   **(a)** la chiave è l'`id` di `spells-data.js`, non il nome: se un id cambia, la traduzione
+   si scollega **in silenzio** — `test-v88.mjs` cerca apposta le chiavi orfane e gli SRD scoperti;
+   **(b)** i quattro helper restituiscono il testo dell'UTENTE quando `sp.source === 'custom'`
+   o `sp.homebrew`: la traduzione vale solo per ciò che l'app contiene di suo, ed è la stessa
+   regola del vincolo sui contenuti;
+   **(c)** `conGrassetto()` in `app.js` fa `escapeHtml` PRIMA e converte `**titoletto**` in
+   `<b>` DOPO — invertire l'ordine è una falla XSS, non un dettaglio estetico;
+   **(d)** ogni distanza è in metri (1,5 m ogni 5 piedi): una prova cerca «feet», «saving throw»,
+   «hit points», «spell slot of» e «worth at least N gp» nei tre dizionari e fallisce se ne trova.
+   L'originale inglese resta visibile nella scheda in un `<details>` quando `haDescIt` è vero:
+   non toglierlo, è il testo OGL e la via d'uscita quando una resa non convince.
 
 0¤. **Il difetto tipico di questo progetto: la funzione scritta bene e mai collegata (v8.7).**
    È successo due volte — `competenzeDaSuppliche` (v8.5) e `ritoccoAttacco` (v8.7): il

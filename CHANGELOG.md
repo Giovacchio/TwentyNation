@@ -1,5 +1,28 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.8 — 6 settembre 2026
+**Le schede degli incantesimi non sono più metà in inglese.**
+
+Fino a ieri una scheda diceva `CASTING TIME 1 action · RANGE 120 feet · DURATION Instantaneous`, e sotto un muro di testo inglese. Adesso è tutta in italiano, con le misure in metri.
+
+### 📜 Tutte e 319 le descrizioni, tradotte
+Nessuna esclusa: dai trucchetti a *desiderio*. Il glossario è tenuto uguale ovunque — tiro salvezza, prova di caratteristica, attacco in mischia/a distanza con incantesimo, azione bonus, slot incantesimo, punti ferita, CD dei tuoi tiri salvezza degli incantesimi — e **ogni distanza è convertita** (1,5 metri ogni 5 piedi): *palla di fuoco* fa 6 metri di raggio, non 20 piedi.
+
+**L'originale inglese resta.** In fondo alla scheda c'è «Testo originale in inglese», ripiegato: se una resa non ti convince, il testo OGL è lì sotto, un tocco più in là.
+
+### ✦ Anche le due parti che restavano fuori
+- **«Ai livelli superiori»** — 90 incantesimi ce l'hanno, ed era l'unico blocco rimasto in inglese sotto una descrizione italiana. Ora è in italiano anche quello.
+- **Le componenti materiali** — 184 righe: «A tiny ball of bat guano and sulfur» è diventata «Una minuscola pallina di guano di pipistrello e zolfo». Sono la riga che al tavolo si legge per capire se ce l'hai nello zaino: lasciarle in inglese era il fastidio più quotidiano.
+
+### 🅱️ I sottotitoli si vedono come sottotitoli
+Gli incantesimi con più effetti (*malocchio*, *simbolo*, *raggio prismatico*, *muro prismatico*, *imprigionamento*, *tempesta vendicatrice*…) li elencano sotto un titoletto. Nel testo quei titoletti sono scritti con gli asterischi, e l'app **li stampava così com'erano**: `***Asleep.***` in mezzo alla pagina. Adesso diventano grassetto vero — e la trasformazione avviene **dopo** la messa in sicurezza dell'HTML, non prima, così un nome con `<` dentro resta testo e non diventa codice.
+
+### 🔒 Quello che scrivi tu non viene tradotto
+`spellDescIt`, `spellHigherIt` e `spellMatIt` restituiscono il **tuo** testo per gli incantesimi tuoi e per quelli caricati dai tuoi manuali (`source === 'custom'` o `homebrew`). La traduzione vale solo per i 319 SRD, che l'app contiene di suo. Una tua *Hex* resta come l'hai scritta.
+
+### Prove
+`test-v88.mjs` (21). Controlla i tre conteggi (319 · 90 · 184), che nessuna chiave punti a un incantesimo che non esiste, che nessun SRD resti senza traduzione, e che in tutti e tre i dizionari non sia rimasta una parola inglese di regolamento (*feet*, *saving throw*, *hit points*, *spell slot of*, *worth at least N gp*). Poi apre davvero la scheda di *palla di fuoco* e di *malocchio* e guarda cosa c'è dentro: descrizione italiana, livelli superiori italiani, materiali italiani, l'originale disponibile, i sottotitoli in grassetto e nessun asterisco rimasto. E tre prove sull'homebrew, perché la regola sopra non deve rompersi in silenzio.
+
 ## v8.7 — 4 settembre 2026
 **Caccia ai difetti a tappeto: cinque veri, trovati cercandoli invece di aspettarli.**
 
