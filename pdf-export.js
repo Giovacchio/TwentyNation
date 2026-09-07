@@ -56,15 +56,27 @@ function pdfDoc(lib, doc, fonts, title){
   const S = {
     doc, lib, fonts, page: null, y: 0, pageNo: 0, title,
     rgb: lib.rgb,
-    get left(){ return PDFX.M; },
-    get right(){ return PDFX.W - PDFX.M; },
-    get width(){ return PDFX.W - PDFX.M*2; },
+    /* Due colonne: le usa il libretto degli incantesimi. Un testo di
+       regolamento largo quanto un A4 si legge male, e la scheda invece
+       resta a colonna unica — `colonne = 0` e' il comportamento di
+       sempre, bit per bit. */
+    /* 26 punti di corridoio, non 20: sotto il 3,5% della larghezza il
+       lettore PDF dell'app non riconosce piu' le colonne, e riletto dal
+       suo stesso importatore il libretto tornava con le due colonne
+       incollate. Un foglio che l'app non sa rileggere e' un foglio
+       fatto male. */
+    colonne: 0, colonna: 0, colGap: 26, colTop: 0,
+    get colW(){ return (PDFX.W - PDFX.M*2 - S.colGap*(S.colonne-1)) / S.colonne; },
+    get left(){ return S.colonne ? PDFX.M + S.colonna * (S.colW + S.colGap) : PDFX.M; },
+    get right(){ return S.colonne ? S.left + S.colW : PDFX.W - PDFX.M; },
+    get width(){ return S.colonne ? S.colW : PDFX.W - PDFX.M*2; },
   };
 
   S.newPage = () => {
     S.page = doc.addPage([PDFX.W, PDFX.H]);
     S.pageNo++;
     S.y = PDFX.H - PDFX.M;
+    S.colonna = 0; S.colTop = S.y;
     // filo dorato in alto e piede di pagina
     S.page.drawRectangle({ x:0, y:PDFX.H-6, width:PDFX.W, height:6, color:S.rgb(...PDFX.gold), opacity:0.55 });
     S.page.drawText(wa(title), { x:PDFX.M, y:20, size:7.5, font:fonts.it, color:S.rgb(...PDFX.soft) });
@@ -73,7 +85,13 @@ function pdfDoc(lib, doc, fonts, title){
     return S.page;
   };
 
-  S.space = (h) => { if (S.y - h < PDFX.M + 26) S.newPage(); };
+  /* Finito lo spazio: in colonna singola si cambia foglio, a due
+     colonne si passa prima all'altra colonna. */
+  S.space = (h) => {
+    if (S.y - h >= PDFX.M + 26) return;
+    if (S.colonne && S.colonna < S.colonne - 1){ S.colonna++; S.y = S.colTop; return; }
+    S.newPage();
+  };
   S.gap = (h) => { S.y -= h; };
 
   /* Spezza il testo alla larghezza data, rispettando gli a capo. */
@@ -112,15 +130,21 @@ function pdfDoc(lib, doc, fonts, title){
   };
 
   S.text = (t, opts) => {
-    const o = Object.assign({ size:9, font:fonts.it, color:PDFX.ink, x:S.left, maxW:S.width, lead:1.34 }, opts||{});
-    const lines = S.wrap(t, o.font, o.size, o.maxW);
+    const o = Object.assign({ size:9, font:fonts.it, color:PDFX.ink, lead:1.34 }, opts||{});
+    /* Se chi chiama non fissa la x, si usa quella della colonna VIVA, riga
+       per riga: a due colonne S.space puo' saltare all'altra colonna a
+       meta' paragrafo, e una x catturata prima continuerebbe a scrivere
+       nella colonna di sinistra sopra il testo gia' stampato. */
+    const xFisso = (o.x != null);
+    const maxW = (o.maxW != null) ? o.maxW : S.width;
+    const lines = S.wrap(t, o.font, o.size, maxW);
     const lh = o.size * o.lead;
     // se in fondo alla pagina ci sta una riga sola, si cambia foglio:
     // una riga orfana in cima alla pagina dopo si legge male
-    if (lines.length > 1 && S.y - 2*lh < PDFX.M + 26) S.newPage();
+    if (lines.length > 1) S.space(2*lh);
     lines.forEach(ln => {
       S.space(lh);
-      if (ln) S.page.drawText(wa(ln), { x:o.x, y:S.y - o.size, size:o.size, font:o.font, color:S.rgb(...o.color) });
+      if (ln) S.page.drawText(wa(ln), { x: xFisso ? o.x : S.left, y:S.y - o.size, size:o.size, font:o.font, color:S.rgb(...o.color) });
       S.y -= lh;
     });
     return lines.length;
@@ -440,7 +464,13 @@ async function drawSheet(S, c, lib, doc, fonts){
           try { const r = ritoccoAttacco(c, k.sp.id);
                 if (r && r.note && r.note.length) extra = ' [' + r.note.join(' · ') + ']'; } catch(e){}
         }
-        return (prep ? '* ' : '') + spellName(k.sp) + conc + extra;
+        /* quanto fa, al livello di CHI stampa: su un foglio di carta
+           non puoi aprire l'incantesimo per scoprirlo */
+        let quanto = '';
+        if (typeof quantoFa === 'function'){
+          try { const q = quantoFa(k.sp, c); if (q) quanto = ' (' + q + ')'; } catch(e){}
+        }
+        return (prep ? '* ' : '') + spellName(k.sp) + quanto + conc + extra;
       });
       S.text(names.join('   ·   '), { size:8.4 });
       S.gap(3);
@@ -579,4 +609,133 @@ async function drawSheet(S, c, lib, doc, fonts){
   const note = 'Generata con Grimorio. Il materiale di regole proviene dal System Reference Document 5.1 (Open Gaming License 1.0a).';
   S.page.drawLine({ start:{x:S.left,y:46}, end:{x:S.right,y:46}, thickness:0.6, color:rgb(...PDFX.gold), opacity:0.6 });
   S.page.drawText(wa(note), { x:S.left, y:38, size:6.4, font:fonts.obl, color:rgb(...PDFX.soft) });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   IL LIBRETTO DEGLI INCANTESIMI
+   La scheda stampa i NOMI degli incantesimi: al tavolo, con la scheda
+   di carta, per sapere cosa fa un incantesimo bisognava passarsi il
+   telefono. Prima della v8.8 non aveva senso stamparne i testi —
+   sarebbero uscite venti pagine di inglese. Adesso sono in italiano.
+   Due colonne, ordinati per livello, con quello che fanno al TUO
+   livello scritto accanto al nome.
+   ═══════════════════════════════════════════════════════════════════ */
+function incantesimiDelLibretto(c){
+  const visti = new Set();
+  const fuori = [];
+  const metti = (sp, nota) => {
+    if (!sp) return;
+    const k = (sp.source||'srd') + '|' + sp.id;
+    if (visti.has(k)) return;
+    visti.add(k);
+    fuori.push({ sp, nota: nota || '' });
+  };
+  (c.knownSpells || []).forEach(ref => metti(spellByRef(ref), ''));
+  /* Quelli che ha SEMPRE contano quanto gli altri: sono proprio quelli
+     che non si ricorda a memoria. */
+  if (typeof spellSottoclasseDi === 'function')
+    spellSottoclasseDi(c).forEach(x => metti(x.sp, x.da || ''));
+  if (typeof incantesimiDaSuppliche === 'function'){
+    const Q = { volonta:'a volontà', riposoLungo:'1/riposo lungo', riposoBreve:'1/riposo breve' };
+    incantesimiDaSuppliche(c).forEach(x => metti(x.sp, 'supplica · ' + (Q[x.quando] || x.quando || '')));
+  }
+  fuori.sort((a,b) => (a.sp.level||0) - (b.sp.level||0) || spellName(a.sp).localeCompare(spellName(b.sp), 'it'));
+  return fuori;
+}
+
+async function exportSpellBook(charId){
+  const c = charById(charId);
+  if (!c){ toast('Personaggio non trovato'); return; }
+  const lista = incantesimiDelLibretto(c);
+  if (!lista.length){ toast('Questo personaggio non ha incantesimi da stampare'); return; }
+  toast('📖 Preparo il libretto…');
+  let lib;
+  try { lib = await loadPdfLib(); }
+  catch(e){ console.error(e); toast('⚠️ Non riesco a caricare il generatore PDF'); return; }
+
+  try {
+    const doc = await lib.PDFDocument.create();
+    const fonts = {
+      it:   await doc.embedFont(lib.StandardFonts.Helvetica),
+      bold: await doc.embedFont(lib.StandardFonts.HelveticaBold),
+      obl:  await doc.embedFont(lib.StandardFonts.HelveticaOblique),
+    };
+    doc.setTitle((c.name || 'Incantesimi') + ' — libretto');
+    doc.setCreator('TwentyNation');
+
+    const S = pdfDoc(lib, doc, fonts,
+      (c.name || 'Senza nome') + ' · libretto degli incantesimi');
+    S.colonne = 2;
+    S.newPage();
+
+    /* Intestazione a tutta pagina, prima di scendere in colonna. */
+    S.colonne = 0;
+    S.page.drawText(wa((c.name || 'Senza nome')), { x:S.left, y:S.y-16, size:16, font:fonts.bold, color:S.rgb(...PDFX.accent) });
+    S.y -= 22;
+    const sotto = [c.classField || '', c.level ? c.level + '° livello' : '', lista.length + ' incantesimi'].filter(Boolean).join('  ·  ');
+    S.page.drawText(wa(sotto), { x:S.left, y:S.y-9, size:8.6, font:fonts.it, color:S.rgb(...PDFX.soft) });
+    S.y -= 16;
+    if (typeof spellcastingMod === 'function'){
+      S.page.drawText(wa('CD dei tuoi tiri salvezza ' + (8 + spellcastingMod(c)) + '   ·   attacco con incantesimo ' + signStr(spellcastingMod(c))),
+        { x:S.left, y:S.y-9, size:8.6, font:fonts.bold, color:S.rgb(...PDFX.ink) });
+      S.y -= 18;
+    }
+    S.colonne = 2; S.colTop = S.y;
+
+    let livCorrente = null;
+    lista.forEach(({ sp, nota }) => {
+      const liv = sp.level || 0;
+      if (liv !== livCorrente){
+        livCorrente = liv;
+        S.heading(liv === 0 ? 'Trucchetti' : liv + '° livello');
+      }
+      /* Il nome e la voce non si separano mai dalla prima riga di testo:
+         un nome in fondo alla colonna e la descrizione nella successiva
+         e' esattamente quello che rende illeggibile un libretto. */
+      S.space(58);
+      S.page.drawText(wa(spellName(sp)), { x:S.left, y:S.y-9.6, size:9.6, font:fonts.bold, color:S.rgb(...PDFX.ink) });
+      S.y -= 13;
+
+      const quanto = (typeof quantoFa === 'function') ? (quantoFa(sp, c) || '') : '';
+      const riga1 = [levelLabel(liv), schoolIt(sp.school||''), sp.conc ? 'concentrazione' : '', sp.ritual ? 'rituale' : '', nota]
+        .filter(Boolean).join(' · ');
+      S.text(riga1, { size:7.2, font:fonts.obl, color:PDFX.soft, lead:1.25 });
+      if (quanto) S.text(quanto, { size:8, font:fonts.bold, color:PDFX.accent, lead:1.25 });
+
+      const cast = (typeof spellCastIt === 'function') ? (spellCastIt(sp.cast) || sp.cast) : sp.cast;
+      const gitt = (typeof spellRangeIt === 'function') ? (spellRangeIt(sp.range) || sp.range) : sp.range;
+      const dur  = (typeof spellDurIt === 'function') ? (spellDurIt(sp.dur) || sp.dur) : sp.dur;
+      const mat  = (typeof spellMatIt === 'function') ? spellMatIt(sp) : (sp.mat || '');
+      S.text([cast, gitt, dur, formatComponents(sp.comp, mat)].filter(Boolean).join('  ·  '),
+        { size:7.4, color:PDFX.soft, lead:1.3 });
+      S.gap(2);
+
+      const desc = (typeof spellDescIt === 'function') ? spellDescIt(sp) : (sp.desc || '');
+      /* I titoletti in grassetto del testo (**Rosso.**) su carta non
+         possono essere in grassetto davvero: si tolgono gli asterischi
+         invece di stamparli. */
+      S.text(String(desc).replace(/\*\*/g, ''), { size:8, lead:1.32 });
+
+      const alti = (typeof spellHigherIt === 'function') ? spellHigherIt(sp) : (sp.higher || '');
+      if (alti){
+        S.gap(2);
+        S.text('Ai livelli superiori. ' + String(alti).replace(/\*\*/g, ''), { size:7.6, font:fonts.obl, color:PDFX.soft, lead:1.3 });
+      }
+      S.gap(9);
+    });
+
+    /* La nota di licenza va anche qui: questo foglio E' testo SRD. */
+    S.colonne = 0;
+    S.space(40); S.gap(8);
+    S.text('Testi degli incantesimi: SRD 5.1, Wizards of the Coast, Open Gaming License 1.0a. Traduzione italiana a cura di TwentyNation.',
+      { size:6.8, color:PDFX.soft });
+
+    const bytes = await doc.save();
+    const safe = (c.name || 'incantesimi').replace(/[^\p{L}\p{N} _-]/gu, '').trim().replace(/\s+/g, '-') || 'incantesimi';
+    downloadBlob(new Blob([bytes], { type:'application/pdf' }), safe + '-incantesimi.pdf');
+    toast('📖 Libretto esportato · ' + lista.length + ' incantesimi');
+  } catch(e){
+    console.error('Libretto PDF fallito', e);
+    toast('⚠️ Esportazione non riuscita');
+  }
 }

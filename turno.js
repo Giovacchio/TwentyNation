@@ -55,9 +55,14 @@ function incantesimiDelTurno(c){
   // Un preparatore che non ha ancora segnato niente non deve ritrovarsi
   // lo schermo vuoto: si mostrano tutti e glielo si dice.
   const filtra = prepara && segnati.length > 0;
+  /* Il mago legge i rituali dal libro anche se non li ha preparati:
+     nasconderglieli sarebbe togliergli proprio quello che il libro
+     serve a fare. Vale anche per il warlock col tomo. */
+  const dalLibro = ['wizard','warlock-tomo'].includes(classeRituale(c));
   (c.knownSpells || []).forEach(ref => {
     const sp = spellByRef(ref); if (!sp) return;
-    if (filtra && sp.level && !segnati.includes(ref.id)) return;
+    const rituarePuoi = dalLibro && sp.ritual;
+    if (filtra && sp.level && !segnati.includes(ref.id) && !rituarePuoi) return;
     const q = turnoTempo(sp);
     (fuori[q] || fuori.altro).push({ ref, sp });
   });
@@ -65,6 +70,44 @@ function incantesimiDelTurno(c){
   Object.keys(fuori).forEach(k => fuori[k].sort(perLivello));
   fuori.__daPreparare = prepara && !segnati.length;
   return fuori;
+}
+/* ─── I rituali ──────────────────────────────────────────────────
+   Fino alla v8.8 `ritual` era solo una targhetta: il tasto «Lancia»
+   spendeva uno slot anche su individuazione del magico o identificare,
+   che come rituali si lanciano SENZA slot, con dieci minuti in più. Un
+   mago che rituali rilevamento del magico a ogni stanza si vedeva
+   contare slot che non aveva speso.
+
+   Chi può ritualizzare, secondo l'SRD: bardo, chierico, druido e mago.
+   Non stregone, non paladino, non ranger. Il warlock solo con la
+   supplica «Libro dei segreti antichi». E c'è una differenza che conta:
+   il mago legge dal libro, quindi gli basta averlo in scheda anche se
+   non l'ha preparato; chierico e druido devono averlo preparato. */
+const CLASSI_RITUALI = ['bard','cleric','druid','wizard'];
+function classeRituale(c){
+  const cl = (typeof classeDi === 'function') ? classeDi(c) : null;
+  if (cl && CLASSI_RITUALI.includes(cl.id)) return cl.id;
+  if (c && c.class2 && typeof classIdDaNome === 'function'){
+    const id2 = classIdDaNome(c.class2);
+    if (CLASSI_RITUALI.includes(id2)) return id2;
+  }
+  /* il warlock ritualizza solo con la supplica apposta */
+  if (typeof supplicheDi === 'function' && supplicheDi(c).some(s => s && s.id === 'book-of-ancient-secrets'))
+    return 'warlock-tomo';
+  return '';
+}
+/* Questo incantesimo, per questo personaggio, si può lanciare come
+   rituale adesso? Torna '' se sì, altrimenti il motivo. */
+function perchePuoiNoRituale(c, sp){
+  if (!sp || !sp.ritual) return 'non è un rituale';
+  const chi = classeRituale(c);
+  if (!chi) return 'la tua classe non lancia rituali';
+  /* il libro del mago (e il tomo del warlock) non chiede la preparazione */
+  if (chi === 'wizard' || chi === 'warlock-tomo') return '';
+  const prepara = preparaIncantesimi(c);
+  const segnati = (c.preparedSpells || []);
+  if (prepara && segnati.length && !segnati.includes(sp.id)) return 'devi averlo preparato';
+  return '';
 }
 /* Quale slot si può usare per un incantesimo di livello N: il suo, o il
    primo più alto disponibile. È il modo in cui si lancia davvero. */
@@ -138,17 +181,23 @@ function turnoHTML(){
   const rigaIncantesimo = (quando) => (x) => {
     const liv = x.sp.level || 0;
     const usabile = liv ? slotUsabile(c, liv) : 0;
-    const spento = liv && !usabile;
+    const spento = !!(liv && !usabile);
     const conc = !!x.sp.conc;
     const giaConc = conc && c.concentration;
-    return `<div class="attack-row ${spento?'promemoria':''}">
+    /* Se e' un rituale che questo personaggio puo' davvero ritualizzare,
+       accanto a «Lancia» compare ⏳: nessuno slot speso. */
+    const rituale = !!x.sp.ritual && !perchePuoiNoRituale(c, x.sp);
+    return `<div class="attack-row ${spento && !rituale ?'promemoria':''}">
       <button class="attack-main" onclick="viewSpellDetail('${jsStr(x.ref.id)}','${jsStr(x.ref.source||'srd')}','${c.id}')">
         <div class="attack-name">${liv?'✨':'🔹'} ${escapeHtml(spellName(x.sp))}${conc?' <span class="muted" style="font-size:.7rem">🌀</span>':''}</div>
         <div class="muted" style="font-size:.72rem">${liv ? liv+'° livello' : 'trucchetto'}${
           spento ? ' · <b style="color:var(--warn)">niente slot</b>'
                  : (usabile && usabile !== liv ? ' · con uno slot di '+usabile+'°' : '')}${
+          rituale ? ' · <b style="color:var(--gold)">⏳ rituale, senza slot</b>' : ''}${
           giaConc ? ' · sostituisce «'+escapeHtml((c.concentration.name)||'')+'»' : ''}</div>
       </button>
+      ${rituale ? `<button class="attack-btn" title="Come rituale: nessuno slot, 10 minuti in più"
+        onclick="turnoLancia('${c.id}','${jsStr(x.ref.id)}','${jsStr(x.ref.source||'srd')}','${quando}',1)">⏳</button>` : ''}
       <button class="attack-btn" ${spento?'disabled':''} title="Lancia"
         onclick="turnoLancia('${c.id}','${jsStr(x.ref.id)}','${jsStr(x.ref.source||'srd')}','${quando}')">Lancia</button>
     </div>`;
@@ -280,18 +329,29 @@ function turnoHTML(){
       ${risorse?`<div class="chip-row">${risorse}</div>`:''}` : ''}
 
     <div class="btn-row" style="margin-top:14px">
-      <button class="btn btn-ghost" onclick="closeModal(); openSheet('${c.id}')">Apri la scheda</button>
+      <button class="btn btn-ghost" onclick="closeModalAll(); openSheet('${c.id}')">Apri la scheda</button>
       <button class="btn btn-primary" onclick="closeModal()">Fatto</button>
     </div>`;
   return modalShell('⚔️ Il tuo turno', inner);
 }
 
 /* Lanciare per davvero: slot giusto, concentrazione, azione segnata. */
-function turnoLancia(charId, spellId, source, quando){
+function turnoLancia(charId, spellId, source, quando, comeRituale){
   const c = charById(charId); if (!c) return;
   const sp = (typeof spellByRef === 'function') ? spellByRef({ id: spellId, source: source }) : null;
   if (!sp){ toast('Incantesimo non trovato'); return; }
   const liv = sp.level || 0;
+  /* Come rituale non si spende nessuno slot e non si consuma l'azione:
+     ci vogliono dieci minuti in più, cioe' non e' roba di questo turno. */
+  if (comeRituale){
+    const no = perchePuoiNoRituale(c, sp);
+    if (no){ toast('Non puoi ritualizzarlo: ' + no); return; }
+    if (sp.conc) c.concentration = { name: spellName(sp) };
+    toast('⏳ ' + spellName(sp) + ' come rituale · nessuno slot, 10 minuti in più');
+    scheduleSave('characters', c);
+    renderModalRoot(); render();
+    return;
+  }
   if (liv){
     const usabile = slotUsabile(c, liv);
     if (!usabile){ toast('Non hai più slot per lanciarlo'); return; }

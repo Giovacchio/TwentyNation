@@ -1,5 +1,70 @@
 # TwentyNation — lista dei cambiamenti
 
+## v8.9 — 7 settembre 2026
+**Trovare l'incantesimo giusto in fretta, e i rituali che finalmente sono rituali.**
+
+### 🔎 Cercare DENTRO gli incantesimi, non solo fra i nomi
+La ricerca guardava nome, nome inglese e scuola. Dalla v8.8 però i 319 testi SRD sono in italiano, e la domanda vera del tavolo non è «come si chiamava quello» ma **«che cosa ho che rende prono?»**. Adesso ha una risposta: cercando «terreno difficile» escono grasso, ragnatela, intralciare e altri tredici.
+
+I risultati restano **in due blocchi separati**, ed è il punto: cercando «fuoco», *palla di fuoco* sta in cima fra i nomi, e sotto un divisorio che dice «Ne parlano nel testo (27)» ci sono quelli che il fuoco lo nominano soltanto. Ognuno con **la frase in cui compare la parola** — tagliata intorno a quella, non ai primi 130 caratteri, se no l'estratto non spiegherebbe più niente.
+
+Vale anche per la **ricerca globale** (🔍 in cima al party), in un gruppo suo.
+
+Sotto le tre lettere non si fruga nel testo: cercare «di» darebbe trecento risultati e nessuna informazione. E il testo di un incantesimo si normalizza **una volta sola** e si tiene da parte: farlo a ogni tasto premuto vorrebbe dire ripassare 319 descrizioni mentre scrivi. Misurato: **17 ms a indice freddo, 3 ms dopo**.
+
+Un tuo incantesimo si cerca **col tuo testo**, non con una traduzione che non gli appartiene.
+
+### 🌀 I filtri che i dati permettevano da sempre
+`conc`, `ritual` e il prezzo delle componenti erano in `spells-data.js` da sempre e **non li usava nessuna riga di codice**. Adesso sono quattro pastiglie nel grimorio:
+
+- **🌀 Concentrazione** (126) e **Senza 🌀** (193) — «cosa posso lanciare senza rompere quella che ho già» è una decisione che al tavolo si prende ogni turno, e prima si prendeva aprendo gli incantesimi uno per uno.
+- **⏳ Rituali** (29).
+- **💰 Costano soldi** (52) — quelli con una componente materiale che ha un prezzo. Legge sia «gp» dell'originale sia «mo» della traduzione e di quello che scrivi tu.
+
+Si combinano con livello e classe.
+
+*Quello che ho lasciato fuori, di proposito:* il **filtro per tipo di danno**. Solo 64 incantesimi su 319 hanno quel campo compilato, quindi un filtro «fuoco» avrebbe mentito per omissione. Quella domanda la risponde meglio la ricerca nel testo.
+
+### 📜 Gli incantesimi della scheda: ricerca e livelli
+In scheda c'erano **due pastiglie e basta**, «Tutti» e «★ Preparati»: nessuna ricerca, nessun raggruppamento. Un druido di 9° con quaranta incantesimi scorreva un elenco piatto mentre il tavolo aspettava.
+
+- **Raggruppati per livello**, con quanti ne hai e quanti ne hai preparati a quel livello (`3° livello (3 · ★ 2)`). Sotto le nove voci l'intestazione sarebbe solo rumore: resta l'elenco piatto.
+- **La ricerca** compare quando l'elenco supera le otto voci, e cerca anche nel testo: «invisibile» trova *invisibilità* anche se non ti ricordi come si chiama.
+- Mentre scrivi **si ridisegna solo l'elenco**, mai la casella: ridisegnare tutta la scheda a ogni lettera porterebbe via il fuoco — è già successo con le caratteristiche nella v8.2.1.
+
+> Trovato per strada, e vale la pena scriverlo: la ✕ per cancellare la ricerca **non sarebbe mai comparsa**. `cercaLista` la disegna solo se al momento del ridisegno c'è del testo — ma qui la casella non si ridisegna apposta, quindi il testo non si sarebbe più potuto cancellare con un tocco. Adesso la ✕ sta sempre nel DOM e si mostra da sola.
+
+### ⏳ I rituali erano solo una targhetta
+`ritual` compariva sette volte in `app.js` ed **erano tutte decorazioni**: il bollo sulla scheda, la casella nel modulo, la lettura dall'importazione. In «Il tuo turno» la parola non compariva affatto — quindi **«Lancia» spendeva uno slot anche su *individuazione del magico* o *identificare***, che come rituali si lanciano senza slot, con dieci minuti in più. Un mago che rituali *individuazione del magico* a ogni stanza si vedeva contare slot che non aveva speso.
+
+- Accanto a «Lancia» compare **⏳** sugli incantesimi che *questo* personaggio può davvero ritualizzare: **nessuno slot speso, e nemmeno l'azione** — ci vogliono dieci minuti, cioè non è roba di questo turno.
+- **Chi può, secondo l'SRD:** bardo, chierico, druido e mago. Non stregone, non paladino, non ranger. Il warlock **solo** col *Libro dei segreti antichi*. Se non puoi, l'app dice **perché**.
+- **La differenza che conta:** il mago legge dal libro, quindi gli basta averlo in scheda **anche se non l'ha preparato**; chierico e druido devono averlo preparato. E per questo i rituali non preparati del mago **adesso compaiono nel turno**: nascondergli il libro sarebbe togliergli proprio quello che il libro serve a fare. Al chierico i non preparati restano nascosti, come prima.
+
+### 📖 Il libretto degli incantesimi
+Il PDF della scheda stampa i **nomi** degli incantesimi coi danni e le note delle suppliche. Prima della v8.8 stamparne i testi non aveva senso: sarebbero uscite venti pagine di inglese.
+
+Adesso da **⋯ → «Libretto degli incantesimi»** esce un fascicoletto **a due colonne**, ordinato per livello, con i testi per intero in italiano: tempo di lancio, gittata, durata, componenti, descrizione, «ai livelli superiori», e **quanto fa al TUO livello** scritto accanto al nome — su un foglio di carta non puoi aprire l'incantesimo per scoprirlo. Ci sono anche quelli che hai **sempre**: gli incantesimi di dominio o di circolo e quelli dalle suppliche, che sono proprio quelli che non ti ricordi a memoria. In fondo la nota OGL, perché quel foglio **è** testo SRD.
+
+> **Due difetti veri, trovati generando il file e rileggendolo.**
+>
+> Il primo era grosso: le colonne **si scrivevano addosso**. `S.text` catturava la x della colonna *prima* di stampare, ma a metà paragrafo il testo può passare all'altra colonna — e le righe successive continuavano a uscire nella colonna di sinistra, sopra quello che c'era già. Adesso la x si legge riga per riga dalla colonna viva.
+>
+> Il secondo l'ha trovato il lettore PDF dell'app puntato sul libretto dell'app: con **20 punti** di corridoio fra le colonne, `corridoiVerticali` non le riconosceva più (vuole il 3,5% della larghezza) e rileggendo il proprio foglio tornavano due colonne incollate. Portato a **26**. Un foglio che l'app non sa rileggere è un foglio fatto male.
+
+> **E una pastiglia nuova ha scoperto un buco vecchio nelle prove.** Dopo il rilascio il
+> crawl toccava **1527** elementi invece di 1533: sei in meno, con cinque pastiglie in più.
+> Il motivo: il crawl conta gli elementi di una schermata **una volta**, poi li tocca uno
+> per uno — e appena tocca «⏳ Rituali» il grimorio si accorcia a 29 incantesimi, quindi
+> da lì in avanti gli elementi che aveva contato non ci sono più. Valeva già per le
+> pastiglie del livello e della classe: **il grimorio era sotto-provato da sempre**.
+> Ora il filtro si riazzera a ogni giro, e i tocchi passano da 1533 a **1876** — 343
+> elementi che nessuno aveva mai premuto. Zero rotti. È la stessa lezione del cestino
+> vuoto della v8.0.1: una schermata che si rimpicciolisce è una schermata non provata.
+
+### Prove
+`test-v89.mjs` (49), divise per le cinque cose. Le tre che contano di più: che lanciare un rituale **non tocchi né gli slot né l'azione** mentre lo stesso incantesimo lanciato normalmente li spenda eccome; che scrivendo nella ricerca della scheda **il fuoco resti nella casella** (si preme davvero il tasto e si guarda `document.activeElement`); e che nel libretto **nessuna riga sia la fusione di due colonne** — generando il PDF, rileggendolo con l'importatore dell'app e cercando le righe incastrate. La prova sulla versione della v8.8 è stata corretta: controllava un numero fisso, che invecchia a ogni rilascio.
+
 ## v8.8 — 6 settembre 2026
 **Le schede degli incantesimi non sono più metà in inglese.**
 

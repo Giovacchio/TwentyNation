@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.8';
+const APP_VERSION = '8.9';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -316,6 +316,62 @@ function norm(s){
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[’']/g,"'").trim();
 }
+/* ─── Cercare DENTRO gli incantesimi ──────────────────────────────
+   Dalla v8.8 i 319 testi SRD sono in italiano, quindi la domanda vera
+   del tavolo — «che cosa ho che rende prono?» — ha una risposta scritta
+   nei file. Prima si cercava solo fra i nomi.
+   Il testo di un incantesimo si normalizza UNA VOLTA e si tiene da
+   parte: farlo a ogni tasto premuto vorrebbe dire ripassare 319
+   descrizioni da mille lettere l'una mentre l'utente scrive. */
+const __indiceSpell = new Map();
+function testoCercabile(sp){
+  if (!sp) return '';
+  const chiave = (sp.source||'srd') + '|' + sp.id + '|' + (sp.updatedAt || sp.createdAt || 0);
+  const gia = __indiceSpell.get(chiave);
+  if (gia !== undefined) return gia;
+  const desc   = (typeof spellDescIt   === 'function') ? spellDescIt(sp)   : (sp.desc || '');
+  const alti   = (typeof spellHigherIt === 'function') ? spellHigherIt(sp) : (sp.higher || '');
+  const mat    = (typeof spellMatIt    === 'function') ? spellMatIt(sp)    : (sp.mat || '');
+  const testo = norm([desc, alti, mat].filter(Boolean).join(' \n '));
+  /* non deve crescere all'infinito su un archivio importato grosso */
+  if (__indiceSpell.size > 3000) __indiceSpell.clear();
+  __indiceSpell.set(chiave, testo);
+  return testo;
+}
+/* Il nome, il nome nell'altra lingua e la scuola: la ricerca di prima. */
+function nomeCercabile(sp){
+  return norm([spellItName(sp), sp.name, schoolIt(sp.school||''), sp.school].filter(Boolean).join(' '));
+}
+/* «Quali mi costano soldi»: 51 incantesimi SRD hanno una componente
+   materiale con un prezzo. Si guarda sia l'originale (gp) sia la
+   traduzione e quello che scrivi tu (mo). */
+function materialeCostoso(sp){
+  if (!sp) return false;
+  const it = (typeof spellMatIt === 'function') ? spellMatIt(sp) : '';
+  return /\d[\d.,]*\s*(gp|mo)\b/i.test(String(sp.mat||'') + ' ' + String(it||''));
+}
+/* Perche' questo incantesimo e' in elenco: la frase in cui compare la
+   parola cercata. Si lavora per frasi invece che per posizione perche'
+   norm() toglie gli accenti e le posizioni non tornerebbero. */
+function estrattoTesto(sp, q){
+  const testo = (typeof spellDescIt === 'function') ? spellDescIt(sp) : (sp.desc||'');
+  const qn = norm(q);
+  const frasi = String(testo).split(/(?<=[.;:!?])\s+|\n+/);
+  const trovata = frasi.find(fr => norm(fr).includes(qn));
+  if (!trovata) return '';
+  const pulita = trovata.replace(/\*\*/g,'').replace(/^[\s·—–\-*]+/,'').trim();
+  if (pulita.length <= 130) return pulita;
+  /* La frase e' lunga: si taglia INTORNO alla parola cercata, non dai
+     primi 130 caratteri — se no si mostra un pezzo che non contiene
+     quello che l'utente ha scritto, cioe' l'estratto non spiega piu'
+     niente. Il taglio cade fra parole. */
+  const dove = norm(pulita).indexOf(qn);
+  let da = Math.max(0, dove - 45);
+  if (da > 0){ const sp = pulita.indexOf(' ', da); if (sp > -1 && sp < da + 20) da = sp + 1; }
+  let a = Math.min(pulita.length, da + 128);
+  if (a < pulita.length){ const sp = pulita.lastIndexOf(' ', a); if (sp > da + 60) a = sp; }
+  return (da > 0 ? '…' : '') + pulita.slice(da, a).trim() + (a < pulita.length ? '…' : '');
+}
 function levelLabel(l){ return l === 0 ? 'Trucchetto' : l + '° livello'; }
 function pluralize(n, one, many){ return n === 1 ? one : many; }
 function scrollTop(){ window.scrollTo({top:0, behavior:'auto'}); }
@@ -421,8 +477,9 @@ const state = {
   dmTab: 'bestiary',
   grimoireMode: 'browse',
   grimoirePickFor: null,
-  grimoireFilter: { q: '', level: 'all', clas: 'all' },
+  grimoireFilter: { q: '', level: 'all', clas: 'all', tratto: 'all' },
   knownFilter: 'all',
+  knownQ: '',
   bestiarioQ: '', bestiarioGs: '', combatCercaQ: '',
   hbQ: '', hbKind: '',
   combat: { list: [], round: 1, turn: 0 },
@@ -1485,7 +1542,7 @@ function goView(v){
 function openSheet(id){
   state.view = 'sheet'; state.activeCharId = id; state.sheetTab = 'overview';
   suggerisciScorrimento();
-  state.knownFilter = 'all';
+  state.knownFilter = 'all'; state.knownQ = '';
   pushNav(); render(); scrollTop();
 }
 function setSheetTab(tab){ state.sheetTab = tab; replaceNav(); render(); scrollTop(); }
@@ -3331,14 +3388,28 @@ function slotsFor(c){
   }
   return slotsForCharacter(c.casterType, c.level);
 }
+/* Gli incantesimi in scheda, gia' filtrati: la usano sia il disegno
+   della scheda sia il ridisegno del solo elenco mentre cerchi, cosi'
+   il filtro e' scritto in un posto solo. */
+function conosciutiFiltrati(c){
+  let known = (c.knownSpells||[]).map(k => ({ ref:k, sp: spellByRef(k) })).filter(x => x.sp);
+  known.sort((a,b) => (a.sp.level - b.sp.level) || spellName(a.sp).localeCompare(spellName(b.sp), 'it'));
+  const prepared = c.preparedSpells || [];
+  const tutti = known.length;
+  if (state.knownFilter === 'prepared') known = known.filter(x => prepared.includes(x.sp.id) || x.sp.level === 0);
+  /* La ricerca vale anche qui dentro: un druido di 9° con quaranta
+     incantesimi scorreva un elenco piatto mentre il tavolo aspettava.
+     Cerca nel nome e — come nel grimorio — nel testo. */
+  const kq = norm(state.knownQ || '');
+  if (kq) known = known.filter(x => nomeCercabile(x.sp).includes(kq)
+                                 || (kq.length >= 3 && testoCercabile(x.sp).includes(kq)));
+  return { known, prepared, tutti };
+}
 function renderSheetSpells(c){
   const slots = slotsFor(c);
   const used = c.slotsUsed || {};
   const isCaster = c.casterType && c.casterType !== 'none';
-  let known = (c.knownSpells||[]).map(k => ({ ref:k, sp: spellByRef(k) })).filter(x => x.sp);
-  known.sort((a,b) => (a.sp.level - b.sp.level) || spellName(a.sp).localeCompare(spellName(b.sp), 'it'));
-  const prepared = c.preparedSpells || [];
-  if (state.knownFilter === 'prepared') known = known.filter(x => prepared.includes(x.sp.id) || x.sp.level === 0);
+  const { known, prepared, tutti } = conosciutiFiltrati(c);
 
   return `
     ${c.concentration ? `<div class="conc-banner">
@@ -3409,13 +3480,55 @@ function renderSheetSpells(c){
       <button class="filter-chip ${state.knownFilter==='all'?'active':''}" onclick="setKnownFilter('all')">Tutti (${(c.knownSpells||[]).length})</button>
       <button class="filter-chip ${state.knownFilter==='prepared'?'active':''}" id="chip-prepared" onclick="setKnownFilter('prepared')">★ Preparati (${prepared.length})</button>
     </div>
-    <div class="spell-grid list-gap">
-      ${known.length ? known.map(x => knownSpellRow(c, x.ref, x.sp)).join('') : emptyState('📜', state.knownFilter==='prepared' ? 'Nessun incantesimo preparato: tocca la stella per prepararne uno.' : 'Nessun incantesimo: aggiungine dal Grimorio.')}
-    </div>
+    ${/* La casella non passa da cercaLista: li' la ✕ compare solo al
+         ridisegno, e qui mentre scrivi si ridisegna SOLO l'elenco per
+         non perdere il fuoco — quindi la ✕ non sarebbe mai comparsa e
+         il testo non si sarebbe piu' potuto cancellare con un tocco.
+         Sta sempre nel DOM e si mostra da sola. */''}
+    ${tutti > 8 || state.knownQ ? `<div class="field lista-cerca">
+      <input id="known-cerca" value="${attr(state.knownQ||'')}" placeholder="Cerca fra i tuoi incantesimi…"
+        autocomplete="off" oninput="setKnownQ(this.value)">
+      <button class="lista-cerca-x" id="known-cerca-x" ${state.knownQ?'':'hidden'} onclick="pulisciKnownQ()" aria-label="Pulisci">✕</button>
+    </div>` : ''}
+    <div id="known-results">${conosciutiHTML(c)}</div>
     <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="pickSpellForCharacter('${c.id}')">✦ Aggiungi dal Grimorio</button>
   `;
 }
+/* L'elenco vero e proprio, raggruppato per livello. */
+function conosciutiHTML(c){
+  const { known, prepared } = conosciutiFiltrati(c);
+  if (!known.length) return `<div class="spell-grid list-gap">${emptyState('📜',
+    state.knownQ ? 'Nessuno dei tuoi incantesimi corrisponde a «' + escapeHtml(state.knownQ) + '».'
+    : state.knownFilter==='prepared' ? 'Nessun incantesimo preparato: tocca la stella per prepararne uno.'
+    : 'Nessun incantesimo: aggiungine dal Grimorio.')}</div>`;
+  /* Raggruppati per livello, come sono sulla scheda di carta e come li
+     chiede il tavolo: «che cosa ho di 3°?». Sotto le nove voci
+     l'intestazione sarebbe solo rumore. */
+  if (known.length <= 9) return `<div class="spell-grid list-gap">${known.map(x => knownSpellRow(c, x.ref, x.sp)).join('')}</div>`;
+  const perLiv = {};
+  known.forEach(x => { const l = x.sp.level || 0; (perLiv[l] = perLiv[l] || []).push(x); });
+  return Object.keys(perLiv).map(Number).sort((a,b)=>a-b).map(l => {
+    const lista = perLiv[l];
+    const prep = lista.filter(x => prepared.includes(x.sp.id)).length;
+    return `<div class="divider" style="margin-top:14px"><span class="flourish">❧</span><span>${
+      l === 0 ? 'Trucchetti' : l + '° livello'} (${lista.length}${prep ? ' · ★ ' + prep : ''})</span></div>
+      <div class="spell-grid list-gap">${lista.map(x => knownSpellRow(c, x.ref, x.sp)).join('')}</div>`;
+  }).join('');
+}
 function setKnownFilter(f){ state.knownFilter = f; render(); }
+const setKnownQ = debounce((v) => {
+  state.knownQ = v;
+  /* si ridisegna SOLO l'elenco, mai la casella: ridisegnare tutta la
+     scheda a ogni lettera porterebbe via il fuoco: e' gia' successo
+     con le caratteristiche nella v8.2.1 */
+  const c = charById(state.activeCharId);
+  const box = document.getElementById('known-results');
+  const x = document.getElementById('known-cerca-x');
+  if (x) x.hidden = !v;
+  if (c && box) box.innerHTML = conosciutiHTML(c);
+  else render();
+}, 160);
+function pulisciKnownQ(){ setKnownQ.annulla(); state.knownQ = ''; render(); }
 function clearSlotsOverride(charId){
   const c = charById(charId); if (!c) return;
   c.slotsOverride = null;
@@ -3830,7 +3943,7 @@ function renderGrimoire(){
       </div>`}
     <div class="search-wrap">
       <span class="search-ic">🔍</span>
-      <input id="grimoire-search-input" placeholder="Cerca per nome o scuola…" value="${attr(f.q)}" oninput="setGrimoireSearch(this.value)" autocomplete="off">
+      <input id="grimoire-search-input" placeholder="Cerca nel nome o nel testo…" value="${attr(f.q)}" oninput="setGrimoireSearch(this.value)" autocomplete="off">
       ${f.q ? `<button class="search-clear" onclick="clearGrimoireSearch()" aria-label="Cancella">✕</button>` : ''}
     </div>
     <div class="filter-bar">
@@ -3842,6 +3955,13 @@ function renderGrimoire(){
       <button class="filter-chip ${f.clas==='all'?'active':''}" onclick="setGrimoireFilter('clas','all')">Tutte le classi</button>
       ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
     </div>
+    ${/* I dati c'erano gia' in spells-data.js e non li usava nessuno.
+         «Cosa posso lanciare senza rompere la concentrazione che ho»
+         e' una decisione che al tavolo si prende ogni turno. */''}
+    <div class="filter-bar">
+      ${[['all','Tutto'],['conc','🌀 Concentrazione'],['noconc','Senza 🌀'],['ritual','⏳ Rituali'],['costoso','💰 Costano soldi']]
+        .map(([k,et])=>`<button class="filter-chip ${f.tratto===k?'active':''}" onclick="setGrimoireFilter('tratto','${k}')">${et}</button>`).join('')}
+    </div>
     <div id="grimoire-results">${grimoireResultsHTML()}</div>
     ${!picking ? `<div class="btn-row" style="margin-top:14px;">
       <button class="btn btn-primary" onclick="openCustomSpellForm()">✦ Nuovo</button>
@@ -3849,25 +3969,39 @@ function renderGrimoire(){
     </div>` : ''}
   `;
 }
+/* Restituisce DUE liste: quelli che rispondono al nome e quelli che ne
+   parlano soltanto nel testo. Tenerle separate e' il punto: cercando
+   «fuoco» il nome «palla di fuoco» deve stare in cima, non annegare fra
+   i quaranta incantesimi che nominano il fuoco in una riga. */
 function filteredSpells(){
   const f = state.grimoireFilter;
   let all = allSpells();
-  if (f.q){
-    const q = norm(f.q);
-    // cerca sia nel nome italiano sia in quello inglese, sia nella scuola
-    all = all.filter(s => norm(s.name).includes(q) || norm(spellItName(s)).includes(q) || norm(schoolIt(s.school||'')).includes(q));
-  }
   if (f.level !== 'all') all = all.filter(s => String(s.level) === f.level);
   if (f.clas !== 'all') all = all.filter(s => spellClasses(s).includes(f.clas));
-  all.sort((a,b)=> (a.level-b.level) || spellName(a).localeCompare(spellName(b), 'it'));
-  return all;
+  if (f.tratto === 'conc')     all = all.filter(s => !!s.conc);
+  if (f.tratto === 'noconc')   all = all.filter(s => !s.conc);
+  if (f.tratto === 'ritual')   all = all.filter(s => !!s.ritual);
+  if (f.tratto === 'costoso')  all = all.filter(s => materialeCostoso(s));
+  const perLivello = (a,b)=> (a.level-b.level) || spellName(a).localeCompare(spellName(b), 'it');
+  if (!f.q){ all.sort(perLivello); return { nome: all, testo: [] }; }
+  const q = norm(f.q);
+  const nome = [], testo = [];
+  all.forEach(s => {
+    if (nomeCercabile(s).includes(q)) nome.push(s);
+    else if (q.length >= 3 && testoCercabile(s).includes(q)) testo.push(s);
+  });
+  nome.sort(perLivello); testo.sort(perLivello);
+  return { nome, testo };
 }
 function grimoireResultsHTML(){
   const picking = state.grimoireMode === 'pick';
   const pickChar = picking ? charById(state.grimoirePickFor) : null;
-  const all = filteredSpells();
-  const countLine = `<div class="muted" style="margin:2px 0 10px;">${all.length} ${pluralize(all.length,'incantesimo','incantesimi')}</div>`;
-  if (!all.length){
+  const res = filteredSpells();
+  const all = res.nome;
+  const quanti = all.length + res.testo.length;
+  const countLine = `<div class="muted" style="margin:2px 0 10px;">${quanti} ${pluralize(quanti,'incantesimo','incantesimi')}${
+    res.testo.length ? ` · ${res.testo.length} solo nel testo` : ''}</div>`;
+  if (!quanti){
     const f = state.grimoireFilter;
     if (f.clas !== 'all' && !f.q){
       const nome = CLASSES_IT[f.clas] || f.clas;
@@ -3883,9 +4017,17 @@ function grimoireResultsHTML(){
     }
     return countLine + emptyState('🔍','Nessun incantesimo trovato con questi filtri.');
   }
-  return countLine + `<div class="spell-grid list-gap">` + all.map(s=>grimoireItemHTML(s, picking, pickChar)).join('') + `</div>`;
+  /* I risultati di nome prima, poi — sotto un divisorio che dice cosa
+     sono — quelli che la parola cercata ce l'hanno solo nella
+     descrizione. Cosi' si capisce perche' sono li'. */
+  const q = state.grimoireFilter.q;
+  const blocco = (lista, conEstratto) => `<div class="spell-grid list-gap">`
+    + lista.map(s=>grimoireItemHTML(s, picking, pickChar, conEstratto ? estrattoTesto(s, q) : '')).join('') + `</div>`;
+  return countLine
+    + (all.length ? blocco(all, false) : '')
+    + (res.testo.length ? `<div class="divider" style="margin-top:18px"><span class="flourish">❧</span><span>Ne parlano nel testo (${res.testo.length})</span></div>` + blocco(res.testo, true) : '');
 }
-function grimoireItemHTML(s, picking, pickChar){
+function grimoireItemHTML(s, picking, pickChar, estratto){
   const already = picking && pickChar && (pickChar.knownSpells||[]).some(k=>k.id===s.id && k.source===s.source);
   const classesIt = spellClasses(s).map(en=>CLASSES_IT[en]||en).join(', ');
   const alt = spellAltName(s);
@@ -3897,6 +4039,7 @@ function grimoireItemHTML(s, picking, pickChar){
             di partenza, in scheda diventano quelli del tuo livello */''}
       <div class="spell-item-meta">${[quantoFa(s, pickChar||null), alt, schoolIt(s.school||''), classesIt, s.source==='custom'?'personalizzato':'']
         .filter(Boolean).map(escapeHtml).join(' · ')}</div>
+      ${estratto ? `<div class="muted" style="font-size:.72rem; font-style:italic; margin-top:3px">…${escapeHtml(estratto)}</div>` : ''}
     </button>
     ${picking
       ? `<button class="spell-item-add ${already?'added':''}" id="sp-add-${s.source}-${s.id}" onclick="toggleSpellFromGrimoire('${s.id}','${s.source}')" aria-label="Aggiungi">${already?'✓':'✦'}</button>`
@@ -5577,6 +5720,9 @@ function openSheetMenu(charId){
       ${item('🩸', 'Condizioni', ((c.conditions||[]).length ? (c.conditions||[]).map(id => (CONDITION_BY_ID[id]||{}).name || id).join(', ') : 'Prono, avvelenato, affascinato…'), `openConditionPicker('${c.id}')`)}
       ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
       ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
+      ${(typeof exportSpellBook === 'function' && (c.knownSpells||[]).length)
+        ? item('📖', 'Libretto degli incantesimi', 'I testi per intero, in italiano, su due colonne da stampare', `exportSpellBook('${c.id}')`)
+        : ''}
       ${typeof apriRiempiScheda === 'function'
         ? item('🖊️', 'Riempi la tua scheda compilabile', 'Metti il tuo modulo e ci scrivo dentro: ogni dato nella sua casella', `apriRiempiScheda('${c.id}')`)
         : ''}
@@ -5609,7 +5755,7 @@ function openCharSwitcher(){
 function switchChar(id){
   closeModal();
   if (id === state.activeCharId) return;
-  state.activeCharId = id; state.sheetTab = 'overview'; state.knownFilter = 'all';
+  state.activeCharId = id; state.sheetTab = 'overview'; state.knownFilter = 'all'; state.knownQ = '';
   render(); scrollTop();
 }
 
@@ -5634,10 +5780,20 @@ function globalSearchResults(q){
         `closeModalAll(); openSheet('${c.id}')`);
   });
 
+  /* Prima per nome, poi — in un gruppo suo — quelli che la parola ce
+     l'hanno solo nella descrizione: dalla v8.8 i testi sono in italiano
+     e cercare «terreno difficile» ha finalmente una risposta. */
+  const nelTesto = [];
   allSpells().forEach(sp => {
     if (norm(spellName(sp)).includes(n) || norm(sp.name||'').includes(n))
       push('Incantesimi', '📖', spellName(sp), (sp.level ? sp.level + '° livello' : 'Trucchetto') + ' · ' + (sp.school || ''),
         `closeModal(); viewSpellDetail('${jsStr(sp.id)}','${sp.source}')`);
+    else if (n.length >= 3 && testoCercabile(sp).includes(n)) nelTesto.push(sp);
+  });
+  nelTesto.slice(0, 12).forEach(sp => {
+    push('Nel testo degli incantesimi', '🔎', spellName(sp),
+      estrattoTesto(sp, q) || (sp.level ? sp.level + '° livello' : 'Trucchetto'),
+      `closeModal(); viewSpellDetail('${jsStr(sp.id)}','${sp.source}')`);
   });
 
   if (typeof SRD_MONSTERS !== 'undefined') SRD_MONSTERS.forEach(m => {

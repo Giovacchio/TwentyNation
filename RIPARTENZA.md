@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.8** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 8.9** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -31,7 +31,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `levelup.js` | passaggio di livello |
 | `journal.js` | diario delle sessioni |
 | `pdf-import.js` | legge una scheda PDF compilabile |
-| `pdf-export.js` | esporta la scheda in PDF (foglio suo, da stampa) |
+| `pdf-export.js` | esporta la scheda in PDF (foglio suo, da stampa) **e il libretto degli incantesimi a due colonne** |
 | **`pdf-riempi.js`** | **riempie la scheda compilabile DELL'UTENTE: stessi nomi di casella del lettore** |
 | `gear-data.js` | …e `gearTrova()`/`GEAR_ALIAS`: dal nome scritto nei pacchetti alla voce di tabella |
 | `spell-pdf.js` | estrae testo dai PDF a colonne e riconosce incantesimi |
@@ -144,6 +144,37 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
 
+0¥. **Cercare nel testo degli incantesimi passa da `testoCercabile()` (v8.9), che TIENE
+   DA PARTE il risultato.** Normalizzare 319 descrizioni da mille lettere a ogni tasto
+   premuto e' l'errore ovvio: l'indice sta in `__indiceSpell`, la chiave e'
+   `source|id|updatedAt` (cosi' un incantesimo tuo modificato si rifa' da solo) e si
+   svuota sopra le 3000 voci. `filteredSpells()` non torna piu' un array ma
+   **`{nome, testo}`**: i risultati di nome e quelli che hanno la parola solo nella
+   descrizione restano separati, o cercando «fuoco» *palla di fuoco* annegherebbe fra i
+   quaranta che il fuoco lo nominano di sfuggita. Sotto le 3 lettere nel testo non si
+   cerca. `estrattoTesto()` taglia INTORNO alla parola trovata, non ai primi 130
+   caratteri, e lavora per frasi perche' `norm()` toglie gli accenti e le posizioni non
+   tornerebbero.
+
+0Ω. **I rituali (v8.9) stanno in `turno.js`: `classeRituale()` e `perchePuoiNoRituale()`.**
+   Fino alla v8.8 `ritual` era solo una targhetta e «Lancia» spendeva uno slot anche sui
+   rituali. Le due cose da non rompere: **(a)** chi ritualizza e' bardo, chierico, druido,
+   mago — e il warlock SOLO con `book-of-ancient-secrets`; **(b)** il mago (e il warlock
+   col tomo) legge dal libro, quindi NON gli serve la preparazione, mentre chierico e
+   druido si'. Da (b) discende anche il filtro di `incantesimiDelTurno`: i rituali non
+   preparati del mago devono restare visibili, se no gli si nasconde proprio quello che il
+   libro serve a fare. `turnoLancia(..., comeRituale)` non tocca ne' gli slot ne'
+   l'economia del turno: dieci minuti non sono un turno.
+
+0∏. **`pdfDoc()` sa fare due colonne (v8.9): `S.colonne = 2`.** La scheda resta a colonna
+   unica (`colonne = 0`, comportamento identico a prima). Due trappole gia' pagate:
+   **(a)** in `S.text` la x va letta RIGA PER RIGA da `S.left`, non catturata prima —
+   `S.space` puo' saltare all'altra colonna a meta' paragrafo e una x vecchia scrive sopra
+   il testo gia' stampato; **(b)** il corridoio fra le colonne dev'essere **almeno il 3,5%
+   della larghezza** (26 punti su A4), o `corridoiVerticali` in `spell-pdf.js` non lo
+   riconosce e il lettore dell'app rilegge il proprio libretto con le colonne incollate.
+   La prova generale e': *l'app sa rileggere il PDF che ha appena scritto?*
+
 0€. **Le traduzioni degli incantesimi stanno in `spells-desc-it.js` (v8.8), e sono agganciate
    per `id`.** Tre dizionari — descrizione, «ai livelli superiori», componenti materiali — con
    dentro tutti e 319 gli SRD. Quattro cose da sapere prima di toccarli:
@@ -233,9 +264,9 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    partono mai. Se un giorno serve il master che vede tutti senza opt-in, è una riga in
    `compagniDelTavolo()` — ma va detto ai giocatori prima, non dopo.
 2. **Diario condiviso** col tavolo (oggi è solo personale).
-3. **Munizioni** e **filtri per livello/scuola negli incantesimi della scheda**: due buchi
-   noti, messi da parte per scelta di Giova (le munizioni non le conta, e i filtri con gli
-   incantesimi importati senza scuola andrebbero pensati).
+3. ~~**Filtri negli incantesimi della scheda**~~ — **fatto nella v8.9**: raggruppati per
+   livello e con la ricerca (che guarda anche nel testo). Restano le **munizioni**, messe
+   da parte per scelta di Giova: non le conta.
 4. **Incontri salvati**: oggi il costruttore è usa-e-getta. Poterli preparare in anticipo
    e richiamarli a sessione aperta sarebbe il passo naturale.
 5. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
@@ -287,7 +318,14 @@ funzionato al primo colpo.
   esista, che nessun `<button>` sia senza gestore, che nessuna funzione sia definita due
   volte e che ogni `getElementById` cerchi un id che qualcuno crea. Lanciarlo dopo ogni
   modifica: costa un secondo.
-- **`crawl-interazioni.mjs`** (dinamico, ~8 minuti): apre 37 superfici e **clicca ogni
+- **Una superficie che si RIMPICCIOLISCE mentre il crawl la percorre e' sotto-provata.**
+  Il crawl conta gli elementi una volta e poi li tocca uno per uno: se un tocco accorcia
+  l'elenco (una pastiglia di filtro nel grimorio), da li' in poi gli indici alti non
+  trovano piu' niente e non vengono contati. Il grimorio era cosi' da sempre — se ne e'
+  accorto solo perche' nella v8.9 il totale e' SCESO aggiungendo pastiglie. Rimettendo il
+  filtro a zero a ogni giro si e' passati da 1533 a **1876** tocchi. Chi aggiunge un
+  filtro a una superficie del crawl lo riazzeri nel codice della superficie.
+- **`crawl-interazioni.mjs`** (dinamico, ~10 minuti): apre 38 superfici e **clicca ogni
   elemento uno per uno**, rimettendo a posto lo stato fra un tocco e l'altro. Segnala gli
   errori a runtime, i tocchi senza nessun effetto e le zone di tocco sotto i 32 px
   (misurate davvero con `elementFromPoint`, non dal rettangolo dell'elemento — e portando
