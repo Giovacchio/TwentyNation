@@ -834,7 +834,7 @@ function confirmSheetImport(){
   if (newCustom.length) bulkSaveSpells(newCustom);
   if (!currentUser) state.offlineMode = true;
   pendingSheet = null;
-  closeModal();
+  closeModalAll();
   openSheet(c.id);
   toast('✦ ' + c.name + ' importato dalla scheda');
 }

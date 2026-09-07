@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.0** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.1** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -44,7 +44,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `meccaniche.js` | effetti delle sottoclassi sulle regole, Dono del Patto |
 | `mostri-pdf.js` | legge i mostri da PDF, testo e **JSON** |
 | **`liste.js`** | **elenchi lunghi: paginazione, ricerca, scelta a pastiglie** |
-| **`incontri.js`** | **costruttore di incontri: peso dello scontro e punti esperienza** |
+| **`incontri.js`** | **costruttore di incontri: peso dello scontro, punti esperienza e incontri salvati (`state.incontri`)** |
 | `firestore.rules` | regole di sicurezza (già pubblicate, **non vanno cambiate**) |
 
 **Attenzione:** un file nuovo va aggiunto in **tre** posti — `index.html` (lo `<script>`),
@@ -143,6 +143,40 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    ridisegnano da sole (rileggi il PDF), `modalPopTo(fn)` per i «← torna al modulo».
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
+
+0∞. **`COLLEZIONI` (v9.1) e' l'elenco delle collezioni personali, in UN posto solo.**
+   Erano scritte a mano in sette punti — `loadLocal`, `pacchettoLocale`, cambio account
+   (due volte), «hai roba qui?», `wire()`, backup, ripristino — cioe' il modo classico per
+   dimenticarsene in meta' aggiungendone una nuova. Chi aggiunge una collezione la mette
+   li' e nel backup/ripristino, e il resto la trova da solo. E' la stessa lezione di
+   `COND_TIPI` in campaign.js, applicata di nuovo.
+
+0∅. **La regola delle finestre, e la CAUSA vera (v9.1).** `closeModal()` fa un
+   `history.back()` ASINCRONO, e una finestra aperta subito dopo RIUSA quella voce invece
+   di spingerne una sua. Chiudendo di nuovo prima che il back atterri partivano DUE back
+   per UNA voce, e il secondo usciva dalla pagina. Nella v9.0 avevo curato il sintomo in
+   `avviaSalita`; la causa era in `closeModal`, che ora non chiama un secondo back quando
+   `__needsRepush` e' vero e `__modalDepth` e' zero. **Regola operativa invariata e da
+   rispettare comunque:** se dopo la chiusura si cambia schermata (`goView`, `openSheet`,
+   `setDmTab`, `state.view =`) si usa `closeModalAll()`. Nella v9.1 ne sono state trovate
+   **cinque** violazioni (salvataggio personaggio, PNG all'iniziativa, cambio personaggio,
+   incontro all'iniziativa, importazione PDF): c'e' uno script di ricerca nel changelog,
+   vale la pena rifarlo dopo ogni aggiunta.
+
+0∫. **Una regola FACOLTATIVA resta spenta, e l'app lo dice (v9.1).** Il sovraccarico
+   variante (`state.caricoVariante`, per dispositivo) e' l'esempio: il regolamento base
+   non punisce chi supera la capacita' di carico, e mettere le penalita' d'ufficio sarebbe
+   decidere al posto del tavolo. Spenta, il messaggio dice cosa succede davvero (niente);
+   accesa, `velocitaDi()` toglie i metri PRIMA di dimezzare per lo sfinimento — invertire
+   l'ordine da' un numero negativo. Stessa logica per il tiro salvezza di gruppo: le
+   creature SRD non hanno tiri salvezza propri nei dati, quindi si usa il modificatore di
+   caratteristica **e lo si scrive**, invece di far finta di saperne di piu'.
+
+0∂. **Reimportare un manuale AGGIORNA, non duplica (v9.1).** `hbGiaTua()` /
+   `hbStatoVoce()` in homebrew-bulk.js: il confronto e' tipo + nome normalizzato, come per
+   gli incantesimi. La voce aggiornata **tiene l'id di quella vecchia** — se cambiasse, le
+   schede attaccate (`raceId`, `subclassId`) punterebbero a una voce morta — e conserva
+   `classId` e le `meccaniche` configurate a mano se la nuova lettura non ne propone.
 
 0∆. **I valori che uno STATO cambia non si scrivono sopra a quelli salvati (v9.0).**
    Lo sfinimento dimezza velocita' (2°) e massimo dei PF (4°): si calcola quello in vigore
@@ -296,8 +330,9 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    posto dei due punti, ma poi e' una riga di testo nei privilegi: nessun elenco, nessun
    effetto. I talenti oltre quelli SRD sono materiale dei manuali, quindi la strada e'
    quella di sempre — l'utente li carica, l'app li applica.
-4. **Incontri salvati**: oggi il costruttore è usa-e-getta. Poterli preparare in anticipo
-   e richiamarli a sessione aperta sarebbe il passo naturale.
+4. ~~**Incontri salvati**~~ — **fatto nella v9.1**: `state.incontri`, ottava collezione
+   personale. Si salva la lista (chi e quanti), non le creature; non vanno al tavolo e non
+   passano dal cestino. Se un giorno servisse condividerli, si aggiungono a `COND_TIPI`.
 5. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
    da fermo — si liberano scorrendo, quindi non urgenti.
 6. **Oltre le 4.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo

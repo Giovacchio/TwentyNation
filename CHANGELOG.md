@@ -1,5 +1,55 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.1 — 7 settembre 2026
+**Quattro cose, e sotto tutte lo stesso difetto delle finestre.**
+
+### 🎒 Il sovraccarico diceva «velocità ridotta» e non la riduceva
+Nello Zaino, oltre la capacità di carico, compariva in giallo *«Sei sovraccarico: velocità ridotta»*. Poi guardavi la velocità ed era quella di sempre. Fino alla v9.0 era una svista come un'altra; dalla v9.0 era un'incoerenza dentro l'app, perché lo sfinimento la velocità la riduce eccome.
+
+La correzione non è stata «riduci la velocità», perché **il regolamento base non punisce chi supera la capacità di carico**: dice solo quanto puoi portare. Le penalità stanno nella regola **variante**, che è facoltativa e che molti tavoli non usano. Quindi:
+
+- **Spenta** (com'è di default): il messaggio dice la verità — sei oltre la capacità di carico, e col regolamento base non succede niente in automatico.
+- **Accesa** da Opzioni → Regole del tavolo: oltre **Forza × 2,5 kg** la velocità cala di 3 metri, oltre **Forza × 5 kg** di 6, e in scheda si legge `6 · Velocità (era 9)` con scritto perché.
+
+Sovraccarico e sfinimento si sommano **nell'ordine giusto**: prima si tolgono i metri, poi si dimezza. Dimezzare per primo darebbe un numero negativo.
+
+Già che c'ero: in Opzioni la nota di licenza diceva ancora che gli incantesimi SRD sono *«in lingua originale inglese»*. Dalla v8.8 non è vero — adesso dice che sono tradotti e che l'originale resta in fondo a ogni scheda.
+
+### 🎲 Un tiro salvezza per tutti, dall'iniziativa
+«Tutti tirano un tiro salvezza su Destrezza, CD 15» è la frase più ripetuta di qualsiasi sessione. Con cinque personaggi e sei goblin in campo erano **undici tiri a mano**, mentre l'app i modificatori li ha tutti.
+
+Un tasto nell'iniziativa: scegli caratteristica, CD, e se vale vantaggio o svantaggio. Esce l'elenco ordinato dal migliore al peggiore, con ✓ e ✗, il dado naturale e lo scartato, e il tasto ↻ per **ritirare uno solo** senza rifare tutto.
+
+I personaggi usano il loro tiro salvezza **con la competenza**; le creature il modificatore di caratteristica — e questo va detto: **nessuna delle 81 creature SRD ha tiri salvezza propri nei dati** (il campo non esiste), quindi per loro vale la regola di base. Chi non ha una scheda — un nome buttato lì al volo — non si inventa un numero: l'app dice per chi devi tirare a mano.
+
+### 📚 Il lettore di manuali non guardava cosa hai già
+Caricavi la stessa guida due volte e ti ritrovavi **due «Cammino del Berserker»**: in Contenuti tuoi, nella creazione guidata e sul tavolo se li condividevi. I doppioni li toglieva solo *dentro* la stessa lettura. E l'importatore degli **incantesimi** invece lo fa dalla v2.1: due importatori nella stessa app, due comportamenti.
+
+Adesso ogni voce dice se **ce l'hai già** o se è **già sul tavolo** (messa da qualcun altro), il conteggio in cima separa nuovi e doppioni, e **partono spuntate solo le nuove**. Sceglierne una che hai già non ne crea una copia: **aggiorna la tua**, tenendo il suo identificativo — se cambiasse, le schede attaccate (`raceId`, `subclassId`) resterebbero a puntare a una voce morta — e conservando la classe a cui l'avevi legata e gli effetti ⚙️ che avevi configurato a mano. Se il salvataggio non riesce, le voci sostituite tornano com'erano.
+
+### ⚔️ Gli incontri preparati adesso si salvano
+`openIncontri()` azzerava tutto a ogni apertura: preparavi lo scontro di stasera, chiudevi la finestra e l'avevi perso. Un master prepara **prima**.
+
+Adesso si salvano col loro nome, si richiamano con un tocco e si mandano all'iniziativa. Si salva la **lista** — chi e quanti — non le creature: se domani cambi un mostro nel tuo bestiario, l'incontro usa quello nuovo. Se una creatura nel frattempo l'hai eliminata, l'app **lo dice** invece di mandarne in campo una in meno in silenzio. Salvare con un nome che c'è già sovrascrive quello.
+
+Stanno nel tuo account e nel backup, ma **non** vanno al tavolo e **non** passano dal cestino: eliminarli è definitivo, ed è scritto lì.
+
+> **Aggiungere una collezione era il modo giusto per dimenticarsene in metà app.** I nomi delle sette collezioni personali erano scritti a mano in **sette punti** — archivio locale, cambio account, importazione, ascolto della nuvola, «hai roba qui?». La campagna aveva già risolto la stessa cosa con `COND_TIPI`; adesso c'è `COLLEZIONI`, e la prossima si aggiunge in un posto solo.
+>
+> E serviva una finestra per chiedere un nome: c'era solo la conferma sì/no. Con `prompt()` non si poteva fare — **nell'app installata su iPhone non compare affatto** — quindi ora c'è `promptDialog`, fatta come le altre.
+
+### 🪟 Il difetto sotto a tutto: due «indietro» per una voce sola
+Nella v9.0 avevo corretto la salita di livello, dove chiudere e riaprire subito una finestra poteva far uscire dall'app. **Avevo curato il sintomo, non la causa.**
+
+La causa sta in `closeModal()`: il suo `history.back()` è **asincrono**, e una finestra aperta subito dopo **riusa** quella voce di cronologia invece di spingerne una sua (giustamente: se ne spingesse una, il back in arrivo se la mangerebbe). Ma chiudendo *di nuovo* prima che il back sia atterrato, partivano **due back per una sola voce** — e il secondo usciva dalla pagina. Valeva per qualunque chiudi-riapri-chiudi più veloce del giro del browser, non solo per la salita di livello.
+
+Adesso, se una chiusura è ancora in volo e questa finestra non ha una voce sua, non si chiama un secondo `history.back()`: basta non rimettere la voce quando il primo atterra.
+
+E già che ero lì, ho chiuso **cinque violazioni** di una regola che RIPARTENZA scrive da tempo — «se dopo la chiusura si cambia schermata va usato `closeModalAll`»: salvataggio del personaggio, PNG all'iniziativa, cambio personaggio, incontro all'iniziativa e importazione da PDF. Tutte e cinque lasciavano la finestra di sotto appesa sopra una vista nuova.
+
+### Prove
+`test-v91.mjs` (38). Le tre che contano di più: che con la variante **spenta** la velocità non cambi mai (è una regola facoltativa, non un'opinione dell'app); che reimportando un manuale la voce aggiornata **tenga il suo identificativo**, o le schede attaccate resterebbero orfane; e la sequenza chiudi-riapri-chiudi ripetuta tre volte di fila, che prima usciva dalla pagina.
+
 ## v9.0 — 7 settembre 2026
 **Cinque posti dove l'app la risposta ce l'aveva già e non la usava.**
 

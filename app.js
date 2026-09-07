@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '9.0';
+const APP_VERSION = '9.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -45,6 +45,14 @@ const ABILITIES = [
   { key: "cha", label: "Carisma", abbr: "CAR" },
 ];
 const ABILITY_BY_KEY = Object.fromEntries(ABILITIES.map(a=>[a.key,a]));
+
+/* ─── Le collezioni personali, in UN posto solo ───────────────────
+   Erano scritte a mano in sette punti diversi (archivio locale, cambio
+   account, importazione, ascolto della nuvola, «hai roba qui?»): il
+   modo classico per dimenticarsene in metà. La campagna ha già fatto
+   la stessa cosa con `COND_TIPI`. Chi aggiunge una collezione la
+   aggiunge qui, e le sette funzioni la trovano da sole. */
+const COLLEZIONI = ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche','incontri'];
 
 const SKILLS = [
   { key: "acrobatics", label: "Acrobazia", ability: "dex" },
@@ -124,6 +132,12 @@ function spellAltName(sp){
   const it = spellItName(sp);
   if (!it || !sp.name) return '';
   return state.spellLang === 'en' ? it : sp.name;
+}
+function toggleCaricoVariante(){
+  state.caricoVariante = !state.caricoVariante;
+  localStorage.setItem('grimorio-carico', state.caricoVariante ? '1' : '0');
+  render();
+  toast(state.caricoVariante ? '🎒 Sovraccarico variante acceso' : '🎒 Sovraccarico variante spento');
 }
 function toggleSpellLang(){
   state.spellLang = state.spellLang === 'en' ? 'it' : 'en';
@@ -464,12 +478,13 @@ function setCharPortrait(charId, url){
 const state = {
   view: 'party',
   theme: localStorage.getItem('grimorio-theme') || 'dark',
-  characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [],
+  characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [], incontri: [],
   campaign: null, sharedSpells: [], sharedHomebrew: [], sharedParty: [], sharedSuppliche: [],
   suppliche: [], suppQ: '',
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
+  caricoVariante: localStorage.getItem('grimorio-carico') === '1',
   search: { open: false, q: '' },
   updateReady: false,
   activeCharId: null,
@@ -533,11 +548,8 @@ function loadLocal(){
     state.characters = (data.characters || []).map(safeMigrate).filter(Boolean);
     state.npcs = data.npcs || [];
     bestiarioScorda();
-    state.customSpells = data.customSpells || [];
-    state.spellTags = data.spellTags || [];
-    state.homebrew = data.homebrew || [];
-    state.journal = data.journal || [];
-    state.suppliche = data.suppliche || [];
+    COLLEZIONI.filter(k => k !== 'characters' && k !== 'npcs')
+      .forEach(k => { state[k] = data[k] || []; });
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 /* Salvataggio locale «a raffica». Aggiungendo 3000 mostri il vecchio
@@ -557,12 +569,9 @@ let __ultimoPesoLocale = 0;
    lo prendeva tutto e se lo caricava pure sul proprio spazio nel cloud.
    Il nome dentro l'archivio non puo' separarsi dall'archivio. */
 function pacchettoLocale(){
-  return JSON.stringify({
-    diChi: __proprietarioLocale || null,
-    characters: state.characters, npcs: state.npcs,
-    customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
-    journal: state.journal, suppliche: state.suppliche
-  });
+  const p = { diChi: __proprietarioLocale || null };
+  COLLEZIONI.forEach(k => { p[k] = state[k]; });
+  return JSON.stringify(p);
 }
 let __proprietarioLocale = null;
 /* Di chi e' la roba che c'e' adesso in localStorage. Si legge dall'archivio;
@@ -768,6 +777,7 @@ function attachFirestore(uidUser){
   wire('homebrew');
   wire('journal');
   wire('suppliche');
+  wire('incontri');
 }
 /* Quello che hai creato mentre non eri collegato (o mentre la rete era
    giù) vive solo su questo dispositivo: al primo collegamento lo
@@ -1071,7 +1081,7 @@ function cambiaCassetto(uid){
       const attuale = localStorage.getItem(LS_KEY);
       if (attuale) localStorage.setItem(cassettoDi('sconosciuto-' + Date.now()), attuale);
     } catch(e){ console.warn('Non riesco a mettere da parte i dati orfani', e); }
-    ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche'].forEach(k => { state[k] = []; });
+    COLLEZIONI.forEach(k => { state[k] = []; });
     bestiarioScorda();
     __proprietarioLocale = uid;
     saveLocalOra();
@@ -1091,14 +1101,12 @@ function cambiaCassetto(uid){
     // riprendi il cassetto di chi sta entrando, se ne ha uno
     let suo = null;
     try { suo = localStorage.getItem(cassettoDi(uid)); } catch(e){}
-    ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche']
-      .forEach(k => { state[k] = []; });
+    COLLEZIONI.forEach(k => { state[k] = []; });
     bestiarioScorda();
     if (suo){
       try {
         const d = JSON.parse(suo);
-        ['characters','npcs','customSpells','spellTags','homebrew','journal','suppliche']
-          .forEach(k => { if (Array.isArray(d[k])) state[k] = d[k]; });
+        COLLEZIONI.forEach(k => { if (Array.isArray(d[k])) state[k] = d[k]; });
         bestiarioScorda();
         localStorage.removeItem(cassettoDi(uid));
       } catch(e){ console.warn('Cassetto illeggibile', e); }
@@ -1123,7 +1131,7 @@ function archivioNonVuoto(){
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return false;
     const d = JSON.parse(raw);
-    return ['characters','npcs','customSpells','homebrew','journal']
+    return COLLEZIONI.filter(k => k !== 'spellTags')
       .some(k => Array.isArray(d[k]) && d[k].length);
   } catch(e){ return false; }
 }
@@ -1502,7 +1510,21 @@ function pfMassimoDi(c){
 function velocitaDi(c){
   const base = Number((c && c.speed) ?? 9) || 0;
   const f = (typeof fattoreVelocita === 'function') ? fattoreVelocita(c && c.exhaustion) : 1;
-  return f === 1 ? base : Math.round(base * f * 10) / 10;
+  const meno = pesoDiTroppo(c).meno;
+  /* Prima si toglie il peso, poi si dimezza: sono due cose diverse e
+     l'ordine cambia il risultato. Mai sotto zero. */
+  return Math.max(0, Math.round(Math.max(0, base - meno) * f * 10) / 10);
+}
+/* Lo scaglione di sovraccarico in cui si trova questo personaggio, e
+   quanti metri costa. Se la regola variante è spenta non costa niente:
+   quella base non punisce chi supera la capacità di carico, dice solo
+   quanto può portare — ed è una scelta del tavolo, non dell'app. */
+function pesoDiTroppo(c){
+  const spento = { id:'ok', meno:0, testo:'' };
+  if (!c || !state.caricoVariante || typeof scaglioneCarico !== 'function') return spento;
+  const peso = (typeof totalWeight === 'function') ? totalWeight(c) : 0;
+  if (!peso) return spento;
+  return scaglioneCarico(peso, getPath(c,'abilities.str',10));
 }
 function hpPctFor(c){ const max = pfMassimoDi(c)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }
 function spellcastingMod(c){ return mod(getPath(c,'abilities.'+(c.spellAbility||'int'),10)) + profBonus(c.level); }
@@ -1873,7 +1895,16 @@ function closeModal(fromPop){
   state.modal = null;
   renderModalRoot();
   if (fromPop){ __modalDepth = 0; __pendingClose = false; __needsRepush = false; return; }
-  if (__modalDepth || __needsRepush){
+  /* Chiudendo mentre una chiusura precedente e' ANCORA IN VOLO: questa
+     finestra non ha spinto una voce di cronologia sua (l'ha riusata,
+     vedi `pushModalEntry`), quindi non c'e' niente da consumare. Basta
+     non rimetterla quando il back atterra. Un secondo `history.back()`
+     mangerebbe una voce che non e' nostra e uscirebbe dalla pagina: e'
+     il difetto che nella v9.0 si vedeva solo dalla salita di livello,
+     ma la causa era qui e valeva per qualunque chiudi-riapri-chiudi
+     piu' veloce del giro del browser. */
+  if (__needsRepush && !__modalDepth){ __needsRepush = false; return; }
+  if (__modalDepth){
     __modalDepth = 0; __needsRepush = false; __ignorePop = true; __pendingClose = true;
     try { history.back(); } catch(e){}
   }
@@ -1938,6 +1969,35 @@ function confirmDialog(title, body, action, confirmLabel){
     </div>` });
 }
 function runConfirm(){ const a = __confirmAction; __confirmAction = null; closeModal(); if (a) a(); }
+
+/* Come confirmDialog, ma chiede anche una riga di testo. C'era solo la
+   conferma sì/no: per un nome si sarebbe dovuto usare `prompt()`, che
+   nell'app installata su iPhone non compare affatto. */
+let __promptAction = null;
+function promptDialog(title, body, valore, action, confirmLabel, segnaposto){
+  __promptAction = action;
+  openModal({ render: () => `
+    <div class="overlay center" onclick="if(event.target===this) closeModal()">
+      <div class="sheet-modal frame" style="padding:24px 20px;">
+        <div class="section-title">${escapeHtml(title)}</div>
+        ${body ? `<p class="muted" style="margin-bottom:12px;">${escapeHtml(body)}</p>` : ''}
+        <div class="field"><input id="prompt-dialog-input" value="${attr(valore||'')}" placeholder="${attr(segnaposto||'')}"
+          autocomplete="off" onkeydown="if(event.key==='Enter') runPrompt()"></div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+          <button class="btn btn-primary" onclick="runPrompt()">${escapeHtml(confirmLabel||'Conferma')}</button>
+        </div>
+      </div>
+    </div>` });
+  setTimeout(() => { const i = document.getElementById('prompt-dialog-input'); if (i){ i.focus(); i.select(); } }, 60);
+}
+function runPrompt(){
+  const i = document.getElementById('prompt-dialog-input');
+  const v = i ? i.value : '';
+  const a = __promptAction; __promptAction = null;
+  closeModal();
+  if (a) a(v);
+}
 
 function modalShell(title, inner, opts){
   opts = opts || {};
@@ -2197,7 +2257,7 @@ function saveCharacterDraft(isEdit){
   if (!currentUser) state.offlineMode = true;
   fsSet('characters', draftChar);
   const newId = draftChar.id;
-  closeModal();
+  closeModalAll();
   if (!isEdit) openSheet(newId); else render();
   toast(isEdit ? '✓ Modifiche salvate' : '✦ Personaggio creato');
 }
@@ -2492,9 +2552,11 @@ function renderSheetOverview(c){
           /* Con lo sfinimento la velocità che conta non è quella scritta:
              si mostra quella in vigore, e la casella resta modificabile
              con il valore vero, se no si sovrascriverebbe il proprio. */
+          const car = pesoDiTroppo(c);
+          const perche = [c.exhaustion ? 'sfinimento ' + c.exhaustion : '', car.meno ? 'sovraccarico' : ''].filter(Boolean).join(' + ');
           return vera === base
             ? `<div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${base}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>`
-            : `<button class="combat-stat" onclick="apriSfinimento('${c.id}')" style="text-align:center" title="Sfinimento ${c.exhaustion}: velocità ridotta"><div class="v" style="color:var(--warn)">${vera}</div><div class="l">Velocità (era ${base})</div></button>`; })()}
+            : `<button class="combat-stat" onclick="${car.meno && !c.exhaustion ? `setSheetTab('inventory')` : `apriSfinimento('${c.id}')`}" style="text-align:center" title="${escapeHtml(perche)}: velocità ridotta"><div class="v" style="color:var(--warn)">${vera}</div><div class="l">Velocità (era ${base})</div></button>`; })()}
         <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
         <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
       </div>
@@ -3278,7 +3340,19 @@ function renderSheetInventory(c){
     ${w > 0 ? `<div class="card" style="margin-bottom:10px; padding:11px 14px">
       <div class="row-between" style="margin-bottom:6px"><span class="muted">Peso trasportato</span><b>${w.toFixed(1).replace('.0','')} / ${Math.round(cap)} kg</b></div>
       <div class="hp-bar-lg" style="height:8px;margin:0"><div class="hp-bar-lg-fill ${w>cap?'low':''}" style="width:${clamp(100*w/cap,0,100)}%; background:${w>cap?'':'linear-gradient(90deg,var(--gold-dim),var(--gold))'}"></div></div>
-      ${w>cap?`<div class="muted" style="font-size:.72rem;margin-top:6px;color:var(--warn)">Sei sovraccarico: velocità ridotta.</div>`:''}
+      ${(() => {
+        /* Prima qui c'era scritto «Sei sovraccarico: velocità ridotta» e
+           la velocità non la riduceva nessuno. Adesso o la riduce
+           davvero (regola variante accesa) o dice cosa succede in realtà. */
+        const car = pesoDiTroppo(c);
+        if (car.meno) return `<div class="muted" style="font-size:.72rem;margin-top:6px;color:var(--warn)">${escapeHtml(car.testo)}
+          <span style="opacity:.75">Velocità ${velocitaDi(c)} m invece di ${Number(c.speed ?? 9)}.</span></div>`;
+        /* Senza la variante il peso in eccesso non ha penalità: dirlo è
+           più onesto che promettere una velocità ridotta che non arriva. */
+        if (w > cap) return `<div class="muted" style="font-size:.72rem;margin-top:6px;color:var(--warn)">Sei oltre la tua capacità di carico.
+          <span style="opacity:.8">Col regolamento base non succede niente in automatico: le penalità stanno nella regola <b>variante</b>, che accendi in Opzioni.</span></div>`;
+        return '';
+      })()}
     </div>` : ''}
     ${attunedCount(c) ? attunementRowHTML(c) : ''}
     <div class="list-gap">
@@ -4716,7 +4790,7 @@ function duplicateNpc(id){
   closeModal(); render(); toast('⧉ Copia creata');
 }
 function addNpcToInitiative(npcId){
-  closeModal();
+  closeModalAll();
   state.dmTab = 'initiative';
   addToCombat(npcId, 'npc');
 }
@@ -4750,7 +4824,8 @@ function renderInitiativeTracker(){
         </div>
       </div>
       <div class="list-gap">${list.map((cb,i)=>initRowHTML(cb,i,i===turn)).join('')}</div>
-      <button class="btn btn-danger btn-block" style="margin-top:12px" onclick="confirmResetCombat()">Termina combattimento</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="apriTsGruppo()">🎲 Tiro salvezza per tutti</button>
+      <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="confirmResetCombat()">Termina combattimento</button>
     ` : emptyState('⚔️','Nessun combattimento attivo. Aggiungi i combattenti qui sotto: l\'iniziativa viene tirata automaticamente.')}
 
     <div class="divider"><span class="flourish">❧</span><span>Aggiungi combattente</span></div>
@@ -5126,6 +5201,15 @@ function renderSettings(){
       </div>
     </button>
 
+    <div class="divider"><span class="flourish">❧</span><span>Regole del tavolo</span></div>
+    <button class="switch-row" onclick="toggleCaricoVariante()">
+      <div class="track"><div class="knob" style="${state.caricoVariante?'transform:translateX(21px)':''}"></div></div>
+      <div style="flex:1; text-align:left">
+        <div style="font-weight:700; font-family:var(--font-ui)">Sovraccarico variante ${state.caricoVariante?'acceso':'spento'}</div>
+        <div class="muted" style="font-size:.74rem; font-weight:600">Oltre Forza × 2,5 kg la velocità cala di 3 metri, oltre Forza × 5 kg di 6. È una regola facoltativa: molti tavoli non la usano.</div>
+      </div>
+    </button>
+
     <div class="divider"><span class="flourish">❧</span><span>Incantesimi</span></div>
     <button class="switch-row" onclick="toggleSpellLang()">
       <div class="track"><div class="knob" style="${state.spellLang==='it'?'transform:translateX(21px)':''}"></div></div>
@@ -5188,7 +5272,7 @@ function renderSettings(){
       <div class="row-between" style="margin-bottom:6px"><span>Bestiario</span><b>${nNpcs}</b></div>
       <div class="row-between" style="margin-bottom:6px"><span>Incantesimi personalizzati</span><b>${nSpells}</b></div>
       <div class="row-between" style="margin-bottom:12px"><span>Versione</span><b>${APP_VERSION}</b></div>
-      Gli incantesimi base provengono dal System Reference Document 5.1 di Wizards of the Coast (licenza Open Gaming License 1.0a), in lingua originale inglese.
+      Gli incantesimi base provengono dal System Reference Document 5.1 di Wizards of the Coast (licenza Open Gaming License 1.0a). Dalla versione 8.8 i testi sono tradotti in italiano; l'originale inglese resta consultabile in fondo alla scheda di ogni incantesimo.
     </div>
   `;
 }
@@ -5260,7 +5344,7 @@ function exportData(){
       app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
       characters: state.characters, npcs: state.npcs,
       customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
-      journal: state.journal, suppliche: state.suppliche
+      journal: state.journal, suppliche: state.suppliche, incontri: state.incontri
     }, 'grimorio-backup');
     segnaBackupFatto();
     toast('⤓ Backup esportato');
@@ -5345,6 +5429,7 @@ async function doImport(data){
     ['homebrew',     data.homebrew,                      null],
     ['journal',      data.journal,                       null],
     ['suppliche',    data.suppliche,                     null],
+    ['incontri',     data.incontri,                      null],
   ];
   const conti = {};
   const daMandare = [];
@@ -5947,7 +6032,7 @@ function openCharSwitcher(){
     <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModalAll(); goView('party')">Torna al party</button>`) });
 }
 function switchChar(id){
-  closeModal();
+  closeModalAll();
   if (id === state.activeCharId) return;
   state.activeCharId = id; state.sheetTab = 'overview'; state.knownFilter = 'all'; state.knownQ = '';
   render(); scrollTop();
@@ -6079,3 +6164,117 @@ function globalSearchHTML(){
   return modalShell('🔍 Cerca', inner);
 }
 const gsType = debounce((v) => { state.search.q = v; renderModalRoot({ toTop:true }); }, 200);
+
+/* ═══════════════════════════════════════════════════════════════════
+   TIRO SALVEZZA DI GRUPPO
+   «Tutti tirano un tiro salvezza su Destrezza, CD 15» è la frase più
+   ripetuta di qualsiasi sessione, e con cinque personaggi e sei goblin
+   in campo erano undici tiri a mano — mentre l'app i modificatori li
+   ha tutti: i tiri salvezza dei PG nelle loro schede, i sei punteggi
+   di ogni creatura nel bestiario.
+   ═══════════════════════════════════════════════════════════════════ */
+let tsGruppo = null; /* { key, cd, mode, esiti } */
+
+/* Il modificatore di un combattente per un tiro salvezza.
+   Onestamente: nessuna delle creature SRD ha tiri salvezza propri nei
+   dati (il campo non c'è), quindi per loro vale il modificatore di
+   caratteristica — che è la regola di base. Chi non ha una scheda non
+   si inventa: torna null e lo dice. */
+function tsModDi(cb, key){
+  const s = schedaCombattente(cb);
+  if (!s) return null;
+  if (s.tipo === 'pg') return saveMod(s.dato, key);
+  if (s.tipo === 'srd'){
+    const i = ABILITIES.findIndex(a => a.key === key);
+    return i >= 0 && Array.isArray(s.dato.ab) ? mod(s.dato.ab[i]) : null;
+  }
+  /* Un PNG scritto a mano: se ha i punteggi si usano, se no niente. */
+  const n = s.dato;
+  if (n.srdId && typeof MONSTER_BY_ID !== 'undefined' && MONSTER_BY_ID[n.srdId]){
+    const i = ABILITIES.findIndex(a => a.key === key);
+    return i >= 0 ? mod(MONSTER_BY_ID[n.srdId].ab[i]) : null;
+  }
+  if (n.abilities && n.abilities[key] != null) return mod(n.abilities[key]);
+  if (Array.isArray(n.ab)){
+    const i = ABILITIES.findIndex(a => a.key === key);
+    return i >= 0 ? mod(n.ab[i]) : null;
+  }
+  return null;
+}
+function apriTsGruppo(){
+  if (!state.combat.list.length){ toast('Non c\'è nessuno in campo'); return; }
+  tsGruppo = { key:'dex', cd:15, mode:'normal', esiti:null };
+  openModal({ render: tsGruppoHTML });
+}
+function tsGruppoSet(campo, val){
+  if (!tsGruppo) return;
+  tsGruppo[campo] = campo === 'cd' ? clamp(parseInt(val)||0, 1, 40) : val;
+  tsGruppo.esiti = null;              // cambiando i termini il risultato va rifatto
+  renderModalRoot();
+}
+function tsGruppoTira(){
+  if (!tsGruppo) return;
+  const { key, cd, mode } = tsGruppo;
+  tsGruppo.esiti = state.combat.list.map((cb, i) => {
+    const m = tsModDi(cb, key);
+    if (m == null) return { i, nome: cb.name, senza: true };
+    const a = rollDie(20), b = rollDie(20);
+    const nat = mode === 'adv' ? Math.max(a,b) : mode === 'dis' ? Math.min(a,b) : a;
+    const altro = mode === 'normal' ? null : (mode === 'adv' ? Math.min(a,b) : Math.max(a,b));
+    return { i, nome: cb.name, avatar: cb.avatar, nat, altro, mod: m, tot: nat + m, passa: nat + m >= cd, crit: nat === 20, zero: nat === 1 };
+  });
+  buzz(14);
+  renderModalRoot();
+}
+function tsGruppoRitira(i){
+  if (!tsGruppo || !tsGruppo.esiti) return;
+  const cb = state.combat.list[i]; if (!cb) return;
+  const m = tsModDi(cb, tsGruppo.key);
+  if (m == null) return;
+  const nat = rollDie(20);
+  const e = tsGruppo.esiti.find(x => x.i === i);
+  if (!e) return;
+  Object.assign(e, { nat, altro:null, mod:m, tot:nat+m, passa: nat+m >= tsGruppo.cd, crit: nat===20, zero: nat===1 });
+  buzz(14);
+  renderModalRoot();
+}
+function tsGruppoHTML(){
+  const g = tsGruppo; if (!g) return '';
+  const ab = ABILITY_BY_KEY[g.key] || ABILITIES[1];
+  const esiti = g.esiti;
+  const passati = esiti ? esiti.filter(e => !e.senza && e.passa).length : 0;
+  const falliti = esiti ? esiti.filter(e => !e.senza && !e.passa).length : 0;
+  const senza = esiti ? esiti.filter(e => e.senza) : [];
+  const inner = `
+    <p class="muted" style="margin-bottom:12px">Tira per tutti quelli in campo insieme. I personaggi usano il loro tiro salvezza, con la competenza; le creature il modificatore di caratteristica.</p>
+    <div class="filter-bar">
+      ${ABILITIES.map(a=>`<button class="filter-chip ${g.key===a.key?'active':''}" onclick="tsGruppoSet('key','${a.key}')">${a.abbr}</button>`).join('')}
+    </div>
+    <div class="mini-fields" style="margin-top:10px">
+      <div class="mini-field"><label>CD</label><input type="number" inputmode="numeric" value="${g.cd}" oninput="tsGruppoSet('cd', this.value)"></div>
+      <div class="mini-field" style="flex:2">
+        <label>Come</label>
+        <div class="filter-bar" style="margin:0">
+          ${[['normal','Normale'],['adv','▲ Vantaggio'],['dis','▼ Svantaggio']]
+            .map(([k,et])=>`<button class="filter-chip ${g.mode===k?'active':''}" onclick="tsGruppoSet('mode','${k}')">${et}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-gold btn-block" style="margin-top:12px" onclick="tsGruppoTira()">
+      🎲 Tira ${ab.label} CD ${g.cd} per ${state.combat.list.length}</button>
+    ${esiti ? `
+      <div class="divider" style="margin-top:16px"><span class="flourish">❧</span><span>${passati} passano · ${falliti} falliscono</span></div>
+      <div class="list-gap">
+        ${esiti.filter(e=>!e.senza).sort((a,b)=>b.tot-a.tot).map(e=>`
+          <div class="attack-row" style="${e.passa?'border-color:var(--gold-dim)':'border-color:var(--garnet)'}">
+            <span class="attack-main">
+              <span class="attack-name">${e.avatar?e.avatar+' ':''}${escapeHtml(e.nome)} ${e.passa?'<span style="color:var(--gold)">✓</span>':'<span style="color:var(--garnet)">✗</span>'}</span>
+              <span class="muted" style="font-size:.73rem; display:block">d20 (${e.nat})${e.altro!=null?' · scartato '+e.altro:''} ${signStr(e.mod)} = <b>${e.tot}</b>${e.crit?' · 20 naturale':''}${e.zero?' · 1 naturale':''}</span>
+            </span>
+            <button class="attack-btn" title="Ritira solo questo" onclick="tsGruppoRitira(${e.i})">↻</button>
+          </div>`).join('')}
+      </div>
+      ${senza.length ? `<div class="muted" style="font-size:.74rem; margin-top:10px">Per ${senza.map(e=>escapeHtml(e.nome)).join(', ')} non ho i punteggi: ${senza.length===1?'tiralo':'tirali'} a mano.</div>` : ''}
+    ` : ''}`;
+  return modalShell('🎲 Tiro salvezza di gruppo', inner);
+}

@@ -66,6 +66,7 @@ function openIncontri(){
     q: '',
     scelti: [],                                   // { id, nome, gs, fonte, quanti }
     party: (state.characters || []).map(c => c.id),
+    apertoId: null,                               // quale incontro salvato stai modificando
   };
   listaAzzera('inc-mostri');
   openModal({ render: incontriHTML });
@@ -188,10 +189,28 @@ function incontriHTML(){
           <button class="stepper-btn sm" onclick="incTogli(${i},-1)">−</button>
           <button class="stepper-btn sm" onclick="incTogli(${i},1)">+</button>
         </div>`).join('')}</div>
-      <div class="btn-row" style="margin-bottom:12px">
+      <div class="btn-row" style="margin-bottom:8px">
         <button class="btn btn-gold" onclick="incAllIniziativa()">⚔️ Manda all'iniziativa</button>
-        <button class="btn btn-ghost btn-sm" onclick="inc.scelti=[]; renderModalRoot()">Svuota</button>
-      </div>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="inc.scelti=[]; inc.apertoId=null; renderModalRoot()">Svuota</button>
+      </div>
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="incSalvaChiedi()">
+        ${inc.apertoId ? '💾 Salva le modifiche a «' + escapeHtml(incNomeDi(inc.apertoId)) + '»' : '💾 Salva questo incontro'}</button>` : ''}
+
+    ${(state.incontri||[]).length ? `
+      <div class="divider"><span class="flourish">❧</span><span>I tuoi incontri (${state.incontri.length})</span></div>
+      <div class="list-gap" style="margin-bottom:12px">
+        ${state.incontri.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).map(e => {
+          const quante = (e.scelti||[]).reduce((n,x)=>n+(Number(x.quanti)||0),0);
+          return `<div class="attack-row" style="${inc.apertoId===e.id?'border-color:var(--gold)':''}">
+            <button class="attack-main" style="text-align:left" onclick="incCarica('${jsStr(e.id)}')">
+              <span class="attack-name">${escapeHtml(e.nome || 'Senza nome')}${inc.apertoId===e.id?' ✓':''}</span>
+              <span class="muted" style="font-size:.72rem; display:block">${quante} ${quante===1?'creatura':'creature'} · ${(e.scelti||[]).map(x=>escapeHtml(x.nome)).slice(0,3).join(', ')}${(e.scelti||[]).length>3?'…':''}</span>
+            </button>
+            <button class="attack-btn" title="Elimina" onclick="incElimina('${jsStr(e.id)}')">✕</button>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="muted" style="font-size:.73rem; margin-bottom:12px">Gli incontri salvati stanno nel tuo account e nel backup, ma <b>non</b> vanno al tavolo e <b>non</b> passano dal cestino: eliminarli è definitivo.</div>` : ''}
 
     <div class="divider"><span class="flourish">❧</span><span>Aggiungi nemici</span></div>
     ${cercaLista('inc-cerca', inc.q, 'incCerca', 'Cerca fra ' + catalogo.length + ' creature…')}
@@ -223,21 +242,103 @@ function incAllIniziativa(){
         state.combat.list.push({ refId:null, kind:'monster', srdId:x.id,
           name: uniqueCombatName(nomeDiCreatura(x)),
           avatar: (typeof monsterAvatar === 'function') ? monsterAvatar(x) : '🐉',
-          init: rollDie(20) + dex, hp: pf, hpMax: pf });
+          init: rollDie(20) + dex, hp: pf, hpMax: pf, ac: x.ac });
       } else {
-        const dex = mod(getPath(x, 'abilities.dex', 10));
+        /* Anche qui la Destrezza si cerca dove c'è, come in `addToCombat`
+           dalla v9.0: `abilities.dex` su un PNG copiato dal bestiario non
+           esiste, e l'iniziativa usciva sempre con +0. Terza strada per
+           mettere una creatura in campo, stessa risposta. */
+        const dex = (typeof dexDiPng === 'function') ? dexDiPng(x) : mod(getPath(x, 'abilities.dex', 10));
         const pf = x.hpMax || x.hpCurrent || 1;
         state.combat.list.push({ refId: x.id, kind:'npc',
           name: uniqueCombatName(x.name || 'Creatura'), avatar: x.avatar || '🐉',
-          init: rollDie(20) + dex, hp: pf, hpMax: pf });
+          init: rollDie(20) + dex, hp: pf, hpMax: pf, ac: x.ac ?? null, srdId: x.srdId || null });
       }
       n++;
     }
   });
   if (!n){ toast('Non c\'è niente da mandare'); return; }
   sortCombat(); saveSession();
-  closeModal();
+  closeModalAll();
   state.view = 'dm'; state.dmTab = 'initiative';
   render();
   toast('⚔️ ' + n + (n===1?' nemico all\'iniziativa':' nemici all\'iniziativa'));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   INCONTRI SALVATI
+   Il costruttore era usa-e-getta: `openIncontri()` azzerava tutto a
+   ogni apertura, quindi lo scontro preparato prima della sessione si
+   perdeva chiudendo la finestra. Un master prepara PRIMA.
+   Si salva solo la LISTA (chi e quanti), non le creature: se domani
+   cambi un mostro nel tuo bestiario, l'incontro usa quello nuovo.
+   ═══════════════════════════════════════════════════════════════════ */
+function incNomeDi(id){
+  const e = (state.incontri || []).find(x => x.id === id);
+  return e ? (e.nome || 'Senza nome') : '';
+}
+function incSalvaChiedi(){
+  if (!inc || !inc.scelti.length){ toast('Non c\'è niente da salvare'); return; }
+  const gia = inc.apertoId ? incNomeDi(inc.apertoId) : '';
+  promptDialog('Salva l\'incontro', 'Un nome che ti faccia ricordare cos\'è.',
+    gia || '', (nome) => incSalva(nome), 'Salva', 'Es. Agguato nel bosco');
+}
+function incSalva(nome){
+  nome = String(nome || '').trim();
+  if (!nome){ toast('Serve un nome'); return; }
+  state.incontri = state.incontri || [];
+  const ora = Date.now();
+  /* Salvando con lo stesso nome si sovrascrive quello: due «Agguato nel
+     bosco» identici non servono a nessuno. */
+  const esistente = state.incontri.find(x => norm(x.nome||'') === norm(nome));
+  const voce = esistente || (inc.apertoId ? state.incontri.find(x => x.id === inc.apertoId) : null);
+  const dati = {
+    nome,
+    scelti: inc.scelti.map(s => ({ id:s.id, nome:s.nome, gs:s.gs, fonte:s.fonte, quanti:s.quanti })),
+    party: (inc.party || []).slice(),
+    updatedAt: ora,
+  };
+  let salvata;
+  if (voce){ salvata = Object.assign(voce, dati); }
+  else { salvata = Object.assign({ id: uid(), createdAt: ora }, dati); state.incontri.push(salvata); }
+  inc.apertoId = salvata.id;
+  fsSet('incontri', salvata);
+  if (!currentUser) state.offlineMode = true;
+  renderModalRoot(); render();
+  toast('💾 «' + nome + '» salvato');
+}
+function incCarica(id){
+  const e = (state.incontri || []).find(x => x.id === id);
+  if (!e){ toast('Questo incontro non c\'è più'); return; }
+  /* Le creature si ricontrollano adesso: una che hai eliminato dal
+     bestiario dopo aver salvato l'incontro non c'è più, e dirlo è
+     meglio che mandarne in campo una in meno senza spiegazioni. */
+  const perse = [];
+  inc.scelti = (e.scelti || []).filter(s => {
+    if (incTrova(s.fonte, s.id)) return true;
+    perse.push(s.nome); return false;
+  }).map(s => Object.assign({}, s));
+  inc.party = (e.party || []).filter(pid => (state.characters || []).some(c => c.id === pid));
+  if (!inc.party.length) inc.party = (state.characters || []).map(c => c.id);
+  inc.apertoId = e.id;
+  inc.q = '';
+  listaAzzera('inc-mostri');
+  renderModalRoot({ toTop:true });
+  toast(perse.length
+    ? '⚔️ «' + (e.nome||'') + '» · ' + perse.length + ' non ' + (perse.length===1?'c\'è':'ci sono') + ' più: ' + perse.slice(0,3).join(', ')
+    : '⚔️ «' + (e.nome||'') + '» caricato');
+}
+function incElimina(id){
+  const e = (state.incontri || []).find(x => x.id === id);
+  if (!e) return;
+  confirmDialog('Eliminare «' + (e.nome||'questo incontro') + '»?',
+    'Gli incontri non passano dal cestino: questo sparisce davvero. Le creature restano nel bestiario.',
+    () => {
+      state.incontri = state.incontri.filter(x => x.id !== id);
+      if (inc && inc.apertoId === id) inc.apertoId = null;
+      fsDelete('incontri', id);
+      renderModalRoot(); render();
+      toast('🗑️ Incontro eliminato');
+    }, 'Elimina');
 }

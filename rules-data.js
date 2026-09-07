@@ -518,6 +518,26 @@ const SFINIMENTO = [
   { liv:5, testo:'Velocità ridotta a 0.', velocita:0 },
   { liv:6, testo:'Morte.' },
 ];
+/* ─── SOVRACCARICO (regola variante dell'SRD) ─────────────────────
+   La regola base non punisce chi supera la capacità di carico: dice
+   solo quanto puoi portare. Le penalità stanno nella variante, che è
+   facoltativa — e infatti resta spenta finché non la accendi. Le soglie
+   sono per punto di Forza, con la stessa scala del resto dell'app
+   (1 libbra = mezzo chilo, 1,5 metri ogni 5 piedi). */
+const CARICO = [
+  { id:'ok',      soglia:2.5, meno:0, testo:'' },
+  { id:'carico',  soglia:5,   meno:3, testo:'Sovraccarico: velocità −3 metri.' },
+  { id:'stracarico', soglia:Infinity, meno:6,
+    testo:'Sovraccarico grave: velocità −6 metri, e svantaggio a tiri per colpire, prove e tiri salvezza di Forza, Destrezza e Costituzione.' },
+];
+/* In quale scaglione sei, dato il peso e il punteggio di Forza. */
+function scaglioneCarico(peso, forza){
+  const f = Math.max(1, Number(forza) || 1);
+  const kg = Number(peso) || 0;
+  if (kg <= f * CARICO[0].soglia) return CARICO[0];
+  if (kg <= f * CARICO[1].soglia) return CARICO[1];
+  return CARICO[2];
+}
 /* Tutti gli effetti fino al livello che hai, perche' si sommano. */
 function effettiSfinimento(liv){
   liv = Math.max(0, Math.min(6, Number(liv) || 0));

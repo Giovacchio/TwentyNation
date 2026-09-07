@@ -511,6 +511,32 @@ function hbScanText(raw){
   }).map(x => Object.assign({ id: uid(), source: '' }, x));
 }
 
+/* ─── Quello che hai già ──────────────────────────────────────────
+   L'importatore degli incantesimi dice da sempre quanti sono nuovi e
+   quanti già tuoi; questo no: caricando due volte la stessa guida
+   uscivano due «Cammino del Berserker», tutti e due già spuntati.
+   Il confronto è per tipo + nome, come per gli incantesimi. */
+function hbGiaTua(voce){
+  if (!voce) return null;
+  const k = norm(voce.name || '');
+  if (!k) return null;
+  return (state.homebrew || []).find(x => x && x.kind === voce.kind && norm(x.name||'') === k) || null;
+}
+function hbGiaAlTavolo(voce){
+  if (!voce) return null;
+  const k = norm(voce.name || '');
+  if (!k) return null;
+  return (state.sharedHomebrew || []).find(x => x && x.kind === voce.kind && norm(x.name||'') === k) || null;
+}
+/* Come si presenta una voce già presente, e cosa succede se la scegli. */
+function hbStatoVoce(voce){
+  const mia = hbGiaTua(voce);
+  if (mia) return { stato:'mia', id: mia.id, nota:'ce l\'hai già · scegliendola la aggiorni' };
+  const tav = hbGiaAlTavolo(voce);
+  if (tav) return { stato:'tavolo', id: null, nota:'già sul tavolo, messa da ' + (tav.sharedByName || 'un altro') };
+  return { stato:'nuova', id:null, nota:'' };
+}
+
 /* ─── Interfaccia ─── */
 let hbBulk = null; /* { trovati, scelti:Set, condividi } */
 
@@ -576,11 +602,13 @@ function hbBulkHTML(){
       : x.kind === 'race'
         ? [Object.entries(x.bonus||{}).map(([kk,v])=>ABILITY_BY_KEY[kk].abbr+' +'+v).join(' '), (x.traits||[]).length + ' tratti', x.speed+' m'].filter(Boolean).join(' · ')
         : [(x.skills||[]).map(s=>(SKILLS.find(y=>y.key===s)||{}).label).filter(Boolean).join(', '), x.feature].filter(Boolean).join(' · ');
-    return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':''}" onclick="hbBulkToggle('${x.id}')">
+    const st = hbStatoVoce(x);
+    return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':(st.stato!=='nuova'?'border-color:var(--line)':'')}" onclick="hbBulkToggle('${x.id}')">
       <span style="flex-shrink:0; margin-right:10px; font-size:1.1rem">${on?'☑️':'⬜'}</span>
       <span class="attack-main">
-        <span class="attack-name">${k.icon||''} ${escapeHtml(x.name)}</span>
-        <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(dettaglio||'—')}</span>
+        <span class="attack-name" style="${st.stato!=='nuova'&&!on?'opacity:.72':''}">${k.icon||''} ${escapeHtml(x.name)}${
+          st.stato==='mia' ? ' <span class="badge">già tua</span>' : st.stato==='tavolo' ? ' <span class="badge">dal tavolo</span>' : ''}</span>
+        <span class="muted" style="font-size:.73rem; display:block">${escapeHtml([dettaglio||'—', st.nota].filter(Boolean).join(' · '))}</span>
       </span>
     </button>`;
   };
@@ -667,10 +695,18 @@ function hbBulkHTML(){
 
   const n = b.scelti.size;
   return modalShell('⤒ Cosa ho trovato', `
-    <div class="card" style="margin-bottom:12px">
-      <div class="row-between"><span class="muted">Riconosciuti</span><b>${b.trovati.length}</b></div>
-      <div class="row-between" style="margin-top:4px"><span class="muted">Selezionati</span><b style="color:var(--gold)">${n}</b></div>
-    </div>
+    ${(() => {
+      const gia = b.trovati.filter(x => hbStatoVoce(x).stato === 'mia').length;
+      const tav = b.trovati.filter(x => hbStatoVoce(x).stato === 'tavolo').length;
+      return `<div class="card" style="margin-bottom:12px">
+        <div class="row-between"><span class="muted">Riconosciuti</span><b>${b.trovati.length}</b></div>
+        <div class="row-between" style="margin-top:4px"><span class="muted">Nuovi</span><b>${b.trovati.length - gia - tav}</b></div>
+        ${gia ? `<div class="row-between" style="margin-top:4px"><span class="muted">Che hai già</span><b>${gia}</b></div>` : ''}
+        ${tav ? `<div class="row-between" style="margin-top:4px"><span class="muted">Già sul tavolo</span><b>${tav}</b></div>` : ''}
+        <div class="row-between" style="margin-top:4px"><span class="muted">Selezionati</span><b style="color:var(--gold)">${n}</b></div>
+        ${gia ? `<div class="muted" style="font-size:.73rem; margin-top:8px">Quelli che hai già partono non spuntati: sceglierli non ne crea una copia, <b>aggiorna</b> quelli tuoi col testo appena letto.</div>` : ''}
+      </div>`;
+    })()}
     ${b.trovati.length > LISTA_PASSO ? cercaLista('hb-bulk-cerca', b.q, 'hbBulkCerca', 'Cerca fra le ' + b.trovati.length + ' voci trovate\u2026') : ''}
     ${b.trovati.length ? '' : emptyState('🤔','Non ho riconosciuto niente. Prova con una porzione più piccola, o incolla il testo di una voce sola.')}
     ${cercati ? (cercati.length
@@ -753,9 +789,10 @@ function hbBulkAnalizza(testo){
   const trovati = hbScanText(testo);
   hbBulk.trovati = trovati;
   hbBulk.busy = false;
-  // Chi carica un manuale intero le vuole tutte: parte tutto selezionato,
-  // semmai si toglie quello che non serve.
-  hbBulk.scelti = new Set(trovati.map(x => x.id));
+  /* Chi carica un manuale intero le vuole tutte — ma solo quelle che non
+     ha già: partono spuntate le nuove, le altre restano da spuntare a
+     mano se davvero le vuoi riscrivere. */
+  hbBulk.scelti = new Set(trovati.filter(x => hbStatoVoce(x).stato === 'nuova').map(x => x.id));
   hbBulk.aperti = new Set();
   hbBulk.chiusi = new Set();
   hbBulk.q = '';
@@ -833,7 +870,11 @@ async function hbBulkConfirm(){
   if (!scelti.length) return;
   state.homebrew = state.homebrew || [];
   const quantePrima = state.homebrew.length;
-  let conEffetti = 0;
+  /* Com'erano prima le voci che stiamo per sostituire: serve solo se il
+     salvataggio fallisce e bisogna rimetterle a posto. */
+  const prima = new Map();
+  scelti.forEach(x => { const m = hbGiaTua(x); if (m) prima.set(m.id, m); });
+  let conEffetti = 0, aggiornate = 0;
   const ora = Date.now();
   scelti.forEach(x => {
     // se dal testo si capiscono gli effetti sulle regole, glieli si mette
@@ -842,7 +883,21 @@ async function hbBulkConfirm(){
       try { const m = proponiMeccaniche(x); if (m){ x.meccaniche = m; conEffetti++; } } catch(e){}
     }
     x.updatedAt = ora;
-    state.homebrew.push(x);
+    /* Se una voce con lo stesso nome ce l'hai già, si AGGIORNA quella
+       invece di affiancarne una copia: si tiene il suo identificativo,
+       così le schede che ci sono attaccate (raceId, subclassId) non
+       restano a puntare a una voce morta. Gli effetti ⚙️ che avevi
+       configurato a mano non si buttano se la lettura non ne propone. */
+    const mia = hbGiaTua(x);
+    if (mia){
+      const vecchiaMecc = mia.meccaniche;
+      x.id = mia.id;
+      if (!x.meccaniche && vecchiaMecc) x.meccaniche = vecchiaMecc;
+      if (!x.classId && mia.classId) x.classId = mia.classId;   // il legame alla classe si conserva
+      const i = state.homebrew.indexOf(mia);
+      state.homebrew[i] = x;
+      aggiornate++;
+    } else state.homebrew.push(x);
   });
 
   // Un manuale intero sono centinaia di voci: una sola riscrittura
@@ -854,8 +909,12 @@ async function hbBulkConfirm(){
   });
 
   if (esito === -1){
-    const ids = new Set(scelti.map(x => x.id));
-    state.homebrew = state.homebrew.filter(x => !ids.has(x.id));
+    /* Tornare indietro davvero: le voci nuove si tolgono, quelle
+       sostituite si rimettono com'erano — se no un'importazione fallita
+       cancellerebbe roba che c'era gia'. */
+    const nuove = new Set(scelti.filter(x => !prima.has(x.id)).map(x => x.id));
+    state.homebrew = state.homebrew.filter(x => !nuove.has(x.id))
+      .map(x => prima.has(x.id) ? prima.get(x.id) : x);
     saveLocalOra();
     if (hbBulk) hbBulk.salvando = null;
     renderModalRoot();
@@ -869,7 +928,8 @@ async function hbBulkConfirm(){
 
   const condividi = hbBulk.condividi;
   closeModal(); render();
-  toast('📚 ' + scelti.length + ' voci aggiunte ai tuoi contenuti' +
+  toast('📚 ' + (scelti.length - aggiornate) + ' voci aggiunte' +
+        (aggiornate ? ' · ' + aggiornate + (aggiornate === 1 ? ' aggiornata' : ' aggiornate') : '') +
         (conEffetti ? ' · ' + conEffetti + ' con effetti riconosciuti' : ''));
   if (condividi && typeof shareToCampaign === 'function'){
     const n = await shareToCampaign('homebrew', scelti);
