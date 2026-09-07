@@ -504,6 +504,37 @@ const CONDITIONS = [
 ];
 const CONDITION_BY_ID = Object.fromEntries(CONDITIONS.map(c => [c.id, c]));
 
+/* ─── SFINIMENTO ──────────────────────────────────────────────────
+   Le quattordici condizioni qui sopra dicono tutte cosa comportano.
+   Lo sfinimento era l'unico che no: un contatore da 0 a 6 che non
+   spiegava niente e non faceva niente. Gli effetti si sommano — al 3°
+   livello hai anche quelli del 1° e del 2°. */
+const SFINIMENTO = [
+  null,
+  { liv:1, testo:'Svantaggio alle prove di caratteristica.' },
+  { liv:2, testo:'Velocità dimezzata.', velocita:0.5 },
+  { liv:3, testo:'Svantaggio ai tiri per colpire e ai tiri salvezza.' },
+  { liv:4, testo:'Massimo dei punti ferita dimezzato.', pfMax:0.5 },
+  { liv:5, testo:'Velocità ridotta a 0.', velocita:0 },
+  { liv:6, testo:'Morte.' },
+];
+/* Tutti gli effetti fino al livello che hai, perche' si sommano. */
+function effettiSfinimento(liv){
+  liv = Math.max(0, Math.min(6, Number(liv) || 0));
+  return SFINIMENTO.slice(1, liv + 1).filter(Boolean);
+}
+/* Quanto resta della velocità: dimezzata dal 2°, azzerata dal 5°. */
+function fattoreVelocita(liv){
+  liv = Math.max(0, Math.min(6, Number(liv) || 0));
+  if (liv >= 5) return 0;
+  if (liv >= 2) return 0.5;
+  return 1;
+}
+/* Quanto resta del massimo dei punti ferita: dimezzato dal 4°. */
+function fattorePfMax(liv){
+  return (Math.max(0, Math.min(6, Number(liv) || 0)) >= 4) ? 0.5 : 1;
+}
+
 /* ─── EQUIPAGGIAMENTO INIZIALE (SRD 5.1) ───
    Ogni classe parte con alcune scelte. Le scriviamo come gruppi:
    ogni gruppo è una scelta fra più pacchetti, ognuno con i suoi oggetti.
@@ -696,4 +727,69 @@ function matchSex(text){
   if (/^(f|femmina|femminile|female|woman|donna|femme|femenino)$/.test(q)) return 'F';
   if (q) return 'A';
   return '';
+}
+
+/* ══════════════════════════════════════════════════════════════
+   QUANTO FA, AL TUO LIVELLO
+   ──────────────────────────────────────────────────────────────
+   Un trucchetto non fa sempre lo stesso danno: al 5° livello del
+   PERSONAGGIO raddoppia i dadi, all'11° e al 17° cresce ancora. E il
+   raggio occulto non cresce di dadi ma di RAGGI: uno, due, tre,
+   quattro. L'app non lo sapeva — nei dati c'è solo il tipo di danno,
+   «Fire», nessun dado — quindi al tavolo dovevi ricordartelo tu.
+   Sono undici trucchetti in tutto nell'SRD: eccoli, col loro dado.
+   La soglia è il livello totale del personaggio, non quello di classe.
+   ══════════════════════════════════════════════════════════════ */
+const TRUCCHETTI_SCALA = {
+  'acid-splash':    { dado:'d6'  },
+  'chill-touch':    { dado:'d8'  },
+  'fire-bolt':      { dado:'d10' },
+  'poison-spray':   { dado:'d12' },
+  'produce-flame':  { dado:'d8'  },
+  'ray-of-frost':   { dado:'d8'  },
+  'sacred-flame':   { dado:'d8'  },
+  'shocking-grasp': { dado:'d8'  },
+  'vicious-mockery':{ dado:'d4'  },
+  'eldritch-blast': { dado:'d10', raggi:true },
+};
+function passiDiCrescita(livello){
+  const l = Math.max(1, Number(livello) || 1);
+  return l >= 17 ? 4 : l >= 11 ? 3 : l >= 5 ? 2 : 1;
+}
+/* Il livello che conta per i trucchetti è quello del personaggio:
+   con un multiclasse si sommano. */
+function livelloPersonaggio(c){
+  return Math.max(1, (Number(c && c.level) || 1) + (Number(c && c.level2) || 0));
+}
+/* Quanto fa QUESTO trucchetto per QUESTO personaggio.
+   Torna null se non è uno di quelli che crescono. */
+function crescitaTrucchetto(id, c){
+  const t = TRUCCHETTI_SCALA[id];
+  if (!t) return null;
+  const n = passiDiCrescita(livelloPersonaggio(c));
+  if (t.raggi) return { raggi: n, dadi: '1' + t.dado,
+                        testo: n === 1 ? ('1' + t.dado) : (n + ' raggi da 1' + t.dado) };
+  return { dadi: n + t.dado, testo: n + t.dado };
+}
+/* I dadi di danno di un incantesimo di livello, ricavati dal testo.
+   Si accettano SOLO gli incantesimi che dichiarano un tipo di danno:
+   in una descrizione può comparire un «1d6» che non è il danno
+   dell'incantesimo (le armi naturali di alterare se stesso, per dire),
+   e un numero sbagliato in scheda è peggio di nessun numero. */
+function dadiDiDanno(sp){
+  if (!sp || !sp.dmg) return null;
+  const m = /(\d+d\d+)(?=[^.]{0,60}?damage)/i.exec(String(sp.desc || ''));
+  return m ? m[1] : null;
+}
+/* La riga corta che si legge accanto al nome: «2d10 fuoco». */
+function quantoFa(sp, c){
+  if (!sp) return '';
+  const tipo = (typeof dmgTypeIt === 'function') ? dmgTypeIt(sp.dmg) : (sp.dmg || '');
+  if (sp.level === 0){
+    const cr = (typeof crescitaTrucchetto === 'function') ? crescitaTrucchetto(sp.id, c) : null;
+    if (cr) return cr.testo + (tipo ? ' ' + tipo : '');
+    return '';
+  }
+  const d = dadiDiDanno(sp);
+  return d ? (d + (tipo ? ' ' + tipo : '')) : '';
 }

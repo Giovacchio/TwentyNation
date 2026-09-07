@@ -155,7 +155,7 @@ function openTurno(charId){
 }
 function turnoHTML(){
   const c = charById(state.turnoChar); if (!c) return '';
-  const cur = getPath(c,'hp.current',0), max = getPath(c,'hp.max',0), temp = getPath(c,'hp.temp',0);
+  const cur = getPath(c,'hp.current',0), max = pfMassimoDi(c), temp = getPath(c,'hp.temp',0);
   const pct = hpPctFor(c);
   const attive = (c.conditions || []).map(id => CONDITION_BY_ID[id]).filter(Boolean);
   const sp = incantesimiDelTurno(c);
@@ -369,19 +369,16 @@ function turnoLancia(charId, spellId, source, quando, comeRituale){
    danni subiti se è di più. È la regola che al tavolo salta sempre. */
 function turnoTsConcentrazione(charId, danni){
   const c = charById(charId); if (!c) return;
-  const cd = Math.max(10, Math.floor((Number(danni)||0) / 2));
+  const cd = cdConcentrazione(danni);
   performD20('Concentrazione (CD ' + cd + ')', saveMod(c, 'con'), 'normal', {t:'save', c:charId, k:'con'});
 }
 /* I danni presi dalla schermata del turno ricordano il tiro salvezza. */
 function turnoDanno(charId, quanti){
   const c = charById(charId); if (!c) return;
-  const concentrava = !!c.concentration;
+  /* Il promemoria del tiro salvezza lo fa `bumpHP`: dalla v9.0 e' li'
+     per tutti, se no da qui uscirebbe due volte. */
   bumpHP(charId, -Math.abs(quanti));
   renderModalRoot();
-  if (concentrava && charById(charId).concentration){
-    const cd = Math.max(10, Math.floor(Math.abs(quanti) / 2));
-    setTimeout(() => toast('🌀 Tiro salvezza su Costituzione, CD ' + cd + ', o perdi la concentrazione'), 250);
-  }
 }
 
 function turnoSpendiSlot(charId, livello){

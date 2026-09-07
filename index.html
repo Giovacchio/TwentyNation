@@ -696,6 +696,11 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .init-badge { width: 40px; height: 40px; border-radius: 11px; background: var(--bg-1); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--font-head); font-weight: 700; flex-shrink: 0; font-size: 1rem; }
 .init-row.current-turn .init-badge { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); color: #241a05; border-color: var(--gold-bright); }
 .init-name { font-weight: 700; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Il nome apre la scheda del combattente (v9.0): disegnato è alto 22 px,
+   sotto i 32 che vuole un pollice. Si allarga la zona che raccoglie il
+   tocco con del padding compensato dal margine negativo: si vede
+   identico, e non ruba il tocco alla riga sopra o sotto. */
+button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
 .init-hp { font-size: .72rem; color: var(--ink-soft); font-weight: 700; margin-top: 2px; font-family: var(--font-ui); }
 .init-actions { display: flex; gap: 5px; flex-shrink: 0; }
 
@@ -1004,6 +1009,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 
 <script src="./spells-data.js"></script>
 <script src="./spells-it.js"></script>
+<script src="./spells-desc-it.js"></script>
 <script defer src="./app.js"></script>
 <script defer src="./rules-data.js"></script>
 <script defer src="./monsters-data.js"></script>

@@ -63,7 +63,9 @@ function istantaneaPg(c, dettaglio){
     classe2: c.class2 || '', livello2: Number(c.level2) || 0,
     livello: c.level || 1,
     razza: c.race || '',
-    pf: { current: getPath(c,'hp.current',0), max: getPath(c,'hp.max',0), temp: getPath(c,'hp.temp',0) },
+    /* il massimo in vigore, non quello scritto: con lo sfinimento al 4°
+       e' dimezzato, e il master deve vedere lo stesso numero del giocatore */
+    pf: { current: getPath(c,'hp.current',0), max: pfMassimoDi(c), temp: getPath(c,'hp.temp',0) },
     ca: c.ac || 10,
     velocita: c.speed || 9,
     percezionePassiva: (typeof passivePerception === 'function') ? passivePerception(c) : null,

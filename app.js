@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '8.9';
+const APP_VERSION = '9.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -1489,8 +1489,56 @@ function skillLevel(c, key){
   return competenzeRegalate(c).includes(key) ? 1 : 0;
 }
 function saveMod(c, abilityKey){ return mod(getPath(c,'abilities.'+abilityKey,10)) + ((c.saveProf||[]).includes(abilityKey) ? profBonus(c.level) : 0); }
-function hpPctFor(c){ const max = getPath(c,'hp.max',1)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }
+/* ─── Quello che lo sfinimento cambia davvero ─────────────────────
+   Al 2° livello la velocità è dimezzata, al 4° il massimo dei punti
+   ferita, al 5° la velocità è 0. Non si toccano i valori SALVATI —
+   scendendo di sfinimento devono tornare quelli di prima: si calcola
+   qui il valore in vigore, e lo leggono tutti da un posto solo. */
+function pfMassimoDi(c){
+  const base = getPath(c,'hp.max',0);
+  const f = (typeof fattorePfMax === 'function') ? fattorePfMax(c && c.exhaustion) : 1;
+  return f === 1 ? base : Math.floor(base * f);
+}
+function velocitaDi(c){
+  const base = Number((c && c.speed) ?? 9) || 0;
+  const f = (typeof fattoreVelocita === 'function') ? fattoreVelocita(c && c.exhaustion) : 1;
+  return f === 1 ? base : Math.round(base * f * 10) / 10;
+}
+function hpPctFor(c){ const max = pfMassimoDi(c)||1; return clamp(100*getPath(c,'hp.current',0)/max, 0, 100); }
 function spellcastingMod(c){ return mod(getPath(c,'abilities.'+(c.spellAbility||'int'),10)) + profBonus(c.level); }
+/* ─── Quanti incantesimi puoi preparare ───────────────────────────
+   `preparedCount()` sta in rules-data.js da sempre, e la usavano il
+   creatore e la schermata di salita di livello («ora ne prepari 9
+   invece di 8»). Nella SCHEDA — dove le stelline si premono davvero —
+   non la chiamava nessuno: si potevano segnare trenta incantesimi
+   senza un avviso. Torna null quando non si puo' sapere (classe che non
+   prepara, oppure scheda importata da PDF senza classe collegata):
+   li' non si indovina, non si mostra un tetto finto. */
+function quantiPreparabili(c){
+  if (!c || typeof preparedCount !== 'function') return null;
+  const cl = (typeof classeDi === 'function') ? classeDi(c) : null;
+  if (!cl) return null;
+  const mo = mod(getPath(c,'abilities.'+(c.spellAbility||cl.spellAbility||'int'),10));
+  /* In multiclasse conta il livello NELLA classe che prepara, non il
+     totale: e' la stessa regola degli incantesimi di dominio. */
+  let lv = Number(c.level) || 1;
+  if (c.class2 && typeof classIdDaNome === 'function' && classIdDaNome(c.class2) === cl.id)
+    lv = Number(c.level2) || lv;
+  const n = preparedCount(cl.id, lv, mo);
+  return n > 0 ? n : null;
+}
+/* Quali contano davvero: i trucchetti no (si sanno e basta), e nemmeno
+   gli incantesimi che la sottoclasse ti dà sempre preparati. */
+function preparatiCheContano(c){
+  const segnati = (c && c.preparedSpells) || [];
+  const regalati = (typeof spellSottoclasseDi === 'function')
+    ? new Set(spellSottoclasseDi(c).map(x => x.sp && x.sp.id)) : new Set();
+  return segnati.filter(id => {
+    if (regalati.has(id)) return false;
+    const sp = (c.knownSpells||[]).map(k => spellByRef(k)).find(x => x && x.id === id);
+    return !sp || sp.level !== 0;
+  }).length;
+}
 function charById(id){ return state.characters.find(x=>x.id===id); }
 function hitDiceLeft(c){ return clamp((c.level||1) - (c.hitDiceUsed||0), 0, 20); }
 function passivePerception(c){ return 10 + skillMod(c, SKILLS.find(s=>s.key==='perception')); }
@@ -2263,12 +2311,15 @@ function toggleSaveProf(id, key, btn){
 /* ─── PUNTI FERITA ─── */
 function bumpHP(id, delta){
   const c = charById(id); if (!c) return;
-  const max = getPath(c,'hp.max',0);
+  const max = pfMassimoDi(c);
+  const concentrava = c.concentration;
+  let subiti = 0;
   if (delta < 0){
     // I PF temporanei assorbono per primi, come da regolamento.
     let dmg = -delta;
     const temp = Number(c.hp.temp)||0;
     if (temp > 0){ const absorbed = Math.min(temp, dmg); c.hp.temp = temp - absorbed; dmg -= absorbed; }
+    subiti = -delta;
     if (dmg > 0) setPath(c,'hp.current', clamp(getPath(c,'hp.current',0) - dmg, 0, max));
   } else {
     setPath(c,'hp.current', clamp(getPath(c,'hp.current',0) + delta, 0, max));
@@ -2277,12 +2328,20 @@ function bumpHP(id, delta){
   else if (c.concentration) c.concentration = null;  // svenire interrompe la concentrazione
   scheduleSave('characters', c);
   render();
+  /* La regola che al tavolo salta sempre. Il tracker del master e «Il
+     tuo turno» la ricordavano gia'; la scheda no — ed e' dalla scheda
+     che il giocatore si segna i danni. Il conto sta in `cdConcentrazione`
+     e non e' riscritto una terza volta. */
+  if (subiti > 0 && concentrava && c.concentration)
+    setTimeout(() => toast('🌀 TS Costituzione CD ' + cdConcentrazione(subiti) + ' o perdi «' + (concentrava.name||'') + '»'), 150);
 }
+/* CD 10, o metà dei danni se è di più. */
+function cdConcentrazione(danni){ return Math.max(10, Math.floor(Math.abs(Number(danni)||0) / 2)); }
 function setHP(id, val){
   const c = charById(id); if (!c) return;
   // campo svuotato per riscrivere: si aspetta, non si azzerano i PF
   if (String(val).trim() === '') return;
-  setPath(c,'hp.current', clamp(parseInt(val)||0, 0, getPath(c,'hp.max',9999)));
+  setPath(c,'hp.current', clamp(parseInt(val)||0, 0, pfMassimoDi(c)||9999));
   refreshHPDisplay(c, false);
   scheduleSave('characters', c);
 }
@@ -2295,7 +2354,7 @@ function setHPMax(id, val){
   scheduleSave('characters', c);
 }
 function refreshHPDisplay(c, updateInput){
-  const cur = getPath(c,'hp.current',0), max = getPath(c,'hp.max',0);
+  const cur = getPath(c,'hp.current',0), max = pfMassimoDi(c);
   const numEl = document.getElementById('hp-current'); if (numEl) numEl.textContent = cur;
   const maxEl = document.getElementById('hp-max-lbl'); if (maxEl) maxEl.textContent = '/ ' + max + ' PF';
   const fillEl = document.getElementById('hp-bar-fill');
@@ -2358,14 +2417,17 @@ function renderCharacterSheet(){
    in mezzo. Giocando serve il contrario: PF e CA per primi, poi le
    condizioni, poi cosa puoi fare, e i numeri da consultare più giù. */
 function renderSheetOverview(c){
-  const cur = getPath(c,'hp.current',0), max = getPath(c,'hp.max',0), pct = hpPctFor(c);
+  const cur = getPath(c,'hp.current',0), maxBase = getPath(c,'hp.max',0);
+  const max = pfMassimoDi(c), pct = hpPctFor(c);
+  const pfDimezzati = max !== maxBase;
   const dying = cur <= 0;
   return `
   <div class="desk-2">
     <div>
       <div class="hp-block">
         <div class="hp-block-top">
-          <div><span class="hp-num" id="hp-current">${cur}</span> <span class="hp-max" id="hp-max-lbl">/ ${max} PF</span></div>
+          <div><span class="hp-num" id="hp-current">${cur}</span> <span class="hp-max" id="hp-max-lbl">/ ${max} PF</span>${
+            pfDimezzati ? `<span class="badge" style="margin-left:6px" title="Sfinimento ${c.exhaustion}: massimo dimezzato">💀 era ${maxBase}</span>` : ''}</div>
           ${getPath(c,'hp.temp',0) ? `<span class="badge arcane">+${getPath(c,'hp.temp',0)} temp.</span>` : ''}
         </div>
         <div class="hp-bar-lg"><div class="hp-bar-lg-fill ${pct<=25?'low':''}" id="hp-bar-fill" style="width:${pct}%"></div></div>
@@ -2377,7 +2439,7 @@ function renderSheetOverview(c){
           <button class="stepper-btn" onclick="bumpHP('${c.id}',5)" aria-label="+5 PF">+5</button>
         </div>
         <div class="mini-fields">
-          <div class="mini-field"><label>PF max</label><input type="number" inputmode="numeric" value="${max}" oninput="setHPMax('${c.id}', this.value)"></div>
+          <div class="mini-field"><label>PF max</label><input type="number" inputmode="numeric" value="${maxBase}" oninput="setHPMax('${c.id}', this.value)"></div>
           <div class="mini-field"><label>PF temp.</label><input type="number" inputmode="numeric" value="${getPath(c,'hp.temp',0)}" oninput="updateCharField('${c.id}','hp.temp',clamp(parseInt(this.value)||0,0,999))"></div>
           <div class="mini-field"><label>Dado vita</label><input type="text" value="d${c.hitDie||8}" readonly style="opacity:.7"></div>
         </div>
@@ -2404,7 +2466,8 @@ function renderSheetOverview(c){
 
       <div class="status-row">
         <button class="status-chip ${c.inspiration?'on':''}" onclick="toggleInspiration('${c.id}')" title="Ispirazione">✨ Ispirazione</button>
-        <button class="status-chip ${c.exhaustion?'warn':''}" onclick="bumpExhaustion('${c.id}')" title="Tocca per aumentare, tieni a 0 per azzerare">💀 Sfinimento ${c.exhaustion||0}</button>
+        <button class="status-chip ${c.exhaustion?'warn':''}" onclick="apriSfinimento('${c.id}')" title="Cosa comporta, e come cambiarlo">💀 Sfinimento ${c.exhaustion||0}${
+          c.exhaustion ? ' · ' + escapeHtml(SFINIMENTO[c.exhaustion].testo.replace(/\.$/,'').toLowerCase()) : ''}</button>
       </div>
       ${conditionsRowHTML(c)}
 
@@ -2425,7 +2488,13 @@ function renderSheetOverview(c){
       ${companionsBlockHTML(c)}
 
       <div class="combat-grid" style="margin-top:14px">
-        <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.speed??9}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>
+        ${(() => { const vera = velocitaDi(c), base = Number(c.speed ?? 9) || 0;
+          /* Con lo sfinimento la velocità che conta non è quella scritta:
+             si mostra quella in vigore, e la casella resta modificabile
+             con il valore vero, se no si sovrascriverebbe il proprio. */
+          return vera === base
+            ? `<div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${base}" aria-label="Velocità" oninput="updateCharField('${c.id}','speed',parseInt(this.value)||0)"><div class="l">Velocità (m)</div></div>`
+            : `<button class="combat-stat" onclick="apriSfinimento('${c.id}')" style="text-align:center" title="Sfinimento ${c.exhaustion}: velocità ridotta"><div class="v" style="color:var(--warn)">${vera}</div><div class="l">Velocità (era ${base})</div></button>`; })()}
         <div class="combat-stat"><div class="v" id="passive-perc">${passivePerception(c)}</div><div class="l">Percez. pass.</div></div>
         <div class="combat-stat"><div class="v">${hitDiceLeft(c)}<span style="font-size:.8rem">d${c.hitDie||8}</span></div><div class="l">Dadi vita</div></div>
       </div>
@@ -2898,6 +2967,49 @@ function bumpExhaustion(charId){
   c.exhaustion = ((c.exhaustion||0) + 1) % 7;
   scheduleSave('characters', c); render();
 }
+/* ─── Sfinimento ──────────────────────────────────────────────────
+   Era l'unico stato che non spiegava niente: le quattordici condizioni
+   dicono tutte cosa comportano, questo era un numero da 0 a 6 e basta.
+   Gli effetti si SOMMANO: al 3° hai anche quelli del 1° e del 2°. */
+function setSfinimento(charId, liv){
+  const c = charById(charId); if (!c) return;
+  c.exhaustion = clamp(Number(liv)||0, 0, 6);
+  /* Al 4° il massimo dei punti ferita e' dimezzato: se i correnti erano
+     piu' alti, scendono. Il valore SALVATO non si tocca, cosi' quando lo
+     sfinimento cala il massimo torna quello di prima. */
+  const tetto = pfMassimoDi(c);
+  if (getPath(c,'hp.current',0) > tetto) setPath(c,'hp.current', tetto);
+  scheduleSave('characters', c);
+  renderModalRoot(); render();
+}
+function apriSfinimento(charId){
+  const c = charById(charId); if (!c) return;
+  openModal({ render: () => {
+    const ch = charById(charId); if (!ch) return modalShell('💀 Sfinimento', '');
+    const liv = clamp(Number(ch.exhaustion)||0, 0, 6);
+    const inner = `
+      <p class="muted" style="margin-bottom:12px">Tocca il livello che hai adesso. Gli effetti si sommano: al 3° hai anche quelli del 1° e del 2°.</p>
+      <div class="list-gap">
+        <button class="attack-row" style="width:100%; text-align:left; ${liv===0?'border-color:var(--gold-dim)':''}" onclick="setSfinimento('${charId}',0)">
+          <span class="attack-main"><span class="attack-name">Nessuno${liv===0?' ✓':''}</span>
+          <span class="muted" style="font-size:.74rem; display:block">Stai bene.</span></span>
+        </button>
+        ${SFINIMENTO.slice(1).map(e => `
+          <button class="attack-row" style="width:100%; text-align:left; ${liv===e.liv?'border-color:var(--garnet)':''}" onclick="setSfinimento('${charId}',${e.liv})">
+            <span class="attack-main">
+              <span class="attack-name">${e.liv}° livello${liv===e.liv?' ✓':''}${liv>e.liv?' <span class="muted">(già attivo)</span>':''}</span>
+              <span class="muted" style="font-size:.74rem; display:block">${escapeHtml(e.testo)}</span>
+            </span>
+          </button>`).join('')}
+      </div>
+      ${liv ? `<div class="card" style="margin-top:14px">
+        <b style="font-size:.86rem">Quello che hai addosso adesso</b>
+        <div class="muted" style="font-size:.78rem; margin-top:4px">${effettiSfinimento(liv).map(e=>escapeHtml(e.testo)).join('<br>')}</div>
+      </div>` : ''}
+      <div class="muted" style="font-size:.75rem; margin-top:12px">Un riposo lungo lo riduce di 1, se hai anche mangiato e bevuto.</div>`;
+    return modalShell('💀 Sfinimento', inner);
+  }});
+}
 
 /* ─── Scheda Note ─── */
 /* renderSheetNotes: tolta. Era la vecchia scheda «Note», sciolta nella
@@ -3051,7 +3163,7 @@ function spendHitDice(charId, n, which){
   for (let i=0;i<n;i++){ const r = rollDie(die); rolls.push(r); healed += Math.max(0, r + conMod); }
   if (which === 2) c.hitDiceUsed2 = (c.hitDiceUsed2||0) + n;
   else c.hitDiceUsed = (c.hitDiceUsed||0) + n;
-  const max = getPath(c,'hp.max',0);
+  const max = pfMassimoDi(c);
   const before = getPath(c,'hp.current',0);
   setPath(c,'hp.current', clamp(before + healed, 0, max));
   const real = getPath(c,'hp.current',0) - before;
@@ -3110,8 +3222,6 @@ function concludiRiposoBreve(charId){
    concludiRiposoBreve(), che è la strada vera. */
 function longRest(charId){
   const c = charById(charId); if (!c) return;
-  const max = getPath(c,'hp.max',0);
-  setPath(c,'hp.current', max);
   setPath(c,'hp.temp', 0);
   c.slotsUsed = {};
   c.pactUsed = 0;
@@ -3124,9 +3234,16 @@ function longRest(charId){
   // un riposo lungo comprende un'alba: tornano anche quelle
   ricaricaOggetti(c, ['sr','lr','dn','']);
   const scaduti = scadiEffettiRiposo(c, 'lungo');
+  /* «Un riposo lungo riduce lo sfinimento di 1»: la regola c'era e non
+     la applicava nessuno, quindi una volta salito non scendeva piu'. */
+  const sfiniva = clamp(Number(c.exhaustion)||0, 0, 6);
+  if (sfiniva > 0) c.exhaustion = sfiniva - 1;
+  /* i PF si ripristinano DOPO, o si riempirebbero al massimo dimezzato */
+  setPath(c,'hp.current', pfMassimoDi(c));
   scheduleSave('characters', c);
   closeModal(); render();
   toast('🌙 Riposo lungo: PF, slot e cariche ripristinati'
+    + (sfiniva > 0 ? ' · sfinimento ' + sfiniva + ' → ' + (sfiniva-1) : '')
     + (scaduti ? ' · ' + scaduti + (scaduti === 1 ? ' effetto scaduto' : ' effetti scaduti') : ''));
 }
 
@@ -3480,6 +3597,21 @@ function renderSheetSpells(c){
       <button class="filter-chip ${state.knownFilter==='all'?'active':''}" onclick="setKnownFilter('all')">Tutti (${(c.knownSpells||[]).length})</button>
       <button class="filter-chip ${state.knownFilter==='prepared'?'active':''}" id="chip-prepared" onclick="setKnownFilter('prepared')">★ Preparati (${prepared.length})</button>
     </div>
+    ${(() => {
+      const tetto = quantiPreparabili(c);
+      if (!tetto) return '';
+      const messi = preparatiCheContano(c);
+      const troppi = messi > tetto;
+      return `<div class="card" style="margin-top:8px; ${troppi?'border-color:var(--garnet)':''}">
+        <div class="row-between" style="align-items:baseline">
+          <b style="font-size:.86rem">${troppi?'⚠️ ':''}Ne prepari ${messi} su ${tetto}</b>
+          <span class="muted" style="font-size:.74rem">${troppi ? 'ne hai ' + (messi-tetto) + ' di troppo' : (tetto-messi) + ' ancora liberi'}</span>
+        </div>
+        <div class="muted" style="font-size:.74rem; margin-top:3px">${escapeHtml(
+          (classeDi(c)||{}).name || 'La tua classe')}: ${(c.spellAbility||'int')==='wis'?'Saggezza':(c.spellAbility||'int')==='cha'?'Carisma':'Intelligenza'} + livello.
+          I trucchetti e gli incantesimi che hai sempre non contano. Puoi cambiarli a ogni riposo lungo.</div>
+      </div>`;
+    })()}
     ${/* La casella non passa da cercaLista: li' la ✕ compare solo al
          ridisegno, e qui mentre scrivi si ridisegna SOLO l'elenco per
          non perdere il fuoco — quindi la ✕ non sarebbe mai comparsa e
@@ -4653,11 +4785,22 @@ function renderInitiativeTracker(){
 function initRowHTML(cb, i, isCurrent){
   const down = cb.hp != null && cb.hp <= 0;
   const eff = effettiDi(cb);
+  /* La CA e' la domanda piu' frequente di tutto il combattimento
+     («un 17 lo prende?») e non c'era. Le righe vecchie non se la
+     portano dietro: si va a riprenderla dalla fonte. */
+  const ca = caCombattente(cb);
+  const apribile = !!schedaCombattente(cb);
+  const nome = `${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}${cb.conc?' <span title="Sta concentrando">🌀</span>':''}`;
   return `<div class="init-row ${isCurrent?'current-turn':''} ${down?'down':''}">
     <button class="init-badge" onclick="editCombatInit(${i})" title="Modifica iniziativa">${cb.init}</button>
     <div style="flex:1; min-width:0;">
-      <div class="init-name">${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}${cb.conc?' <span title="Sta concentrando">🌀</span>':''}</div>
-      <div class="init-hp">${cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : (cb.kind==='quick'?'—':'')}</div>
+      ${apribile
+        ? `<button class="init-name" style="text-align:left; width:100%; background:none; border:0; color:inherit; font:inherit; cursor:pointer" onclick="apriCombattente(${i})" title="Apri la scheda">${nome} <span class="muted" style="font-size:.7rem">›</span></button>`
+        : `<div class="init-name">${nome}</div>`}
+      <div class="init-hp">${[
+        cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : (cb.kind==='quick'?'—':''),
+        ca != null ? ('CA ' + ca) : ''
+      ].filter(Boolean).join(' · ')}</div>
       ${eff.length ? `<div class="init-effetti">${eff.map((e,k)=>`
         <button class="chip effetto ${e.round!=null && e.round<=1?'ultimo':''}" onclick="togliEffetto(${i},${k})" title="Tocca per toglierlo">
           ${escapeHtml(e.nome)}${e.round!=null?` <b>${e.round}</b>`:''}${e.durata?` <span class="muted">${escapeHtml(e.durata)}</span>`:''}</button>`).join('')}</div>` : ''}
@@ -4669,6 +4812,38 @@ function initRowHTML(cb, i, isCurrent){
       <button class="btn-icon" style="width:34px;height:34px;font-size:.75rem;" onclick="removeFromCombat(${i})" aria-label="Rimuovi">✕</button>
     </div>
   </div>`;
+}
+
+/* Chi è questo combattente, davvero: la creatura SRD, il PNG del tuo
+   bestiario, il personaggio, o niente (un nome buttato lì al volo). */
+function schedaCombattente(cb){
+  if (!cb) return null;
+  if (cb.srdId && typeof MONSTER_BY_ID !== 'undefined' && MONSTER_BY_ID[cb.srdId])
+    return { tipo:'srd', dato: MONSTER_BY_ID[cb.srdId] };
+  if (cb.kind === 'pc'){ const c = charById(cb.refId); return c ? { tipo:'pg', dato:c } : null; }
+  if (cb.refId){
+    const n = (state.npcs||[]).find(x=>x.id===cb.refId) || (state.sharedNpcs||[]).find(x=>x.id===cb.refId);
+    if (n) return n.srdId && typeof MONSTER_BY_ID !== 'undefined' && MONSTER_BY_ID[n.srdId]
+      ? { tipo:'srd', dato: MONSTER_BY_ID[n.srdId] } : { tipo:'png', dato:n };
+  }
+  return null;
+}
+function caCombattente(cb){
+  if (cb && cb.ac != null) return cb.ac;
+  const s = schedaCombattente(cb);
+  if (!s) return null;
+  return s.tipo === 'srd' ? s.dato.ac : (s.dato.ac != null ? s.dato.ac : null);
+}
+/* Dall'iniziativa si apre la scheda di chi hai davanti: prima bisognava
+   uscire, andare nel bestiario e cercarlo a mano, mentre il tavolo
+   aspettava. La riga sapeva già di chi si trattava. */
+function apriCombattente(i){
+  const cb = state.combat.list[i]; if (!cb) return;
+  const s = schedaCombattente(cb);
+  if (!s){ toast('Di questo combattente non ho una scheda'); return; }
+  if (s.tipo === 'srd') viewMonster(s.dato.id);
+  else if (s.tipo === 'png') openNpcForm(s.dato.id);
+  else { closeModalAll(); openSheet(s.dato.id); }
 }
 
 /* ─── Effetti a tempo nell'iniziativa ────────────────────────────
@@ -4771,19 +4946,38 @@ function uniqueCombatName(base){
   if (first) first.name = base + ' #1';
   return base + ' #' + (same.length + 1);
 }
+/* Il modificatore di Destrezza di un PNG. Le creature copiate dal
+   bestiario SRD si portano dietro `srdId`, quindi la scheda vera si
+   ritrova; quelle scritte a mano o importate possono avere `ab` o
+   `abilities`. Se non si sa, +0 — ma dicendolo, non per distrazione. */
+function dexDiPng(n){
+  if (!n) return 0;
+  if (n.srdId && typeof MONSTER_BY_ID !== 'undefined' && MONSTER_BY_ID[n.srdId])
+    return mod(MONSTER_BY_ID[n.srdId].ab[1]);
+  if (Array.isArray(n.ab) && n.ab.length >= 2) return mod(n.ab[1]);
+  if (n.abilities && n.abilities.dex != null) return mod(n.abilities.dex);
+  if (n.dex != null) return mod(n.dex);
+  return 0;
+}
 function addToCombat(refId, kind){
   // le creature messe in comune dal tavolo si portano all'iniziativa
   // come le tue, senza doverne prima fare una copia
   const src = kind==='pc' ? charById(refId)
     : (state.npcs.find(n=>n.id===refId) || (state.sharedNpcs||[]).find(n=>n.id===refId));
   if (!src) return;
-  const dexMod = kind==='pc' ? mod(getPath(src,'abilities.dex',10)) : 0;
+  /* La Destrezza di una creatura del TUO bestiario non veniva letta:
+     l'iniziativa si tirava con +0, mentre la stessa creatura aggiunta
+     dal bestiario SRD passava da `addMonsterToCombat` e usava la sua.
+     Due strade, due risposte. Un goblin ha DES 14: tira +2, sempre. */
+  const dexMod = kind==='pc' ? mod(getPath(src,'abilities.dex',10)) : dexDiPng(src);
   const init = rollDie(20) + (kind==='pc' ? (src.initiative ?? dexMod) : dexMod);
   state.combat.list.push({
     refId, kind, name: uniqueCombatName(src.name), avatar: src.avatar, init,
     conc: kind==='pc' ? !!src.concentration : false, effetti: [],
     hp: kind==='pc' ? getPath(src,'hp.current',0) : (src.hpCurrent ?? src.hpMax ?? 0),
-    hpMax: kind==='pc' ? getPath(src,'hp.max',0) : (src.hpMax ?? 0),
+    hpMax: kind==='pc' ? pfMassimoDi(src) : (src.hpMax ?? 0),
+    ac: kind==='pc' ? (src.ac ?? 10) : (src.ac ?? null),
+    srdId: kind==='pc' ? null : (src.srdId || null),
   });
   sortCombat(); saveSession(); render();
 }
@@ -4836,14 +5030,14 @@ function bumpCombatHP(i, delta){
   if (cb.kind === 'pc'){
     const c = charById(cb.refId);
     if (c){
-      setPath(c,'hp.current', clamp(cb.hp, 0, getPath(c,'hp.max',9999)));
+      setPath(c,'hp.current', clamp(cb.hp, 0, pfMassimoDi(c)||9999));
       scheduleSave('characters', c);
       cb.conc = !!c.concentration;
       /* La regola che al tavolo salta sempre: chi sta concentrando e
          subisce danni tira Costituzione, CD 10 o metà dei danni. Il
          master lo scopre qui, mentre segna i danni, non dopo. */
       if (danni > 0 && c.concentration){
-        const cd = Math.max(10, Math.floor(danni / 2));
+        const cd = cdConcentrazione(danni);
         setTimeout(() => toast('🌀 ' + c.name + ': TS Costituzione CD ' + cd + ' o perde «' + (c.concentration && c.concentration.name || '') + '»'), 150);
       }
     }
@@ -5746,7 +5940,7 @@ function openCharSwitcher(){
         <span style="flex-shrink:0; margin-right:10px">${avatarHTML(c, 34)}</span>
         <span class="attack-main">
           <span class="attack-name">${escapeHtml(c.name||'Senza nome')}${c.id===state.activeCharId?' ✓':''}</span>
-          <span class="muted" style="font-size:.74rem; display:block">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1} · ${getPath(c,'hp.current',0)}/${getPath(c,'hp.max',0)} PF</span>
+          <span class="muted" style="font-size:.74rem; display:block">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1} · ${getPath(c,'hp.current',0)}/${pfMassimoDi(c)} PF</span>
         </span>
       </button>`).join('')}
     </div>

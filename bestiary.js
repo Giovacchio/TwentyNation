@@ -166,7 +166,7 @@ function addMonsterToCombat(id){
   const hpRoll = rollDiceExpression(m.hd);
   const hp = Math.max(1, hpRoll.total || m.hp);
   state.combat.list.push({ refId:null, kind:'monster', srdId:m.id, name: uniqueCombatName(monsterName(m)),
-    avatar: monsterAvatar(m), init: rollDie(20) + dex, hp, hpMax: hp });
+    avatar: monsterAvatar(m), init: rollDie(20) + dex, hp, hpMax: hp, ac: m.ac });
   sortCombat(); saveSession();
   state.view = 'dm'; state.dmTab = 'initiative';
   closeModal(); render();

@@ -1,5 +1,50 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.0 — 7 settembre 2026
+**Cinque posti dove l'app la risposta ce l'aveva già e non la usava.**
+
+### 💀 Lo sfinimento era un numero e basta
+`💀 Sfinimento 3` saliva da 0 a 6 e **non faceva niente e non spiegava niente** — l'unico stato così, mentre le sue quattordici sorelle (le condizioni) dicono tutte cosa comportano.
+
+Adesso la pastiglia scrive anche l'effetto («svantaggio ai tiri per colpire e ai tiri salvezza»), e toccandola si apre l'elenco di tutti e sei i livelli, con evidenziato quello che hai. E gli effetti **si applicano davvero**:
+
+- **Velocità dimezzata dal 2°, azzerata dal 5°.** In scheda si legge la velocità in vigore, con accanto quella scritta: `4,5 · Velocità (era 9)`.
+- **Massimo dei punti ferita dimezzato dal 4°**, con la barra e i tetti che ne tengono conto — anche nel turno, sulla stampa e sulla scheda che il master vede al tavolo, che se no mostravano tre numeri diversi per la stessa cosa.
+
+**Il valore salvato non si tocca mai.** Scendendo di sfinimento il massimo torna quello di prima: si calcola quello in vigore in un posto solo (`pfMassimoDi`, `velocitaDi`) e lo leggono tutti da lì. Se i punti ferita correnti erano sopra il nuovo tetto scendono, come da regola.
+
+**E c'era un pezzo di regola che non applicava nessuno: il riposo lungo lo riduce di 1.** Non lo faceva, quindi una volta salito non scendeva più se non a mano. Ora sì, e il messaggio lo dice: «sfinimento 3 → 2».
+
+### ★ La scheda non ti diceva quanti incantesimi puoi preparare
+`preparedCount()` sta in `rules-data.js` da sempre, è giusta, e **la usavano il creatore e la salita di livello** — che ti scrive «ora ne prepari 9 invece di 8». Poi aprivi la scheda, dove le stelline si premono davvero, e c'era solo `★ Preparati (14)`: nessun tetto, nessun avviso, e potevi segnarne trenta.
+
+Ora sotto le pastiglie c'è una riga: **«Ne prepari 4 su 9 · 5 ancora liberi»**, e in rosso quando ne hai di troppo, con quanti. Contano solo quelli che contano davvero: **i trucchetti no** (si sanno e basta) e **nemmeno quelli che la sottoclasse ti dà sempre preparati**. In multiclasse conta il livello **nella classe che prepara**, non il totale.
+
+Dove non si può sapere — lo stregone, che non prepara, o una scheda importata da PDF senza classe collegata — **non compare niente**: meglio nessun numero che un numero inventato.
+
+### 💪 Salire di livello adesso applica gli aumenti di caratteristica
+Al 4°, 8°, 12° la schermata diceva: *«Li applichi tu nella scheda dopo la salita: l'app non tocca i punteggi.»* Ma nella **creazione guidata** quei comandi ci sono dalla v8.2.1. Quindi: creando un personaggio all'8° l'app te li faceva mettere, arrivandoci giocando ti dava un cartello. Stessa decisione, due risposte diverse a seconda di come ci eri arrivato — ed è esattamente il cartello che la v8.2.1 aveva tolto dall'altra parte.
+
+Ora ci sono i comandi veri, gli stessi: **+2 su una** o **+1 su due**, col punteggio prima e dopo e il modificatore (`16 → 18 (+4)`), il tetto di **20** che non si sfonda, il terzo punto rifiutato, e **«Prendo un talento»** per chi preferisce — che azzera i punti invece di lasciarli appesi. Quello che scegli finisce nella scheda e nei privilegi; se non metti niente resta scritto «2 punti ancora da mettere», invece di sparire.
+
+### ⚔️ L'iniziativa: la CA si vede, e la creatura si apre
+La riga di un combattente aveva iniziativa, nome, PF e i tasti. **Niente CA** — che è la domanda più frequente di tutto il combattimento — e **il nome non era cliccabile**: per sapere cosa fa il goblin bisognava uscire dall'iniziativa, andare nel bestiario e cercarlo mentre il tavolo aspettava. La riga sapeva già di chi si trattava (`refId`, `srdId`): le mancava solo il tocco.
+
+Adesso la CA sta accanto ai punti ferita e il nome apre la scheda: quella SRD con i tiri già pronti, il tuo PNG, o il personaggio. Anche per le righe salvate **prima** di questa versione, che la CA non ce l'hanno scritta: si va a riprenderla dalla fonte.
+
+> **E un difetto vero: i mostri tiravano l'iniziativa con +0.** `addToCombat` faceva `dexMod = kind==='pc' ? mod(...) : 0`. Aggiungendo un goblin dal **tuo** bestiario tirava +0; lo stesso goblin aggiunto dal bestiario **SRD** passava da un'altra funzione e usava la sua Destrezza, +2. Due strade, due risposte. Ora la Destrezza si cerca dove c'è: dalla creatura SRD di origine (`srdId`), da `ab`, da `abilities`. Se davvero non si sa, +0 — ma per scelta, non per distrazione.
+
+### 🌀 I danni segnati dalla scheda non ricordavano la concentrazione
+Il tracker del master lo ricordava, «Il tuo turno» lo ricordava, la **scheda no**: i −5 / −1 toglievano i punti ferita e tacevano. Ma il giocatore i danni se li segna dalla scheda — cioè il promemoria mancava proprio dove serve più spesso.
+
+Ora c'è, e il conto della CD (10, o metà dei danni) sta in **una funzione sola** (`cdConcentrazione`) invece di essere scritto una terza volta: le altre due copie ora chiamano quella. Curandosi non compare, senza concentrazione non compare, e svenire la interrompe senza chiedere un tiro che non serve più.
+
+> **Trovato scrivendo le prove: il tasto Indietro poteva uscire dall'app.**
+> `avviaSalita` faceva `closeModal(); openModal(...)`. Ma la chiusura di una finestra fa un `history.back()` **asincrono**: la finestra nuova si apre prima che quel back sia atterrato, e se nel frattempo si chiude di nuovo partono **due back per una sola voce di cronologia** — il secondo esce dalla pagina. Ci passa la scelta della classe in multiclasse, che è la strada normale per chi ha due classi. Sostituito con `modalReplace`, che è proprio il caso che RIPARTENZA descrive («per le schermate che si ridisegnano da sole») e che qui mancava. Due prove nuove: una rifà la sequenza e controlla che l'app ci sia ancora, l'altra preme il tasto Indietro vero.
+
+### Prove
+`test-v90.mjs` (41). Le tre che contano di più: che il massimo dei punti ferita dimezzato **torni quello di prima** quando lo sfinimento cala (il valore salvato non dev'essere mai stato toccato); che il tetto degli incantesimi preparati **non compaia affatto** dove non si può sapere, invece di inventarne uno; e che il promemoria della concentrazione esca **una volta sola** anche dal turno, che adesso passa da `bumpHP`.
+
 ## v8.9 — 7 settembre 2026
 **Trovare l'incantesimo giusto in fretta, e i rituali che finalmente sono rituali.**
 

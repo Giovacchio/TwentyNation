@@ -57,11 +57,19 @@ function avviaSalita(charId, quale, classId){
     from: da, to: da + 1,
     totDa: livelloTotale(c), totA: livelloTotale(c) + 1,
     subclassId: quale === 1 ? ((c.builder && c.builder.subclassId) || null) : ((c.builder && c.builder.subclassId2) || null),
-    hpMode: 'avg', hpRoll: null, subQ: ''
+    hpMode: 'avg', hpRoll: null, subQ: '',
+    asi: {}, talento: false
   };
   listaAzzera('lv-sub');
-  closeModal();
-  openModal({ render: levelUpHTML });
+  /* Sostituisce la finestra invece di chiuderla e riaprirla. Con
+     `closeModal(); openModal(...)` la chiusura fa un `history.back()`
+     ASINCRONO: la finestra nuova si apre prima che quel back sia
+     atterrato, e se nel frattempo si chiude di nuovo partono DUE back
+     per una sola voce di cronologia — il secondo esce dall'app. È il
+     caso che RIPARTENZA chiama «modalReplace per le schermate che si
+     ridisegnano da sole», e qui mancava: la scelta della classe in
+     multiclasse passa proprio di qui. */
+  modalReplace({ render: levelUpHTML });
 }
 
 /* Se la scheda è stata scritta a mano o importata da PDF non sappiamo la classe: la chiediamo una volta sola. */
@@ -168,10 +176,40 @@ function levelUpHTML(){
       </div>`).join('')}</div>`
     : `<div class="muted" style="text-align:center; padding:6px 0">Nessun privilegio nuovo a questo livello${g.isAsi?'':' — solo PF e dado vita'}.</div>`}
 
-    ${g.isAsi ? `<div class="card" style="margin-top:10px; border-color:var(--gold-dim)">
-      <b style="font-size:.86rem">Aumento dei punteggi di caratteristica</b>
-      <div class="muted" style="font-size:.78rem; margin-top:3px">2 punti da distribuire (max +1 a due caratteristiche diverse, o +2 a una), oppure un talento. Li applichi tu nella scheda dopo la salita: l'app non tocca i punteggi.</div>
-    </div>` : ''}
+    ${g.isAsi ? (() => {
+      const c = g.c, spesi = lvAsiSpesi(), tal = !!lvup.talento;
+      return `<div class="card" style="margin-top:10px; border-color:var(--gold-dim)">
+        <div class="row-between" style="margin-bottom:4px">
+          <b style="font-size:.86rem">Aumento dei punteggi di caratteristica</b>
+          <b style="color:${tal ? 'var(--ink-soft)' : (spesi===2?'var(--gold)':'var(--ink-soft)')}">${tal ? 'talento' : spesi + ' / 2'}</b>
+        </div>
+        <div class="muted" style="font-size:.75rem; margin-bottom:10px">
+          <b>+2 su una</b> caratteristica o <b>+1 su due</b>. Oppure un talento, che scegli col tuo master.
+        </div>
+        ${tal ? '' : `<div class="list-gap">
+          ${ABILITIES.map(a => {
+            const messo = (lvup.asi||{})[a.key] || 0;
+            const ora = getPath(c,'abilities.'+a.key,10);
+            const alTetto = ora + messo >= 20;
+            return `<div class="attack-row" style="${messo?'border-color:var(--gold)':''}">
+              <div class="attack-main" style="pointer-events:none">
+                <div class="attack-name">${a.label}</div>
+                <div class="muted" style="font-size:.71rem">${ora}${messo?` → <b style="color:var(--gold)">${ora+messo}</b> (${signStr(mod(ora+messo))})`:` (${signStr(mod(ora))})`}${alTetto?' · al massimo':''}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:5px">
+                <button class="stepper-btn" style="width:32px;height:32px" onclick="lvAsi('${a.key}',-1)" ${messo?'':'disabled'}>−</button>
+                <div style="width:34px; text-align:center; font-family:var(--font-ui); font-weight:800; color:${messo?'var(--gold)':'var(--ink-soft)'}">${messo?'+'+messo:'—'}</div>
+                <button class="stepper-btn" style="width:32px;height:32px" onclick="lvAsi('${a.key}',1)" ${(spesi>=2||alTetto||messo>=2)?'disabled':''}>+</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`}
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-ghost btn-sm" onclick="lvAsiTalento()">${tal ? '← Torna ai punti' : 'Prendo un talento'}</button>
+          ${spesi && !tal ? `<button class="btn btn-ghost btn-sm" onclick="lvAsiAzzera()">Ricomincia</button>` : ''}
+        </div>
+      </div>`;
+    })() : ''}
 
     ${newSlots.length ? `<div class="card" style="margin-top:10px">
       <b style="font-size:.86rem">Slot incantesimo</b>
@@ -194,6 +232,39 @@ function levelUpHTML(){
   return modalShell('📈 Salita di livello', inner);
 }
 
+/* ─── Gli aumenti di caratteristica, qui e adesso ─────────────────
+   Il creatore li fa mettere davvero dalla v8.2.1; questa schermata
+   diceva ancora «li applichi tu nella scheda dopo la salita». Stessa
+   decisione, due risposte diverse a seconda di come ci sei arrivato:
+   creando un personaggio all'8° l'app te li fa mettere, arrivandoci
+   giocando ti dava un cartello. */
+function lvAsiSpesi(){
+  return ABILITIES.reduce((n,a) => n + ((lvup.asi||{})[a.key]||0), 0);
+}
+function lvAsi(key, d){
+  const c = charById(lvup.charId); if (!c) return;
+  lvup.asi = lvup.asi || {};
+  const ora = lvup.asi[key] || 0;
+  if (d > 0){
+    if (lvAsiSpesi() >= 2){ toast('Hai già distribuito tutti e due i punti'); return; }
+    if ((getPath(c,'abilities.'+key,10) + ora) >= 20){ toast('20 è il massimo'); return; }
+    /* +2 su una sola, oppure +1 su due diverse: tre su una non si può. */
+    if (ora >= 2){ toast('Al massimo +2 sulla stessa caratteristica'); return; }
+    lvup.asi[key] = ora + 1;
+  } else {
+    if (ora <= 0) return;
+    lvup.asi[key] = ora - 1;
+  }
+  renderModalRoot();
+}
+function lvAsiAzzera(){ lvup.asi = {}; renderModalRoot(); }
+/* Chi prende un talento invece dei punti: si dichiara, e i punti si
+   azzerano, cosi' non ne restano due appesi che nessuno spenderà. */
+function lvAsiTalento(){
+  lvup.talento = !lvup.talento;
+  if (lvup.talento) lvup.asi = {};
+  renderModalRoot();
+}
 function lvSetHpMode(m){ lvup.hpMode = m; renderModalRoot(); }
 function lvRollHp(){
   const g = levelUpGains();
@@ -223,8 +294,23 @@ function confirmLevelUp(){
   if (!c.casterType || c.casterType === 'none') c.casterType = g.cl.caster;
   if (!c.spellAbility && g.cl.spellAbility) c.spellAbility = g.cl.spellAbility;
 
+  /* I punti si applicano DAVVERO, come nel creatore: prima si scriveva
+     solo un promemoria e i punteggi restavano quelli di prima. */
+  let asiScritto = '';
+  if (g.isAsi){
+    const messi = ABILITIES.map(a => [a, (lvup.asi||{})[a.key] || 0]).filter(x => x[1] > 0);
+    if (lvup.talento) asiScritto = 'un talento, da concordare col master';
+    else if (messi.length){
+      messi.forEach(([a, n]) => {
+        const ora = getPath(c,'abilities.'+a.key,10);
+        setPath(c, 'abilities.'+a.key, clamp(ora + n, 1, 20));
+      });
+      asiScritto = messi.map(([a,n]) => a.label + ' +' + n).join(', ');
+    } else asiScritto = '2 punti ancora da mettere';
+  }
+
   const lines = g.feats.map(f => `${lvup.to}° ${f[2] !== g.cl.name ? '[' + f[2] + '] ' : ''}${f[0]}: ${f[1]}`);
-  if (g.isAsi) lines.push(`${lvup.to}° Aumento dei punteggi di caratteristica: 2 punti o un talento (da applicare)`);
+  if (g.isAsi) lines.push(`${lvup.to}° Aumento dei punteggi di caratteristica: ${asiScritto}`);
   if (lines.length) c.features = [c.features || '', lines.join('\n\n')].filter(Boolean).join('\n\n');
 
   c.builder = lvup.quale === 2
@@ -236,9 +322,10 @@ function confirmLevelUp(){
   scheduleSave('characters', c);
   const wantsSpells = g.after.cantrips > g.before.cantrips || g.after.known > g.before.known;
   closeModal(); render();
-  toast(lvup.quale === 2
+  const coda = (g.isAsi && asiScritto && !/da mettere|talento/.test(asiScritto)) ? ' · ' + asiScritto : '';
+  toast((lvup.quale === 2
     ? `📈 ${c.name}: ${g.cl.name} ${c.level2}° (+${gain} PF)`
-    : `📈 ${c.name} è di ${c.level}° livello (+${gain} PF)`);
+    : `📈 ${c.name} è di ${c.level}° livello (+${gain} PF)`) + coda);
   celebrate();
   if (wantsSpells) setTimeout(() => { state.sheetTab = 'spells'; render(); }, 900);
   lvup = null;

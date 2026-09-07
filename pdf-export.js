@@ -340,7 +340,7 @@ async function drawSheet(S, c, lib, doc, fonts){
     ['VELOCITÀ', (c.speed ?? 9) + ' m', ''],
     ['COMPETENZA', signStr(p), ''],
     ['PERC. PASS.', String(passivePerception(c)), ''],
-    ['PUNTI FERITA', getPath(c,'hp.current',0) + '/' + getPath(c,'hp.max',0), (getPath(c,'hp.temp',0) ? '+' + getPath(c,'hp.temp',0) + ' temp' : hitDiceLeft(c) + 'd' + (c.hitDie||8) + ' rimasti')],
+    ['PUNTI FERITA', getPath(c,'hp.current',0) + '/' + pfMassimoDi(c), (getPath(c,'hp.temp',0) ? '+' + getPath(c,'hp.temp',0) + ' temp' : hitDiceLeft(c) + 'd' + (c.hitDie||8) + ' rimasti')],
   ];
   const cw = (S.width - 5*7) / 6;
   const top2 = S.y;

@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 8.9** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.0** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -144,6 +144,31 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    Aprire due volte la STESSA `render` è un ridisegno, non un gradino, e la pila ha un
    tetto di 8: se ci arrivi è un ciclo, non una navigazione.
 
+0∆. **I valori che uno STATO cambia non si scrivono sopra a quelli salvati (v9.0).**
+   Lo sfinimento dimezza velocita' (2°) e massimo dei PF (4°): si calcola quello in vigore
+   con `pfMassimoDi()` / `velocitaDi()` in `app.js` e lo leggono TUTTI da li' — scheda,
+   turno, PDF, compagni del tavolo, tetti di `bumpHP`/`setHP`. Scrivere il valore
+   dimezzato dentro `hp.max` sarebbe perdita di dati: scendendo di sfinimento non
+   tornerebbe piu'. La tabella e gli effetti stanno in `SFINIMENTO` /
+   `effettiSfinimento()` in `rules-data.js`, accanto alle condizioni, che e' dove uno va
+   a cercarli. E il riposo lungo lo riduce di 1: era una regola che non applicava nessuno.
+
+0¢. **Quando un tetto non si puo' sapere, NON si mostra (v9.0).** `quantiPreparabili()`
+   torna `null` per chi non prepara (stregone, bardo, warlock, ranger) e per le schede
+   senza classe collegata — importate da PDF, scritte a mano. Meglio nessun numero che un
+   numero inventato: una scheda importata non deve vedersi dire che ne prepara 3 perche'
+   l'app ha tirato a indovinare la classe. Stessa regola per `preparatiCheContano()`, che
+   esclude trucchetti e incantesimi sempre preparati dalla sottoclasse.
+
+0Ø. **`closeModal(); openModal(...)` è una trappola: si usa `modalReplace` (v9.0).**
+   `closeModal()` fa un `history.back()` ASINCRONO. Se si riapre subito una finestra e poi
+   la si chiude prima che quel back sia atterrato, partono DUE back per UNA voce di
+   cronologia e il secondo esce dalla pagina. Trovato in `avviaSalita` (levelup.js), cioe'
+   sulla strada normale di chi ha due classi. La guardia `__pendingClose` /
+   `__needsRepush` copre il caso lento, non quello veloce: la soluzione e' non chiudere
+   affatto. Prima di scrivere `closeModal()` seguito da `openModal()`, chiedersi se non
+   sia un `modalReplace`.
+
 0¥. **Cercare nel testo degli incantesimi passa da `testoCercabile()` (v8.9), che TIENE
    DA PARTE il risultato.** Normalizzare 319 descrizioni da mille lettere a ogni tasto
    premuto e' l'errore ovvio: l'indice sta in `__indiceSpell`, la chiave e'
@@ -267,6 +292,10 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 3. ~~**Filtri negli incantesimi della scheda**~~ — **fatto nella v8.9**: raggruppati per
    livello e con la ricerca (che guarda anche nel testo). Restano le **munizioni**, messe
    da parte per scelta di Giova: non le conta.
+3bis. **I talenti non esistono come dato.** La v9.0 fa scegliere «prendo un talento» al
+   posto dei due punti, ma poi e' una riga di testo nei privilegi: nessun elenco, nessun
+   effetto. I talenti oltre quelli SRD sono materiale dei manuali, quindi la strada e'
+   quella di sempre — l'utente li carica, l'app li applica.
 4. **Incontri salvati**: oggi il costruttore è usa-e-getta. Poterli preparare in anticipo
    e richiamarli a sessione aperta sarebbe il passo naturale.
 5. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
