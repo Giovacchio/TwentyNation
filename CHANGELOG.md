@@ -1,5 +1,33 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.3 — 8 settembre 2026
+**Il lettore dei manuali leggeva a righe. I manuali però sono scritti a paragrafi.**
+
+Caricando una razza da un manuale usciva questo:
+
+> **Trucchetto** — *You know one of the following*
+> **cantrips of your choice** — *chill touch, spare the dying, or thaumaturgy. Charisma is your spellcasting ability for it.*
+
+Un tratto solo diventato due: uno troncato a metà frase, e un secondo con per nome un pezzo di frase preso a caso. La causa è una regola sbagliata scritta anni fa: **ogni riga che avesse dei due punti apriva una voce nuova**. Nei PDF una riga non è una frase — è quello che ci stava in larghezza. E i due punti dentro la prosa (*«…uno dei seguenti trucchetti a tua scelta: mano magica, luce…»*) sono comunissimi.
+
+### Adesso legge paragrafi
+Una riga **continua** quella prima quando quella prima non è finita: niente punto in fondo, e non è un titolo. Vale in tutti e due i lettori — quello delle guide con gli elenchi puntati e quello del testo nudo.
+
+E un'**etichetta di campo** adesso deve sembrare un'etichetta: comincia in maiuscolo, sta in poche parole, dentro non ha punti né virgole. *«cantrips of your choice»* non lo è, e non diventa più un tratto. I campi che i manuali usano sempre uguali — **Velocità, Taglia, Lingue, Competenze, Equipaggiamento, Privilegio** — aprono comunque una voce, così un paragrafo tagliato male prima di loro non se li mangia.
+
+### Le altre cose che si vedevano
+- **I quadratini.** *«Proficiency in Perception□»*: i PDF portano dietro glifi di font simbolo, caselle e spazi a larghezza zero, che a schermo diventano un rettangolo vuoto. Ora si tolgono prima di leggere.
+- **Le parole spezzate a fine riga.** *«resist-»* + *«enza»* tornano `resistenza`, invece di `resist- enza`.
+- **Le lingue.** Il campo diceva *«You can speak, read, and write Common and Sylvan.»* — una frase intera dentro una casella che si chiama «Lingue». Adesso dice `Common and Sylvan`.
+- **I punteggi su due righe.** *«…di 2, e il tuo»* + *«punteggio di Carisma di 1»*: il secondo bonus si perdeva. Ora si leggono insieme.
+- **I privilegi scritti sulla riga del livello.** *«Livello 3: Occhio quieto. Puoi spendere…»* — prima quella riga serviva solo a dire «da qui è il livello 3» e il testo si buttava. Adesso il privilegio si prende, col suo nome se ce l'ha.
+
+### Cosa NON è cambiato
+I testi restano nella lingua del manuale: l'app traduce i **nomi** con il suo glossario, non le descrizioni. Se importi una guida inglese, i tratti restano in inglese — e con nomi mezzi tradotti dove il glossario arriva. È una cosa diversa da sistemare, non un pezzo di questa.
+
+### Cosa ho verificato
+26 controlli nuovi (`test-v93`), su testi inventati da me con la **stessa forma** di un manuale — righe mandate a capo a metà frase, due punti dentro la prosa, quadratini, parole spezzate — e le 56 serie di prima rifatte da capo.
+
 ## v9.2 — 8 settembre 2026
 **Una passata sull'aspetto. Nessuna funzione nuova: le stesse cose, viste meglio.**
 

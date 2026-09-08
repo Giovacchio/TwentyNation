@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.2** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.3** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -152,6 +152,17 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    — l'icona non ci va: uscirebbe il codice dell'`<svg>`.
    Restano emoji, di proposito, le cose che *sono* un'immagine: avatar dei personaggi,
    ritratti delle creature, i 14 segni delle condizioni.
+
+0§. **Il lettore dei manuali ragiona a PARAGRAFI, non a righe (v9.3).**
+   `hbParagrafi()` ricuce le righe che il PDF ha mandato a capo: una riga continua
+   quella prima se quella prima non finisce con `.`/`!`/`?`/`:` e non è un titolo.
+   `hbSembraEtichetta()`/`hbEtichettaValida()` decidono cosa è un campo: maiuscola
+   iniziale, poche parole, niente punteggiatura di frase dentro — se no un due punti
+   in mezzo alla prosa spezzava un tratto in due (e il secondo pezzo si chiamava
+   «cantrips of your choice»). `hbEtichettaNota()` è la scorciatoia per i campi che i
+   manuali usano sempre uguali: quelli aprono una voce comunque.
+   **Chi tocca il lettore:** la prova da estendere è `test-v93.mjs`, e i testi di prova
+   vanno **inventati** con la forma di un manuale, mai copiati da uno vero.
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**

@@ -16,6 +16,13 @@ const HB_STOP_HEAD = /^(chapter|capitolo|contents|indice|appendix|appendice|part
 function hbTidy(raw){
   return String(raw||'')
     .replace(/\r/g, '')
+    /* I PDF portano dietro caratteri che sullo schermo diventano un
+       quadratino: glifi di font simbolo (area a uso privato), caselle
+       geometriche, trattini morbidi e spazi a larghezza zero. Nel testo
+       non significano niente, ma finiscono in mezzo alle frasi. */
+    .replace(/[\uE000-\uF8FF\uFFFC\uFFFD]/g, '')
+    .replace(/[\u25A0\u25A1\u2610\u2611\u2612]/g, '')
+    .replace(/[\u00AD\u200B-\u200D\u2060\uFEFF]/g, '')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .split('\n').map(l => l.trim()).join('\n');
@@ -148,20 +155,33 @@ function hbNormalizza(raw){
     l = l.trim();
     if (!l){ if (marker) push(marker, ''); continue; }
 
-    const apreVoce = marker
-      || /^(.{2,60}?)\s*:\s*/.test(l)                  // «Campo: valore»
-      || /^(.+?)\s*\([A-Z]{2,6}\)\s*:?\s*$/.test(l)   // «Nome (FONTE):»
-      || hbIsHeading(l);
     const prec = voci[voci.length-1];
+    /* «È rimasta a metà» vuol dire: c'è una riga prima, non finisce con
+       un punto o due punti, e non è un titolo. Una riga che segue una
+       frase a metà la sta continuando — anche se ha dei due punti in
+       mezzo, anche se comincia in maiuscolo. È il paragrafo che il PDF
+       ha mandato a capo, non una voce nuova. */
+    const cm = /^(.{2,48}?)\s*:(\s|$)/.exec(l);
+    const et = cm ? cm[1].trim() : '';
+    const parole = et ? et.split(/\s+/).length : 0;
+    const precAMeta = !!(prec && prec.testo && !/[.!?:]$/.test(prec.testo) && !hbIsHeading(prec.testo));
+    const apreVoce = marker
+      || (et && hbEtichettaNota(et))                   // «Velocità:» apre sempre
+      // Un'etichetta corta apre comunque; una lunga solo se la riga
+      // prima è finita — se no è la coda di un paragrafo con dentro
+      // dei due punti, non un campo nuovo.
+      || (hbSembraEtichetta(l) && (parole <= 3 || !precAMeta))
+      || /^(.+?)\s*\([A-Za-z0-9][A-Za-z0-9\/ .'\u2019-]{1,28}\)\s*:?\s*$/.test(l)   // «Nome (FONTE):»
+      || hbIsHeading(l);
     // Una riga che non apre niente continua quella prima, ma solo se
     // quella prima è rimasta a metà: un titolo «Nome (FONTE):» è finito,
     // e non deve mangiarsi la prosa che lo segue.
     if (!apreVoce && prec && prec.testo && !/[.!?:]$/.test(prec.testo)){
-      prec.testo += ' ' + l;
+      prec.testo = hbUnisci(prec.testo, l);
       continue;
     }
     if (!apreVoce && prec && prec.testo && prec.marker && !/:$/.test(prec.testo)){
-      prec.testo += ' ' + l;
+      prec.testo = hbUnisci(prec.testo, l);
       continue;
     }
     push(marker, l);
@@ -183,9 +203,72 @@ function hbTitolo(testo){
   return { nome, fonte: m[2] || '' };
 }
 /* Una voce «Campo: valore» */
+/* Un'etichetta di campo si riconosce da com'è fatta, non dal fatto che
+   ci siano due punti: comincia in maiuscolo, è corta, e dentro non ha
+   punteggiatura di frase. Senza questi vincoli bastava un due punti in
+   mezzo a una riga qualsiasi — «…uno dei seguenti trucchetti a tua
+   scelta: mano magica, luce…» — per spezzare un tratto in due voci. */
+function hbEtichettaValida(campo){
+  const et = String(campo||'').trim();
+  if (et.length < 3 || et.length > 48) return false;
+  if (!/^[A-ZÀ-Ý]/.test(et)) return false;
+  if (/[.!?,;]/.test(et)) return false;
+  if (et.split(/\s+/).length > 7) return false;
+  return true;
+}
+/* I campi che un manuale usa sempre uguali. Questi aprono una voce anche
+   se la riga prima è rimasta a metà: se il PDF taglia male un paragrafo,
+   «Velocità:» non deve finire dentro la frase precedente. */
+function hbEtichettaNota(campo){
+  const et = String(campo||'').trim();
+  return HB_CAMPI_RAZZA.test(et)
+      || /^(skill proficiencies|tool proficiencies|competenze nelle abilit[àa]|competenze negli strumenti|abilit[àa]|strumenti|equipment|equipaggiamento|feature|privilegio)$/i.test(et);
+}
+function hbSembraEtichetta(riga){
+  const m = /^(.{2,48}?)\s*:(\s|$)/.exec(String(riga||'').trim());
+  return !!m && hbEtichettaValida(m[1]);
+}
+/* Due righe che si attaccano. Se la prima finisce con un trattino è una
+   parola spezzata a fine riga («resist-» + «enza»), non due parole. */
+function hbUnisci(a, b){
+  if (/[A-Za-zÀ-ÿ]-$/.test(a) && /^[a-zà-ÿ]/.test(b)) return a.slice(0, -1) + b;
+  return a + ' ' + b;
+}
+/* Rimette insieme i paragrafi che il PDF ha mandato a capo. Una riga
+   continua quella prima quando quella prima non è finita — niente punto
+   in fondo, e non è un titolo. Prima di questo, ogni riga era una voce a
+   sé: un tratto lungo tre righe diventava un tratto troncato più due
+   pezzi di frase spacciati per tratti nuovi. */
+function hbParagrafi(righe){
+  const out = [];
+  for (const r of (righe||[])){
+    const l = String(r||'').trim();
+    if (!l){ out.push(''); continue; }
+    const prec = out.length ? out[out.length-1] : '';
+    const cm = /^(.{2,48}?)\s*[.:](\s|$)/.exec(l);
+    const precAMeta = !!(prec && !/[.!?:]$/.test(prec) && !hbIsHeading(prec));
+    const apre = !precAMeta
+      || (cm && hbEtichettaNota(cm[1]))
+      || hbIsHeading(l);
+    if (apre) out.push(l);
+    else out[out.length-1] = hbUnisci(prec, l);
+  }
+  return out;
+}
+/* «You can speak, read, and write Common and Elvish.» → «Common and
+   Elvish»: la frase intera in un campo che dice «Lingue» è rumore. */
+function hbLingue(testo){
+  let t = String(testo||'').trim();
+  t = t.replace(/^(you can (?:speak,? (?:read,? )?(?:and )?write|speak|read and write)|puoi parlare(?:, leggere e scrivere)?|sai parlare(?:, leggere e scrivere)?|parli(?:, leggi e scrivi)?)\s+/i, '');
+  t = t.replace(/[.;\s]+$/, '').trim();
+  return t.slice(0,120) || 'Comune';
+}
 function hbCampo(testo){
   const m = /^(.{2,48}?)\s*:\s*(.+)$/s.exec(String(testo||'').trim());
-  return m ? { campo: m[1].trim(), valore: m[2].trim() } : null;
+  if (!m) return null;
+  const campo = m[1].trim();
+  if (!hbEtichettaValida(campo)) return null;
+  return { campo, valore: m[2].trim() };
 }
 const HB_CAMPI_RAZZA = /^(ability scores?|ability score increase|aumento dei punteggi(?: di caratteristica)?|punteggi di caratteristica|incremento dei punteggi(?: di caratteristica)?|age|et[àa]|size|taglia|speed|velocit[àa]|languages?|lingue|linguaggi|alignment|allineamento)$/i;
 
@@ -273,8 +356,21 @@ function hbScanGuida(raw){
       const features = {};
       let lv = null, n = 0;
       corpo.forEach(v => {
-        const ml = /^(?:level|livello)\s*(\d+)/i.exec(v.testo);
-        if (ml){ lv = clamp(parseInt(ml[1]),1,20); return; }
+        const ml = /^(?:level|livello)\s*(\d+)\s*[.:)\-]?\s*(.*)$/i.exec(v.testo);
+        if (ml){
+          lv = clamp(parseInt(ml[1]),1,20);
+          /* «Livello 3: Nome del privilegio. testo» — il privilegio sta
+             sulla stessa riga del livello. Prima la riga contava solo per
+             dire «da qui in poi è il livello 3» e il testo si buttava. */
+          const resto = (ml[2]||'').trim();
+          if (resto.length > 12){
+            const c = hbCampo(resto) || /^([A-ZÀ-Ý][A-Za-zÀ-ý' \-]{2,44})\s*[.]\s+(.{12,})$/.exec(resto);
+            if (c && c.campo) { (features[lv] = features[lv] || []).push([c.campo, c.valore.slice(0,700)]); n++; }
+            else if (c) { (features[lv] = features[lv] || []).push([c[1].trim(), c[2].trim().slice(0,700)]); n++; }
+            else { (features[lv] = features[lv] || []).push(['Privilegio di livello ' + lv, resto.slice(0,700)]); n++; }
+          }
+          return;
+        }
         if (!lv) return;
         const c = hbCampo(v.testo);
         if (c && c.valore.length > 12){
@@ -310,7 +406,7 @@ function hbScanGuida(raw){
         bonus: parseAbilityBonus(campi[kPunteggi]),
         speed: kVel ? parseSpeedM(campi[kVel]) : 9,
         size: kTaglia ? parseSizeWord(campi[kTaglia]) : 'Media',
-        languages: kLingue ? campi[kLingue].slice(0,120) : 'Comune',
+        languages: kLingue ? hbLingue(campi[kLingue]) : 'Comune',
         traits: tratti.slice(0,10), grantSkills: [] });
       continue;
     }
@@ -431,10 +527,13 @@ function hbScanText(raw){
       if (hbIsHeading(righe[j])){ nome = hbUnspace(righe[j]); break; }
     }
     if (!nome) continue;
-    const coda = righe.slice(i, Math.min(righe.length, i + 70));
+    const coda = hbParagrafi(righe.slice(i, Math.min(righe.length, i + 70)));
     const blocco = coda.join('\n');
     if (!(RX_RACE_SPEED.test(blocco) || /^(Speed|Velocit)/im.test(blocco))) continue;
-    const rz = { kind:'race', name: nome, bonus: parseAbilityBonus(m[2] + ' ' + (coda[1]||'')),
+    // il paragrafo ricucito dice più della riga sola: «…di 2, e il tuo
+    // punteggio di Carisma di 1» sta tutto qui, non spezzato in due.
+    const mAsi = RX_RACE_ASI.exec(coda[0] || '') || m;
+    const rz = { kind:'race', name: nome, bonus: parseAbilityBonus(mAsi[2] + ' ' + (coda[1]||'')),
       speed: 9, size:'Media', languages:'Comune', traits: [], grantSkills: [] };
     let tratti = [];
     for (let j = 0; j < coda.length; j++){
@@ -442,7 +541,7 @@ function hbScanText(raw){
       let x;
       if ((x = RX_RACE_SPEED.exec(l))){ rz.speed = parseSpeedM(x[2] + ' ' + (coda[j+1]||'')); continue; }
       if ((x = RX_RACE_SIZE.exec(l))){ rz.size = parseSizeWord(x[2] + ' ' + (coda[j+1]||'')); continue; }
-      if ((x = RX_RACE_LANG.exec(l))){ rz.languages = (x[2]||'').trim().slice(0,120) || 'Comune'; continue; }
+      if ((x = RX_RACE_LANG.exec(l))){ rz.languages = hbLingue(x[2]); continue; }
       if (RX_RACE_AGE.test(l) || RX_RACE_ALIGN.test(l) || RX_RACE_ASI.test(l)) continue;
       // un tratto: «Nome. testo»
       const t = /^([A-ZÀ-Ý][A-Za-zÀ-ý' \-]{2,34})\s*[.:]\s+(.{15,})$/.exec(l);
