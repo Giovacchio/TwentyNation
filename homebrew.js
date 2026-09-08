@@ -15,7 +15,7 @@ function hbFromBuilder(kind, classId){
   renderModalRoot();
 }
 const HB_KINDS = {
-  subclass:   { label:'Sottoclasse', icon:'⚔️' },
+  subclass:   { label:'Sottoclasse', icon:'⚔' },
   race:       { label:'Razza',       icon:'🧝' },
   background: { label:'Background',  icon:'📜' },
 };
@@ -138,7 +138,7 @@ function saveHomebrew(obj){
   const seguite = rinominaSulleSchede(obj, nomePrima);
   saveLocal();
   fsSet('homebrew', obj);
-  if (seguite) toast('✍️ Aggiornato anche su ' + seguite + (seguite === 1 ? ' scheda' : ' schede'));
+  if (seguite) toast('✍ Aggiornato anche su ' + seguite + (seguite === 1 ? ' scheda' : ' schede'));
 }
 function deleteHomebrew(id){
   if (typeof nelCestino === 'function') nelCestino('homebrew', (state.homebrew||[]).find(h => h.id === id));
@@ -177,14 +177,14 @@ function hbRigaHTML(h){
   return `<div class="attack-row">
     <button class="attack-main" onclick="editHomebrew('${h.id}')">
       <div class="attack-name">${HB_KINDS[h.kind]?HB_KINDS[h.kind].icon:''} ${escapeHtml(h.name)}</div>
-      <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}${(typeof riassuntoMeccaniche==='function' && riassuntoMeccaniche(h))?' · ⚙️ '+escapeHtml(riassuntoMeccaniche(h)):''}</div>
+      <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}${(typeof riassuntoMeccaniche==='function' && riassuntoMeccaniche(h))?' · ' + ic('opzioni') + ' '+escapeHtml(riassuntoMeccaniche(h)):''}</div>
     </button>
-    ${h.kind==='subclass' ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙️</button>` : ''}
+    ${h.kind==='subclass' ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙</button>` : ''}
     ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
       const giaSu = (state.sharedHomebrew||[]).some(x => x.id === h.id);
       return `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem;${giaSu?'border-color:var(--gold); color:var(--gold)':''}"
         title="${giaSu?'Ritira dalla campagna':'Condividi con la campagna'}"
-        onclick="${giaSu?`unshareFromCampaign('homebrew','${h.id}')`:`shareOneHomebrew('${h.id}')`}">⚔️</button>`;
+        onclick="${giaSu?`unshareFromCampaign('homebrew','${h.id}')`:`shareOneHomebrew('${h.id}')`}">⚔</button>`;
     })() : ''}
     <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" onclick="confirmDeleteHomebrew('${h.id}')" aria-label="Elimina">✕</button>
   </div>`;
@@ -204,7 +204,7 @@ function homebrewListHTML(){
       ${Object.keys(HB_KINDS).map(k=>`<button class="btn btn-ghost btn-sm" onclick="editHomebrew(null,'${k}')">${HB_KINDS[k].icon} ${HB_KINDS[k].label}</button>`).join('')}
     </div>
     ${molti ? `
-      <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">📚 Le tue voci</b><span class="muted" style="font-size:.75rem">${tutti.length} in tutto</span></div>
+      <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">${ic('libro')} Le tue voci</b><span class="muted" style="font-size:.75rem">${tutti.length} in tutto</span></div>
       ${cercaLista('hb-cerca', state.hbQ, 'hbCerca', 'Cerca per nome, classe o libro…')}
       <div class="filtro-riga">
         <button class="chip ${state.hbKind?'':'active'}" onclick="hbFiltraTipo('')">Tutte</button>
@@ -214,10 +214,10 @@ function homebrewListHTML(){
       ? (visti.length
           ? bloccoLista('hb-lista', visti, hbRigaHTML, { modale:true, nome:'voci' })
           : `<div class="lista-vuota">Nessuna voce con questi filtri.</div>`)
-      : emptyState('📚','Non hai ancora contenuti tuoi. Aggiungine uno con i pulsanti qui sopra.')}
-    <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openHomebrewBulk()">📖 Leggi dal tuo manuale</button>
+      : emptyState(ic('libro'),'Non hai ancora contenuti tuoi. Aggiungine uno con i pulsanti qui sopra.')}
+    <button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openHomebrewBulk()">${ic('grimorio')} Leggi dal tuo manuale</button>
     ${tutti.length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
-    ${(tutti.length && typeof campaignReady === 'function' && campaignReady() && daCondividere()) ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiTutto()">⚔️ Condividi tutto col tavolo (${daCondividere()})</button>` : ''}
+    ${(tutti.length && typeof campaignReady === 'function' && campaignReady() && daCondividere()) ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiTutto()">⚔ Condividi tutto col tavolo (${daCondividere()})</button>` : ''}
     ${tutti.length ? `<div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" onclick="exportHomebrew()">⤓ Esporta</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-import-file').click()">⤒ Importa file</button>
@@ -257,8 +257,8 @@ function homebrewEditorHTML(){
     </div>
 
     <div class="btn-row" style="margin:4px 0 14px">
-      <button class="btn btn-ghost btn-sm" onclick="openHbText()">📋 Incolla il testo</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-pdf-file').click()">📄 Da PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="openHbText()">${ic('copia')} Incolla il testo</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-pdf-file').click()">${ic('foglio')} Da PDF</button>
     </div>
     <input type="file" id="hb-pdf-file" accept="application/pdf,.pdf" style="display:none" onchange="hbReadPdf(this)">
 
@@ -552,10 +552,10 @@ function hbReadPdf(input){
     } catch(e){
       console.error(e);
       reopenHbEditor();
-      toast('⚠️ Non sono riuscito a leggere il testo: se il PDF è una scansione non contiene testo da estrarre');
+      toast('⚠ Non sono riuscito a leggere il testo: se il PDF è una scansione non contiene testo da estrarre');
     }
   };
-  reader.onerror = () => toast('⚠️ Impossibile leggere il file');
+  reader.onerror = () => toast('⚠ Impossibile leggere il file');
   reader.readAsArrayBuffer(file);
 }
 let hbPdfPages = 1, hbPdfFrom = 1, hbPdfTo = 3;
@@ -585,7 +585,7 @@ async function hbRereadPdf(){
     const res = await extractPdfText(hbPdfBuffer, hbPdfFrom, hbPdfTo);
     openHbPdfRange(res.text);
     toast('✓ Pagine ' + hbPdfFrom + '–' + hbPdfTo);
-  } catch(e){ toast('⚠️ Lettura non riuscita'); }
+  } catch(e){ toast('⚠ Lettura non riuscita'); }
 }
 
 /* ─── Esporta e importa ─── */
@@ -609,9 +609,9 @@ function importHomebrewFile(input){
   const reader = new FileReader();
   reader.onload = () => {
     let data;
-    try { data = JSON.parse(reader.result); } catch(e){ toast('⚠️ File non valido'); return; }
+    try { data = JSON.parse(reader.result); } catch(e){ toast('⚠ File non valido'); return; }
     const list = Array.isArray(data) ? data : (data.homebrew || []);
-    if (!Array.isArray(list) || !list.length){ toast('⚠️ Nessun contenuto trovato nel file'); return; }
+    if (!Array.isArray(list) || !list.length){ toast('⚠ Nessun contenuto trovato nel file'); return; }
     let n = 0;
     list.forEach(h => {
       if (!h || !h.name || !HB_KINDS[h.kind]) return;
@@ -630,7 +630,7 @@ async function shareOneHomebrew(id){
   const h = (state.homebrew||[]).find(x => x.id === id);
   if (!h) return;
   const n = await shareToCampaign('homebrew', [h]);
-  if (n) toast('⚔️ ' + h.name + ' è ora del tavolo');
+  if (n) toast('⚔ ' + h.name + ' è ora del tavolo');
   renderModalRoot();
 }
 

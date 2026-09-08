@@ -5,11 +5,11 @@
 
 /* Le azioni di base, con il promemoria in una riga. Sono regole SRD. */
 const AZIONI_BASE = [
-  ['🗡️','Attacco','Un attacco con arma (più di uno se la classe te lo concede).'],
+  ['🗡','Attacco','Un attacco con arma (più di uno se la classe te lo concede).'],
   ['✨','Lanciare un incantesimo','Se il tempo di lancio è 1 azione.'],
   ['🏃','Scatto','Raddoppi il movimento per questo turno.'],
-  ['↩️','Disimpegno','Il tuo movimento non provoca attacchi di opportunità.'],
-  ['🛡️','Schivata','Chi ti attacca ha svantaggio; hai vantaggio ai TS su Destrezza.'],
+  ['↩','Disimpegno','Il tuo movimento non provoca attacchi di opportunità.'],
+  ['🛡','Schivata','Chi ti attacca ha svantaggio; hai vantaggio ai TS su Destrezza.'],
   ['🤝','Aiuto','Dai vantaggio a un alleato sulla sua prossima prova o attacco.'],
   ['🫥','Nascondersi','Prova di Furtività per non farti trovare.'],
   ['⏳','Preparare','Scegli un innesco e l\'azione che farai quando scatta (usa la reazione).'],
@@ -17,10 +17,10 @@ const AZIONI_BASE = [
   ['🎒','Usare un oggetto','Interagire con un secondo oggetto, o usarne uno che richiede l\'azione.'],
 ];
 const BONUS_BASE = [
-  ['🗡️','Attacco con l\'arma secondaria','Se combatti con due armi leggere e hai già attaccato.'],
+  ['🗡','Attacco con l\'arma secondaria','Se combatti con due armi leggere e hai già attaccato.'],
 ];
 const REAZIONI_BASE = [
-  ['⚔️','Attacco di opportunità','Quando un nemico esce dalla tua portata senza disimpegnarsi.'],
+  ['⚔','Attacco di opportunità','Quando un nemico esce dalla tua portata senza disimpegnarsi.'],
 ];
 
 function turnoTempo(sp){
@@ -189,11 +189,11 @@ function turnoHTML(){
     const rituale = !!x.sp.ritual && !perchePuoiNoRituale(c, x.sp);
     return `<div class="attack-row ${spento && !rituale ?'promemoria':''}">
       <button class="attack-main" onclick="viewSpellDetail('${jsStr(x.ref.id)}','${jsStr(x.ref.source||'srd')}','${c.id}')">
-        <div class="attack-name">${liv?'✨':'🔹'} ${escapeHtml(spellName(x.sp))}${conc?' <span class="muted" style="font-size:.7rem">🌀</span>':''}</div>
+        <div class="attack-name">${liv?ic('incantesimo'):ic('trucchetto')} ${escapeHtml(spellName(x.sp))}${conc?' <span class="muted" style="font-size:.7rem">' + ic('concentra') + '</span>':''}</div>
         <div class="muted" style="font-size:.72rem">${liv ? liv+'° livello' : 'trucchetto'}${
           spento ? ' · <b style="color:var(--warn)">niente slot</b>'
                  : (usabile && usabile !== liv ? ' · con uno slot di '+usabile+'°' : '')}${
-          rituale ? ' · <b style="color:var(--gold)">⏳ rituale, senza slot</b>' : ''}${
+          rituale ? ' · <b style="color:var(--gold)">' + ic('clessidra') + ' rituale, senza slot</b>' : ''}${
           giaConc ? ' · sostituisce «'+escapeHtml((c.concentration.name)||'')+'»' : ''}</div>
       </button>
       ${rituale ? `<button class="attack-btn" title="Come rituale: nessuno slot, 10 minuti in più"
@@ -205,7 +205,7 @@ function turnoHTML(){
 
   const azSotto = (typeof azioniDi === 'function') ? azioniDi(c) : [];
   const extra = (quando) => azSotto.filter(a => (a.quando||'bonus') === quando)
-    .map(a => voce('⚙️', a.nome || '', a.testo || '', '')).join('');
+    .map(a => voce('⚙', a.nome || '', a.testo || '', '')).join('');
 
   /* Ogni sezione dice se quella parte del turno l'hai già spesa, e la
      si può segnare a mano per quello che l'app non sa. */
@@ -247,7 +247,7 @@ function turnoHTML(){
 
   const attacchi = (c.attacks||[]).map((a,i)=>`<div class="attack-row">
       <div class="attack-main" style="pointer-events:none">
-        <div class="attack-name">🗡️ ${escapeHtml(a.name||'Attacco')}</div>
+        <div class="attack-name">${ic('spada')} ${escapeHtml(a.name||'Attacco')}</div>
         ${a.notes?`<div class="muted" style="font-size:.7rem">${escapeHtml(a.notes)}</div>`:''}
       </div>
       ${a.atk!=='' && a.atk!=null ? `<button class="attack-btn" title="Tira per colpire" onclick="turnoSegna('azione'); rollAttack('${c.id}',${i})">${escapeHtml(signStr(parseInt(a.atk)||0))}</button>`:''}
@@ -277,12 +277,12 @@ function turnoHTML(){
     </div>
 
     <div class="turno-barra">
-      <button class="btn btn-ghost btn-sm" onclick="turnoAzzera('${c.id}')">↻ Nuovo turno</button>
-      <span class="muted" style="font-size:.74rem">🏃 ${vel} m · scatto ${vel*2} m</span>
+      <button class="btn btn-ghost btn-sm" onclick="turnoAzzera('${c.id}')">${ic('ricarica')} Nuovo turno</button>
+      <span class="muted" style="font-size:.74rem">${ic('corsa')} ${vel} m · scatto ${vel*2} m</span>
     </div>
 
     ${aTerra ? `<div class="card" style="margin:10px 0; border-color:var(--garnet-bright)">
-      <div class="card-title" style="color:var(--garnet-bright)">💀 Sei a terra</div>
+      <div class="card-title" style="color:var(--garnet-bright)">${ic('teschio')} Sei a terra</div>
       <p class="muted" style="font-size:.8rem; margin:6px 0 10px">A 0 punti ferita il tuo turno è un tiro salvezza contro morte. 10 o più è un successo.</p>
       <div class="row-between" style="margin-bottom:8px">
         <span class="muted" style="font-size:.78rem">Successi</span>
@@ -292,12 +292,12 @@ function turnoHTML(){
         <span class="muted" style="font-size:.78rem">Fallimenti</span>
         <span>${[0,1,2].map(i=>`<button class="ds-dot fail ${i < (c.deathSaves&&c.deathSaves.fail||0) ? 'on':''}" onclick="toggleDeathSave('${c.id}','fail',${i}); renderModalRoot()"></button>`).join('')}</span>
       </div>
-      <button class="btn btn-gold btn-block" onclick="rollDeathSave('${c.id}')">🎲 Tira il tiro salvezza</button>
+      <button class="btn btn-gold btn-block" onclick="rollDeathSave('${c.id}')">${ic('dado')} Tira il tiro salvezza</button>
     </div>` : ''}
 
     ${c.concentration ? `<div class="card" style="margin:10px 0; border-color:var(--arcane)">
       <div class="row-between">
-        <div><b style="font-size:.86rem">🌀 Concentrazione</b>
+        <div><b style="font-size:.86rem">${ic('concentra')} Concentrazione</b>
           <div class="muted" style="font-size:.74rem">${escapeHtml((c.concentration && c.concentration.name) || String(c.concentration||''))}</div></div>
         <div class="btn-row" style="flex-shrink:0">
           <button class="btn btn-ghost btn-sm" onclick="turnoTsConcentrazione('${c.id}')">TS ${signStr(saveMod(c,'con'))}</button>
@@ -312,7 +312,7 @@ function turnoHTML(){
     </div>
 
     ${sp.__daPreparare ? `<div class="card" style="margin:10px 0; border-color:var(--warn)">
-      <div class="muted" style="font-size:.78rem">⚠️ Da ${escapeHtml((CLASS_BY_ID[c.classId]||{}).name || 'questa classe')} tieni preparati solo alcuni incantesimi, ma non ne hai ancora segnato nessuno. Per ora li vedi tutti: segnali con la stella nella scheda Magie.</div>
+      <div class="muted" style="font-size:.78rem">⚠ Da ${escapeHtml((CLASS_BY_ID[c.classId]||{}).name || 'questa classe')} tieni preparati solo alcuni incantesimi, ma non ne hai ancora segnato nessuno. Per ora li vedi tutti: segnali con la stella nella scheda Magie.</div>
     </div>` : ''}
 
     ${sezione('azione', 'Azione', tue('azione', attacchi + sp.azione.map(rigaIncantesimo('azione')).join('') + extra('azione'), AZIONI_BASE))}
@@ -332,7 +332,7 @@ function turnoHTML(){
       <button class="btn btn-ghost" onclick="closeModalAll(); openSheet('${c.id}')">Apri la scheda</button>
       <button class="btn btn-primary" onclick="closeModal()">Fatto</button>
     </div>`;
-  return modalShell('⚔️ Il tuo turno', inner);
+  return modalShell('⚔ Il tuo turno', inner);
 }
 
 /* Lanciare per davvero: slot giusto, concentrazione, azione segnata. */

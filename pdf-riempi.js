@@ -515,7 +515,7 @@ function riempiSchedaHTML(){
       </label>`}
     <div id="riempi-esito" style="margin-top:12px"></div>
     <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModal()">Chiudi</button>`;
-  return modalShell('🖊️ Riempi la tua scheda', inner);
+  return modalShell('🖊 Riempi la tua scheda', inner);
 }
 function scordaModello(){ __modelloScheda = null; __modelloCampi = null; renderModalRoot(); }
 function riempiScegliFile(input){
@@ -527,7 +527,7 @@ function riempiScegliFile(input){
       const buf = r.result;
       const campi = await readPdfFields(buf);
       if (!campi.length){
-        toast('⚠️ Questo PDF non ha caselle da riempire: serve una scheda compilabile');
+        toast('⚠ Questo PDF non ha caselle da riempire: serve una scheda compilabile');
         return;
       }
       __modelloScheda = { nome: file.name, buffer: buf };
@@ -536,16 +536,16 @@ function riempiScegliFile(input){
       toast('✓ ' + campi.length + ' caselle riconosciute');
     } catch(err){
       console.error(err);
-      toast('⚠️ Non riesco a leggere questo PDF');
+      toast('⚠ Non riesco a leggere questo PDF');
     }
   };
-  r.onerror = () => toast('⚠️ Impossibile leggere il file');
+  r.onerror = () => toast('⚠ Impossibile leggere il file');
   r.readAsArrayBuffer(file);
 }
 async function riempiOra(){
   if (!modelloPronto()) return;
   const c = charById(__riempiPer);
-  toast('🖊️ Riempio la scheda…');
+  toast('🖊 Riempio la scheda…');
   try {
     const out = await riempiSchedaCompilabile(__riempiPer, __modelloScheda.buffer);
     if (!out) return;
@@ -562,7 +562,7 @@ async function riempiOra(){
     toast('📄 Scheda compilata');
   } catch(err){
     console.error('Riempimento fallito', err);
-    if (String(err && err.message) === 'senza-campi') toast('⚠️ Questo PDF non ha caselle da riempire');
-    else toast('⚠️ Riempimento non riuscito');
+    if (String(err && err.message) === 'senza-campi') toast('⚠ Questo PDF non ha caselle da riempire');
+    else toast('⚠ Riempimento non riuscito');
   }
 }

@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.1** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.2** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -18,6 +18,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | file | cosa contiene |
 |---|---|
 | `index.html` | guscio dell'app e **tutto il CSS** |
+| **`icone.js`** | **le 75 icone disegnate (`ICONE`) e l'aiuto `ic(nome, extraClasse)` che le stampa** |
 | `app.js` | il cuore: stato, schede, sincronizzazione, grimorio, iniziativa, opzioni |
 | `sw.js` | service worker: l'app parte offline e si aggiorna da sola |
 | `rules-data.js` | classi, razze, background, condizioni, abilità (SRD) |
@@ -56,7 +57,9 @@ in `localStorage` e funzionamento completo anche scollegati.
 
 **Personaggi** — schermata iniziale a carte grandi: il ritratto si vede intero (4:3, con
 lo stesso ritratto sfocato dietro al posto delle bande), livello, PF e i segni di
-concentrazione, condizioni e forma selvatica; tutta la carta apre la scheda.
+concentrazione, condizioni e forma selvatica; tutta la carta apre la scheda. Da due
+personaggi in su si sceglie fra **carte grandi ed elenco compatto** (`state.partyVista`,
+ricordato in `localStorage`), e sugli schermi larghi entrambe vanno su due colonne.
 Creazione guidata, scheda completa con tiri, PF, condizioni, riposi,
 passaggio di livello, esportazione e importazione PDF, ritratto, multiclasse parziale.
 **«Il tuo turno»**: una schermata con attacchi, incantesimi divisi per tempo di lancio,
@@ -68,7 +71,9 @@ salvezza contro morte. **Chi prepara e chi no** lo decide `preparaIncantesimi()`
 ranger NON preparano — filtrarli sui preparati lasciava la schermata vuota. **Scorrimento laterale** fra le sezioni.
 
 **Incantesimi** — 319 SRD più i tuoi, importabili da JSON, testo o PDF (con ricucitura
-delle parole spezzate dai PDF a due colonne).
+delle parole spezzate dai PDF a due colonne). Nel Grimorio resta fuori solo la fila del
+**livello**; classe e tratti stanno nel pannello **Filtri**, che porta addosso quanti ne
+hai accesi e li mostra scritti per esteso quando è chiuso.
 
 **Contenuti tuoi** — sottoclassi, razze e background presi dai manuali che possiedi:
 il lettore ne ha riconosciuti 116 e 48 da due guide reali. Traduzione automatica dei nomi.
@@ -135,6 +140,18 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    come frasi («conosci un trucchetto da mago») che vanno rese caselle vere? Ci sono
    caselline di usi limitati (`CLASS_RISORSE`)? La CA cambia? Il calcolo passa da un posto
    solo o e' duplicato?
+
+0!. **Le icone non sono più emoji (v9.2): si scrivono `${ic('dado')}`.**
+   `icone.js` tiene 75 disegni su griglia 24×24 e `ic(nome)` restituisce l'`<svg>`, in
+   `currentColor` — segue il colore del testo, e quindi anche il tema chiaro. Due regole
+   che ho imparato rompendo l'app tre volte in un pomeriggio:
+   **(a)** `${ic('x')}` vale solo dentro un *template literal* (apici inclinati). Dentro
+   una stringa normale finisce sullo schermo come testo: `test-v92` ha un controllo che
+   guarda l'HTML davvero prodotto in ogni schermata e fallisce se ci trova quella scritta.
+   **(b)** dove va **testo puro** — `toast()`, `alert`, il testo dei PDF, gli `aria-label`
+   — l'icona non ci va: uscirebbe il codice dell'`<svg>`.
+   Restano emoji, di proposito, le cose che *sono* un'immagine: avatar dei personaggi,
+   ritratti delle creature, i 14 segni delle condizioni.
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**

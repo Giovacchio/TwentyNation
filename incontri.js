@@ -132,7 +132,7 @@ function incontriHTML(){
     const gs = gsDiCreatura(v.x), px = pxDiGs(gs);
     return `<button class="attack-row" style="width:100%; text-align:left" onclick="incAggiungi('${jsStr(v.fonte + '|' + v.id)}')">
       <span class="attack-main">
-        <span class="attack-name">${escapeHtml(nomeDiCreatura(v.x))}${v.fonte==='tavolo'?' ⚔️':(v.fonte==='mio'?' ✦':'')}</span>
+        <span class="attack-name">${escapeHtml(nomeDiCreatura(v.x))}${v.fonte==='tavolo'?' ' + ic('tavolo'):(v.fonte==='mio'?' ✦':'')}</span>
         <span class="muted" style="font-size:.72rem; display:block">${gs?('GS '+escapeHtml(gs)+' · '+px+' PX'):'senza grado sfida'}</span>
       </span>
       <span class="attack-btn" style="pointer-events:none">＋</span>
@@ -190,11 +190,11 @@ function incontriHTML(){
           <button class="stepper-btn sm" onclick="incTogli(${i},1)">+</button>
         </div>`).join('')}</div>
       <div class="btn-row" style="margin-bottom:8px">
-        <button class="btn btn-gold" onclick="incAllIniziativa()">⚔️ Manda all'iniziativa</button>
+        <button class="btn btn-gold" onclick="incAllIniziativa()">⚔ Manda all'iniziativa</button>
         <button class="btn btn-ghost btn-sm" onclick="inc.scelti=[]; inc.apertoId=null; renderModalRoot()">Svuota</button>
       </div>
       <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="incSalvaChiedi()">
-        ${inc.apertoId ? '💾 Salva le modifiche a «' + escapeHtml(incNomeDi(inc.apertoId)) + '»' : '💾 Salva questo incontro'}</button>` : ''}
+        ${inc.apertoId ? ic('salva') + ' Salva le modifiche a «' + escapeHtml(incNomeDi(inc.apertoId)) + '»' : ic('salva') + ' Salva questo incontro'}</button>` : ''}
 
     ${(state.incontri||[]).length ? `
       <div class="divider"><span class="flourish">❧</span><span>I tuoi incontri (${state.incontri.length})</span></div>
@@ -221,7 +221,7 @@ function incontriHTML(){
       : `<div class="lista-vuota">Scrivi il nome di una creatura per trovarla — ci sono quelle di serie, le tue e quelle del tavolo.</div>`}
 
     <div class="spell-source-note">Le soglie sono un'indicazione, non una regola: contano molto di più il terreno, le risorse rimaste e come giocano i tuoi. Un «medio» a fine giornata può ammazzare.</div>`;
-  return modalShell('⚔️ Costruttore di incontri', inner);
+  return modalShell(ic('tavolo') + ' Costruttore di incontri', inner);
 }
 
 /* I nemici scelti entrano nel tracker dell'iniziativa, uno per copia.
@@ -241,7 +241,7 @@ function incAllIniziativa(){
         const pf = Math.max(1, (tiro && tiro.total) || x.hp);
         state.combat.list.push({ refId:null, kind:'monster', srdId:x.id,
           name: uniqueCombatName(nomeDiCreatura(x)),
-          avatar: (typeof monsterAvatar === 'function') ? monsterAvatar(x) : '🐉',
+          avatar: (typeof monsterAvatar === 'function') ? monsterAvatar(x) : ic('zampa'),
           init: rollDie(20) + dex, hp: pf, hpMax: pf, ac: x.ac });
       } else {
         /* Anche qui la Destrezza si cerca dove c'è, come in `addToCombat`
@@ -251,7 +251,7 @@ function incAllIniziativa(){
         const dex = (typeof dexDiPng === 'function') ? dexDiPng(x) : mod(getPath(x, 'abilities.dex', 10));
         const pf = x.hpMax || x.hpCurrent || 1;
         state.combat.list.push({ refId: x.id, kind:'npc',
-          name: uniqueCombatName(x.name || 'Creatura'), avatar: x.avatar || '🐉',
+          name: uniqueCombatName(x.name || 'Creatura'), avatar: x.avatar || ic('zampa'),
           init: rollDie(20) + dex, hp: pf, hpMax: pf, ac: x.ac ?? null, srdId: x.srdId || null });
       }
       n++;
@@ -262,7 +262,7 @@ function incAllIniziativa(){
   closeModalAll();
   state.view = 'dm'; state.dmTab = 'initiative';
   render();
-  toast('⚔️ ' + n + (n===1?' nemico all\'iniziativa':' nemici all\'iniziativa'));
+  toast(n + (n===1?' nemico all\'iniziativa':' nemici all\'iniziativa'));
 }
 
 
@@ -306,7 +306,7 @@ function incSalva(nome){
   fsSet('incontri', salvata);
   if (!currentUser) state.offlineMode = true;
   renderModalRoot(); render();
-  toast('💾 «' + nome + '» salvato');
+  toast(' «' + nome + '» salvato');
 }
 function incCarica(id){
   const e = (state.incontri || []).find(x => x.id === id);
@@ -326,8 +326,8 @@ function incCarica(id){
   listaAzzera('inc-mostri');
   renderModalRoot({ toTop:true });
   toast(perse.length
-    ? '⚔️ «' + (e.nome||'') + '» · ' + perse.length + ' non ' + (perse.length===1?'c\'è':'ci sono') + ' più: ' + perse.slice(0,3).join(', ')
-    : '⚔️ «' + (e.nome||'') + '» caricato');
+    ? ic('tavolo') + ' «' + (e.nome||'') + '» · ' + perse.length + ' non ' + (perse.length===1?'c\'è':'ci sono') + ' più: ' + perse.slice(0,3).join(', ')
+    : ic('tavolo') + ' «' + (e.nome||'') + '» caricato');
 }
 function incElimina(id){
   const e = (state.incontri || []).find(x => x.id === id);
@@ -339,6 +339,6 @@ function incElimina(id){
       if (inc && inc.apertoId === id) inc.apertoId = null;
       fsDelete('incontri', id);
       renderModalRoot(); render();
-      toast('🗑️ Incontro eliminato');
+      toast(' Incontro eliminato');
     }, 'Elimina');
 }

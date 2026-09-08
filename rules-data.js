@@ -497,8 +497,8 @@ const CONDITIONS = [
   { id:'paralyzed', name:'Paralizzato', icon:'🧊', desc:'Incapacitato, immobile, fallisci i TS su Forza e Destrezza; i colpi ravvicinati sono critici.' },
   { id:'petrified', name:'Pietrificato', icon:'🗿', desc:'Sei pietra: incapacitato, resistente a tutto, immune a veleno e malattie.' },
   { id:'poisoned', name:'Avvelenato', icon:'🤢', desc:'Svantaggio ai tiri per colpire e alle prove di caratteristica.' },
-  { id:'prone', name:'Prono', icon:'⬇️', desc:'Ti muovi solo strisciando; svantaggio agli attacchi, e chi ti attacca da vicino ha vantaggio.' },
-  { id:'restrained', name:'Trattenuto', icon:'🕸️', desc:'Velocità 0, svantaggio agli attacchi e ai TS su Destrezza; chi ti attacca ha vantaggio.' },
+  { id:'prone', name:'Prono', icon:'⬇', desc:'Ti muovi solo strisciando; svantaggio agli attacchi, e chi ti attacca da vicino ha vantaggio.' },
+  { id:'restrained', name:'Trattenuto', icon:'🕸', desc:'Velocità 0, svantaggio agli attacchi e ai TS su Destrezza; chi ti attacca ha vantaggio.' },
   { id:'stunned', name:'Stordito', icon:'😵', desc:'Incapacitato, parli a stento, fallisci i TS su Forza e Destrezza; chi ti attacca ha vantaggio.' },
   { id:'unconscious', name:'Privo di sensi', icon:'💤', desc:'Incapacitato e prono, lasci cadere tutto; i colpi ravvicinati sono critici.' },
 ];

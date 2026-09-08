@@ -334,7 +334,7 @@ function meccanicheHTML(){
       <button class="btn btn-primary" onclick="salvaMeccaniche()">Salva</button>
     </div>
     <div class="spell-source-note">Questi effetti valgono per i personaggi che hanno questa sottoclasse. Il testo dei privilegi resta quello che hai importato tu.</div>`;
-  return modalShell('⚙️ Effetti sul gioco', inner);
+  return modalShell('⚙ Effetti sul gioco', inner);
 }
 function salvaMeccaniche(){
   const h = (state.homebrew || []).find(x => x.id === meccHbId);
@@ -352,7 +352,7 @@ function salvaMeccaniche(){
   if (typeof fsSet === 'function') fsSet('homebrew', h);
   meccDraft = null; meccHbId = null;
   closeModal(); render();
-  toast('⚙️ Effetti salvati');
+  toast('⚙ Effetti salvati');
 }
 /* Riassunto in una riga, per l'elenco delle tue aggiunte. */
 function riassuntoMeccaniche(h){

@@ -1,5 +1,37 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.2 — 8 settembre 2026
+**Una passata sull'aspetto. Nessuna funzione nuova: le stesse cose, viste meglio.**
+
+### ✒️ Le emoji di sistema sono diventate icone disegnate
+Le icone dell'app erano emoji: 📖 🎲 ⚔️ 🎒. Sono comodissime da scrivere e hanno un difetto grosso — **le disegna il telefono, non l'app**. La stessa schermata su iPhone, su Android e su Windows aveva tre stili diversi, tre pesi diversi, tre colori diversi, e nessuno dei tre era il nostro.
+
+Adesso c'è `icone.js`: **75 icone** disegnate a mano su una griglia di 24×24, in `currentColor` — cioè prendono il colore del testo accanto, oro sull'attivo, spento sul resto, e cambiano da sole quando passi al tema chiaro. Sono le stesse su ogni telefono.
+
+Restano emoji, di proposito, le cose che **sono** un'immagine: gli avatar dei personaggi, i ritratti delle creature, i 14 segni delle condizioni. Lì il colore serve.
+
+Alcune icone sono state ridisegnate dopo averle guardate sullo schermo vero, non nell'editor: la rotella delle opzioni a 22 pixel sembrava un sole (ora sono tre cursori), il dado esagonale sembrava una gemma (ora è un d6 con gli angoli tondi), la tenda del riposo sembrava un segnale di pericolo (ora è un fuoco da campo). Il drago l'ho tolto: sembrava un uccello.
+
+### 🔎 Il Grimorio partiva con tre file di filtri
+Prima del primo incantesimo c'erano la ricerca e **tre file di pastiglie** — livello, classe, tratto — che su un telefono si mangiavano metà schermo.
+
+Resta fuori la fila che si cambia di continuo, quella del **livello**. Le altre due stanno in un pannello che si apre col tasto **Filtri**, che porta addosso **quanti filtri stai tenendo accesi**. A pannello chiuso i filtri accesi si leggono comunque, scritti per esteso — *Mago ✕*, *Rituali ✕* — e si tolgono con un tocco. Il primo incantesimo adesso si vede senza scorrere.
+
+### 👥 La compagnia: carte grandi o elenco compatto
+Le carte-poster della v7.2 sono belle con due personaggi e diventano un rullo con sei. Da due personaggi in su compare un interruttore: **carte grandi** o **elenco compatto** — stessa roba (ritratto, nome, classe, livello, barra dei PF, i segni di concentrazione e condizioni), un quinto dell'altezza. La scelta **resta anche dopo aver chiuso l'app**. Su schermi larghi entrambe le viste vanno su **due colonne**.
+
+### 🎨 Il resto della passata
+- **I livelli degli incantesimi hanno un colore.** Dal viola dei trucchetti all'oro del 9°: la pastiglia del livello segue una scala, così scorrendo l'elenco il livello si riconosce senza leggerlo.
+- **Nell'iniziativa i punti ferita si vedono.** Numeri rossi sotto un quarto, oro a metà, più una barretta sotto ogni riga.
+- **Le linguette selezionate** hanno un fondo dorato e una riga sotto, invece di cambiare solo colore al testo.
+- **«Tira iniziativa»** è un riquadro d'azione, non un riquadro-statistica come CA e velocità: sembrava un numero da leggere, invece è un tasto.
+- **Il campo dei PF** ha il fondo incavato e le cifre in oro: è l'unica casella in cui si scrive spesso.
+- **Le file di pastiglie sfumano sul bordo destro** quando continuano oltre lo schermo, invece di tagliarsi di netto.
+- Tolto il **«3° livello» ripetuto due volte** nella scheda di un incantesimo.
+
+### 🧪 Cosa ho verificato
+33 controlli nuovi (`test-v92`) e le altre 55 serie rifatte da capo. Fra i nuovi ce n'è uno che vale la pena raccontare: mentre sostituivo le emoji una alla volta, il mio script ne ha infilate alcune **dentro stringhe normali**, dove `${ic('dado')}` non è un'icona ma testo scritto sullo schermo. Quattro file erano rotti. Adesso c'è un controllo che **guarda l'HTML davvero prodotto** in ogni schermata e fallisce se ci trova quella scritta: non mi fido del mio stesso script.
+
 ## v9.1 — 7 settembre 2026
 **Quattro cose, e sotto tutte lo stesso difetto delle finestre.**
 

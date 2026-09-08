@@ -279,9 +279,9 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   border: 1px solid var(--gold-dim); opacity: .22;
 }
 .nav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px; border-radius: 13px; color: var(--ink-faint); font-size: .64rem; font-weight: 800; letter-spacing: .04em; flex: 1; transition: color .18s, background .18s; }
-.nav-btn .ic { font-size: 1.3rem; line-height: 1; filter: grayscale(.6); opacity: .65; transition: all .2s; }
+.nav-btn .ic { width: 1.42rem; height: 1.42rem; stroke-width: 1.6; opacity: .6; transition: all .2s; }
 .nav-btn.active { color: var(--gold); background: linear-gradient(180deg, var(--arcane-soft), transparent); }
-.nav-btn.active .ic { filter: none; opacity: 1; transform: translateY(-2px); }
+.nav-btn.active .ic { opacity: 1; transform: translateY(-2px); }
 
 /* ────────────────── CARD ────────────────── */
 .card {
@@ -367,6 +367,32 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
    personaggi restano comunque raggiungibili senza scorrere troppo. */
 @media (max-width: 380px) { .hero-card-ritratto { aspect-ratio: 3 / 2; } .hero-card-nome { font-size: 1.2rem; } }
 
+/* La riga che sceglie quanto sono grandi le carte della compagnia. */
+.vista-riga { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.vista-conta { font-family: var(--font-ui); font-size: .74rem; font-weight: 700; color: var(--ink-faint); letter-spacing: .03em; }
+.segmented.segmented-mini { flex: 0 0 auto; padding: 3px; border-radius: 11px; }
+.segmented.segmented-mini button { flex: 0 0 auto; padding: 7px 13px; min-height: 34px; }
+.segmented.segmented-mini .ic { width: 1.1rem; height: 1.1rem; }
+
+/* La carta compatta: stessi dati, un quinto dell'altezza. */
+.party-elenco { display: block; }
+.hero-card.compatta { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.hc-mini { flex: 0 0 52px; width: 52px; height: 52px; border-radius: 12px; overflow: hidden; position: relative;
+  background: radial-gradient(120% 90% at 50% 20%, var(--card-2), var(--bg-0) 90%); border: 1px solid var(--line); }
+.hc-mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hc-mini-glifo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; line-height: 1; }
+.hc-corpo { flex: 1; min-width: 0; }
+.hc-riga1 { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.hc-nome { font-family: var(--font-head); font-weight: 700; font-size: 1.02rem; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hc-segni { display: flex; gap: 4px; flex-shrink: 0; }
+.hc-segni .hero-card-segno { font-size: .68rem; padding: 2px 6px; }
+.hc-sotto { font-family: var(--font-ui); font-size: .72rem; font-weight: 600; color: var(--ink-soft); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero-card.compatta .hp-mini { margin-top: 6px; height: 5px; }
+.hc-coda { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+.hc-pf { font-family: var(--font-ui); font-size: .74rem; font-weight: 700; color: var(--ink-soft); }
+
 .npc-card .seal { width: 46px; height: 46px; font-size: 1.3rem; }
 
 /* ────────────────── PULSANTI ────────────────── */
@@ -389,6 +415,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .btn-row { display: flex; gap: 10px; }
 .btn-row > * { flex: 1; }
 
+.fab .ic { width: 1.62rem; height: 1.62rem; stroke-width: 1.5; }
 .fab {
   position: fixed; right: calc(16px + var(--safe-right)); bottom: calc(var(--nav-h) + 22px + var(--safe-bottom)); z-index: 45;
   transition: transform .22s ease, opacity .22s ease;
@@ -429,16 +456,34 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .segmented { display: flex; background: var(--bg-1); border: 1px solid var(--line); border-radius: 13px; padding: 4px; gap: 3px; overflow-x: auto; scrollbar-width: none; }
 .segmented::-webkit-scrollbar { display: none; }
 .segmented button { flex: 1; padding: 12px 8px; border-radius: 10px; font-size: .76rem; font-weight: 700; color: var(--ink-soft); white-space: nowrap; font-family: var(--font-ui); transition: all .18s; }
-.segmented button.active { background: linear-gradient(180deg, var(--garnet-bright), var(--garnet)); color: var(--on-accent); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+/* La pillola granata pesava troppo accanto all'oro di tutto il resto:
+   qui la sezione attiva si segna con un fondo appena acceso e un
+   filetto dorato sotto — la stessa lingua della scheda incantesimo. */
+.segmented button.active { background: linear-gradient(180deg, rgba(217,192,122,.13), rgba(217,192,122,.05)); color: var(--gold); box-shadow: inset 0 -2px 0 var(--gold-dim); }
 
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 10px 14px; min-height: 38px; border-radius: 20px; font-size: .74rem; font-weight: 700; background: var(--card-2); color: var(--ink-soft); border: 1px solid var(--line); font-family: var(--font-ui); }
 .chip.active { background: var(--arcane); color: #fff; border-color: var(--arcane-bright); box-shadow: 0 0 12px var(--arcane-soft); }
 .chip-row { display: flex; gap: 7px; flex-wrap: wrap; }
 .filter-bar { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .filter-bar::-webkit-scrollbar { display: none; }
-.filter-bar { -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent 100%); mask-image: linear-gradient(90deg, #000 88%, transparent 100%); }
-.filter-chip { flex-shrink: 0; padding: 11px 15px; min-height: 40px; display: inline-flex; align-items: center; border-radius: 20px; font-size: .75rem; font-weight: 700; background: var(--card); border: 1px solid var(--line); color: var(--ink-soft); font-family: var(--font-ui); }
+/* Le file di pastiglie scorrono di lato, ma non si vedeva: si leggeva
+   «Chie…» tagliato e basta. La sfumatura sul bordo destro dice che c'è
+   dell'altro. */
+.filter-bar { -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent 99%); mask-image: linear-gradient(90deg, #000 82%, transparent 99%); }
+.filter-chip { flex-shrink: 0; padding: 11px 15px; min-height: 40px; display: inline-flex; align-items: center; gap: 6px; border-radius: 20px; font-size: .75rem; font-weight: 700; background: var(--card); border: 1px solid var(--line); color: var(--ink-soft); font-family: var(--font-ui); }
 .filter-chip.active { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); border-color: var(--gold-bright); color: #241a05; }
+.filter-riga { display: flex; align-items: center; gap: 7px; padding: 0 0 10px; overflow-x: auto; scrollbar-width: none; }
+.filter-riga::-webkit-scrollbar { display: none; }
+.filter-toggle { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; min-height: 40px; border-radius: 20px; font-size: .75rem; font-weight: 700; font-family: var(--font-ui); background: var(--card); border: 1px solid var(--line); color: var(--ink-soft); }
+.filter-toggle.aperto { border-color: var(--gold-dim); color: var(--gold); background: linear-gradient(180deg, rgba(217,180,95,.13), rgba(217,180,95,.04)); }
+.filter-conta { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--gold); color: #241a05; font-size: .66rem; font-weight: 800; }
+.filter-attivo { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 9px 11px 9px 13px; min-height: 40px; border-radius: 20px; font-size: .73rem; font-weight: 700; font-family: var(--font-ui); background: var(--gold-soft, rgba(217,180,95,.12)); border: 1px solid var(--gold-dim); color: var(--gold-ink); }
+.filter-attivo b { font-weight: 800; }
+.filter-attivo .via { opacity: .75; font-size: .9em; }
+.filter-pannello { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: rgba(0,0,0,.14); padding: 10px 10px 2px; margin: 0 0 10px; }
+[data-theme="light"] .filter-pannello { background: rgba(0,0,0,.03); }
+.filter-pannello .filter-bar:last-of-type { padding-bottom: 4px; }
+.filter-pannello-tit { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-family: var(--font-ui); font-weight: 700; margin: 2px 0 6px; }
 
 .search-wrap { position: relative; margin-bottom: 12px; }
 .search-wrap input {
@@ -491,6 +536,11 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   text-align: center; background: transparent; border: none; padding: 0; -moz-appearance: textfield;
 }
 .combat-stat input.v::-webkit-outer-spin-button, .combat-stat input.v::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+/* CA e Iniziativa sono numeri da leggere, «Tira iniziativa» è una cosa
+   da premere: stessa forma ma un'aria diversa, se no si confondono. */
+.combat-stat.azione { background: linear-gradient(180deg, rgba(217,192,122,.09), transparent); border-color: var(--gold-dim); }
+.combat-stat.azione .ic { width: 1.5rem; height: 1.5rem; color: var(--gold); }
+.combat-stat.azione .l { color: var(--gold); }
 .combat-stat .l { font-size: .6rem; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; font-family: var(--font-ui); margin-top: 2px; }
 .combat-stat.tappable:active { background: var(--card-hi); }
 
@@ -502,7 +552,14 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .hp-bar-lg-fill { height: 100%; background: linear-gradient(90deg, var(--garnet), var(--garnet-bright)); transition: width .35s ease; }
 .hp-bar-lg-fill.low { background: linear-gradient(90deg, #7c1c1c, var(--garnet)); }
 .hp-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.hp-controls input { min-width: 84px; }
+/* Il campo dei punti ferita attuali aveva l'aspetto dei tasti −5 e +5:
+   si legge come un comando e non come una casella in cui scrivere.
+   Incassato e con la cornice dorata, si capisce che è un campo. */
+.hp-controls input {
+  min-width: 84px; background: var(--bg-1); border: 1px solid var(--gold-dim);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.45); color: var(--gold);
+  font-family: var(--font-head); font-weight: 700;
+}
 /* Sotto i 400px i cinque comandi non ci stanno in fila: il campo dei
    punti ferita prende tutta la riga e i tasti gli si mettono sotto. */
 @media (max-width: 400px) {
@@ -549,11 +606,26 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .spell-item { display: flex; align-items: center; gap: 11px; padding: 11px 12px; background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); text-align: left; width: 100%; }
 .spell-item + .spell-item { margin-top: 8px; }
 .spell-item:active { background: var(--card-hi); }
+/* Il pallino del livello era lo stesso identico viola per il trucchetto
+   e per «desiderio»: un colore che non diceva niente. Adesso sale da un
+   viola freddo (trucchetti) all'oro caldo (9° livello), dentro la
+   palette che c'è già — così il livello si legge senza leggerlo. */
 .spell-lvl-badge {
-  width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 34% 28%, var(--arcane-bright), var(--arcane) 75%);
+  width: 34px; height: 34px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, var(--lv-hi, var(--arcane-bright)), var(--lv, var(--arcane)) 75%);
   color: #fff; display: flex; align-items: center; justify-content: center; font-family: var(--font-head); font-weight: 700; font-size: .84rem; flex-shrink: 0;
-  box-shadow: 0 0 10px rgba(145,121,216,.35);
+  box-shadow: 0 0 10px var(--lv-glow, rgba(145,121,216,.35));
 }
+.lv0 { --lv:#4d4470; --lv-hi:#6f66a0; --lv-glow:rgba(111,102,160,.32); }
+.lv1 { --lv:#5b4d86; --lv-hi:#8071bd; --lv-glow:rgba(128,113,189,.32); }
+.lv2 { --lv:#6a4c8e; --lv-hi:#9070c4; --lv-glow:rgba(144,112,196,.32); }
+.lv3 { --lv:#7d4b8c; --lv-hi:#a86fbe; --lv-glow:rgba(168,111,190,.32); }
+.lv4 { --lv:#8f4a7f; --lv-hi:#c06fa6; --lv-glow:rgba(192,111,166,.32); }
+.lv5 { --lv:#9c4a68; --lv-hi:#cf6f8b; --lv-glow:rgba(207,111,139,.32); }
+.lv6 { --lv:#a54f52; --lv-hi:#d67470; --lv-glow:rgba(214,116,112,.32); }
+.lv7 { --lv:#a75c40; --lv-hi:#d78359; --lv-glow:rgba(215,131,89,.32); }
+.lv8 { --lv:#a26c31; --lv-hi:#cf9646; --lv-glow:rgba(207,150,70,.34); }
+.lv9 { --lv:#987c22; --lv-hi:#d9c07a; --lv-glow:rgba(217,192,122,.42); }
 .spell-item-body { flex: 1; min-width: 0; }
 .spell-item-name, .spell-item-meta { display: block; }
 .spell-item-name { font-weight: 700; font-size: .93rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -695,6 +767,19 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .init-row.down { opacity: .55; }
 .init-badge { width: 40px; height: 40px; border-radius: 11px; background: var(--bg-1); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-family: var(--font-head); font-weight: 700; flex-shrink: 0; font-size: 1rem; }
 .init-row.current-turn .init-badge { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); color: #241a05; border-color: var(--gold-bright); }
+/* ── ICONE ──────────────────────────────────────────────────────
+   Disegnate su una griglia di 24 e colorate da `currentColor`: dentro
+   un titolo sono oro, dentro un avviso granata, in una riga secondaria
+   inchiostro sbiadito. Un'emoji a colori questo non lo sa fare. */
+.ic { width: 1.05em; height: 1.05em; vertical-align: -.16em; flex-shrink: 0;
+      fill: none; stroke: currentColor; stroke-width: 1.7;
+      stroke-linecap: round; stroke-linejoin: round; }
+.ic.ic-lg { width: 1.35em; height: 1.35em; vertical-align: -.24em; stroke-width: 1.55; }
+.ic.ic-sm { width: .92em; height: .92em; vertical-align: -.12em; stroke-width: 1.9; }
+/* Nelle icone piene il tratto sparisce e resta la sagoma: serve dove
+   l'icona fa da bollo (il turno attivo, un avviso acceso). */
+.ic.ic-pieno { fill: currentColor; stroke: none; }
+
 .init-name { font-weight: 700; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Il nome apre la scheda del combattente (v9.0): disegnato è alto 22 px,
    sotto i 32 che vuole un pollice. Si allarga la zona che raccoglie il
@@ -702,6 +787,13 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
    identico, e non ruba il tocco alla riga sopra o sotto. */
 button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
 .init-hp { font-size: .72rem; color: var(--ink-soft); font-weight: 700; margin-top: 2px; font-family: var(--font-ui); }
+/* Chi sta per cadere e chi è intero avevano righe identiche, con solo
+   un numero diverso: il master doveva rileggerle una per una. */
+.init-hp .pf-basso { color: var(--garnet-bright); }
+.init-hp .pf-mezzo { color: var(--gold); }
+.init-barra { height: 3px; border-radius: 2px; background: var(--line); margin-top: 5px; overflow: hidden; }
+.init-barra > i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+.init-barra.bassa > i { background: linear-gradient(90deg, var(--garnet), var(--garnet-bright)); }
 .init-actions { display: flex; gap: 5px; flex-shrink: 0; }
 
 /* ────────────────── OVERLAY / MODALI ────────────────── */
@@ -816,6 +908,8 @@ button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
   .fab { bottom: 28px; right: 28px; }
   .party-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
   .party-grid > * + * { margin-top: 0 !important; }
+  .party-elenco { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .party-elenco > * + * { margin-top: 0 !important; }
   .desk-2 { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; align-items: start; }
   .desk-2 > div { min-width: 0; }
   .ability-grid { grid-template-columns: repeat(6, 1fr); }
@@ -1011,7 +1105,8 @@ button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
 <script src="./spells-it.js"></script>
 <script src="./spells-desc-it.js"></script>
 <script defer src="./app.js"></script>
-<script defer src="./rules-data.js"></script>
+<script defer src="./icone.js"></script>
+  <script defer src="./rules-data.js"></script>
 <script defer src="./monsters-data.js"></script>
 <script defer src="./bestiary.js"></script>
 <script defer src="./gear-data.js"></script>

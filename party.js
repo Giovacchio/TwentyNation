@@ -106,12 +106,12 @@ async function condividiPg(charId, dettaglio){
     setSaveStatus('saving');
     await coll.doc(c.id).set(typeof perNuvola === 'function' ? perNuvola(payload) : payload, { merge: false });
     setSaveStatus('saved');
-    toast('⚔️ ' + (c.name || 'La scheda') + ' è al tavolo (' + PARTY_DETTAGLI[payload.dettaglio].label.toLowerCase() + ')');
+    toast('⚔ ' + (c.name || 'La scheda') + ' è al tavolo (' + PARTY_DETTAGLI[payload.dettaglio].label.toLowerCase() + ')');
     closeModal(); render();
   } catch(e){
     console.error('Condivisione scheda non riuscita', e);
     setSaveStatus('idle');
-    toast('⚠️ Non sono riuscito a metterla al tavolo');
+    toast('⚠ Non sono riuscito a metterla al tavolo');
   }
 }
 async function ritiraPg(charId){
@@ -121,7 +121,7 @@ async function ritiraPg(charId){
     await coll.doc(charId).delete();
     toast('La scheda non è più al tavolo');
     closeModal(); render();
-  } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a ritirarla'); }
+  } catch(e){ console.error(e); toast('⚠ Non sono riuscito a ritirarla'); }
 }
 /* Quando la scheda cambia (PF, condizioni, effetti) la copia al tavolo
    va rinfrescata — ma senza una scrittura per ogni tocco del «−1». */
@@ -154,7 +154,7 @@ function apriCondividiPg(charId){
   if (!state.campaign || !state.campaign.id){ toast('Prima entra in una campagna'); return; }
   if (!currentUser){ toast('Serve il collegamento all\'account'); return; }
   const attuale = dettaglioDi(charId);
-  openModal({ render: () => modalShell('⚔️ ' + (c.name||'Scheda') + ' al tavolo', `
+  openModal({ render: () => modalShell('⚔ ' + (c.name||'Scheda') + ' al tavolo', `
     <p class="muted" style="font-size:.84rem; margin-bottom:12px">
       Decidi tu se e quanto far vedere agli altri di «${escapeHtml(state.campaign.name || 'questa campagna')}».
       Note, diario, storia, inventario e monete non partono mai.
@@ -187,13 +187,13 @@ function compagniCampagnaHTML(){
         const pf = p.pf || {};
         const perc = pf.max ? Math.max(0, Math.min(100, Math.round((pf.current/pf.max)*100))) : 0;
         const marchi = []
-          .concat((p.condizioni||[]).length ? ['🩸 ' + p.condizioni.length] : [])
-          .concat(p.concentrazione ? ['🌀'] : [])
-          .concat((p.effetti||[]).length ? ['⏳ ' + p.effetti.length] : []);
+          .concat((p.condizioni||[]).length ? [ic('sangue') + ' ' + p.condizioni.length] : [])
+          .concat(p.concentrazione ? [ic('concentra')] : [])
+          .concat((p.effetti||[]).length ? [ic('clessidra') + ' ' + p.effetti.length] : []);
         return `<button class="attack-row compagno-riga" onclick="apriCompagno('${jsStr(p.id)}')">
           <span class="compagno-faccia">${p.portrait
             ? `<img src="${attr(p.portrait)}" alt="">`
-            : `<span>${p.avatar || '🎭'}</span>`}</span>
+            : `<span>${p.avatar || ic('party')}</span>`}</span>
           <span class="attack-main">
             <span class="attack-name">${escapeHtml(p.nome || 'Senza nome')}</span>
             <span class="muted" style="font-size:.72rem">${escapeHtml([p.classe, p.livello ? 'Lv ' + p.livello : '', p.razza].filter(Boolean).join(' · '))}</span>

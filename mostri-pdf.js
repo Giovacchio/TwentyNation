@@ -300,7 +300,7 @@ function mostriPdfHTML(){
       famiglio o compagno</b>.
     </p>
     <div class="btn-row">
-      <button class="btn btn-gold" ${s.busy?'disabled':''} onclick="document.getElementById('mp-file').click()">📂 ${s.busy
+      <button class="btn btn-gold" ${s.busy?'disabled':''} onclick="document.getElementById('mp-file').click()">${ic('cartella')} ${s.busy
         ? ((s.file_n>1?'File '+s.file+' di '+s.file_n+' · ':'') + (s.tot?'pagina '+s.pag+' di '+s.tot+'…':'leggo…'))
         : 'Scegli i file'}</button>
       <button class="btn btn-ghost" ${s.busy?'disabled':''} onclick="mpDaCasella()">Analizza il testo</button>
@@ -320,9 +320,9 @@ function mostriPdfHTML(){
   const riga = (m) => {
     const on = s.scelti.has(m.id);
     return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':''}" onclick="mpToggle('${jsStr(m.id)}')">
-      <span style="flex-shrink:0; margin-right:10px; font-size:1.05rem">${on?'☑️':'⬜'}</span>
+      <span style="flex-shrink:0; margin-right:10px; font-size:1.05rem">${on?'☑':'⬜'}</span>
       <span class="attack-main">
-        <span class="attack-name">🐉 ${escapeHtml(m.it)}</span>
+        <span class="attack-name">${ic('zampa')} ${escapeHtml(m.it)}</span>
         <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(m.sz)} ${escapeHtml(m.t)} · GS ${escapeHtml(m.cr)} · CA ${m.ac} · ${m.hp} PF${m.act.length?' · '+m.act.length+' azioni':''}${m.fonte?' · '+escapeHtml(m.fonte):''}</span>
       </span>
     </button>`;
@@ -334,13 +334,13 @@ function mostriPdfHTML(){
       <div class="barra" style="margin-top:10px"><div class="barra-piena" style="width:${Math.round(100*s.salvando.fatti/Math.max(1,s.salvando.tot))}%"></div></div>
     </div>`);
 
-  return modalShell('🐉 Cosa ho trovato', `
+  return modalShell(ic('zampa') + ' Cosa ho trovato', `
     <div class="card" style="margin-bottom:12px">
       <div class="row-between"><span class="muted">Riconosciuti</span><b>${s.trovati.length}</b></div>
       <div class="row-between" style="margin-top:4px"><span class="muted">Selezionati</span><b style="color:var(--gold)">${n}</b></div>
     </div>
     ${mpSenzaStatistiche ? `<div class="card" style="margin-bottom:12px; border-color:var(--warn)">
-      <b style="font-size:.86rem">⚠️ ${mpSenzaStatistiche} voci senza statistiche</b>
+      <b style="font-size:.86rem">${ic('avviso')} ${mpSenzaStatistiche} voci senza statistiche</b>
       <p class="muted" style="margin-top:6px; font-size:.79rem">In questo file hanno solo nome, descrizione e qualche etichetta:
       niente CA, punti ferita o azioni. Non si possono giocare, quindi le ho lasciate fuori.</p>
     </div>` : ''}
@@ -397,7 +397,7 @@ function mpAnalizza(testo){
   mpStato.trovati = trovati; mpStato.busy = false;
   mpStato.scelti = new Set(trovati.map(m => m.id));
   renderModalRoot({ toTop:true });
-  toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' mostri') : '⚠️ Nessun blocco statistica riconosciuto');
+  toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' mostri') : '⚠ Nessun blocco statistica riconosciuto');
 }
 function mpDaCasella(){ const el = document.getElementById('mp-testo'); mpAnalizza(el ? el.value : ''); }
 async function mpFile(input){
@@ -419,7 +419,7 @@ async function mpFile(input){
         });
         testi.push(text);
       } else testi.push(await f.text());
-    } catch(e){ console.error(e); toast('⚠️ Non riesco a leggere «' + (f.name||'il file') + '»'); }
+    } catch(e){ console.error(e); toast('⚠ Non riesco a leggere «' + (f.name||'il file') + '»'); }
   }
   if (!testi.length){ mpStato.busy = false; renderModalRoot(); return; }
   mpAnalizza(testi.join('\n\n'));
@@ -492,6 +492,6 @@ async function mpAggiungi(scelti){
   toast('🐉 ' + nuovi.length + (nuovi.length===1?' creatura nel bestiario':' creature nel bestiario'));
   if (condividi && typeof shareToCampaign === 'function'){
     const n = await shareToCampaign('npcs', nuovi);
-    if (n) toast('⚔️ ' + n + ' anche sul tavolo');
+    if (n) toast('⚔ ' + n + ' anche sul tavolo');
   }
 }

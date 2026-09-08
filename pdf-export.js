@@ -222,7 +222,7 @@ async function exportCharacterPdf(charId){
   toast('📄 Preparo il PDF…');
   let lib;
   try { lib = await loadPdfLib(); }
-  catch(e){ console.error(e); toast('⚠️ Non riesco a caricare il generatore PDF'); return; }
+  catch(e){ console.error(e); toast('⚠ Non riesco a caricare il generatore PDF'); return; }
 
   try {
     const doc = await lib.PDFDocument.create();
@@ -243,7 +243,7 @@ async function exportCharacterPdf(charId){
     toast('📄 Scheda esportata');
   } catch(e){
     console.error('Export PDF fallito', e);
-    toast('⚠️ Esportazione non riuscita');
+    toast('⚠ Esportazione non riuscita');
   }
 }
 
@@ -651,7 +651,7 @@ async function exportSpellBook(charId){
   toast('📖 Preparo il libretto…');
   let lib;
   try { lib = await loadPdfLib(); }
-  catch(e){ console.error(e); toast('⚠️ Non riesco a caricare il generatore PDF'); return; }
+  catch(e){ console.error(e); toast('⚠ Non riesco a caricare il generatore PDF'); return; }
 
   try {
     const doc = await lib.PDFDocument.create();
@@ -736,6 +736,6 @@ async function exportSpellBook(charId){
     toast('📖 Libretto esportato · ' + lista.length + ' incantesimi');
   } catch(e){
     console.error('Libretto PDF fallito', e);
-    toast('⚠️ Esportazione non riuscita');
+    toast('⚠ Esportazione non riuscita');
   }
 }

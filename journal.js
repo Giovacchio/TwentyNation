@@ -6,12 +6,12 @@
    ══════════════════════════════════════════════════════════════ */
 
 const JOURNAL_TAGS = [
-  { id:'trama',    label:'Trama',      icon:'🗺️' },
+  { id:'trama',    label:'Trama',      icon:'🗺' },
   { id:'png',      label:'PNG',        icon:'👤' },
   { id:'luogo',    label:'Luogo',      icon:'🏰' },
   { id:'bottino',  label:'Bottino',    icon:'💰' },
   { id:'missione', label:'Missione',   icon:'📜' },
-  { id:'combattimento', label:'Scontro', icon:'⚔️' },
+  { id:'combattimento', label:'Scontro', icon:'⚔' },
   { id:'idea',     label:'Da chiarire', icon:'❓' },
 ];
 const JTAG_BY_ID = Object.fromEntries(JOURNAL_TAGS.map(t=>[t.id,t]));
@@ -64,7 +64,7 @@ function renderJournal(){
     <button class="btn btn-primary btn-block" style="margin-bottom:14px" onclick="openJournalEntry()">✦ Nuova voce di diario</button>
     ${tot ? `
       <div class="search-wrap">
-        <span class="search-ic">🔍</span>
+        <span class="search-ic">${ic('cerca')}</span>
         <input id="j-search" placeholder="Cerca nel diario…" value="${attr(jFilter.q)}" oninput="jSearch(this.value)" autocomplete="off">
       </div>
       <div class="filter-bar">
@@ -75,8 +75,8 @@ function renderJournal(){
         }).join('')}
       </div>` : ''}
     ${list.length ? `<div class="stagger list-gap">${list.map(journalCardHTML).join('')}</div>`
-      : (tot ? emptyState('🔍','Nessuna voce con questi filtri.')
-             : emptyState('📓','Il diario è vuoto. Scrivi due righe a fine sessione: fra un mese saranno oro.'))}
+      : (tot ? emptyState(ic('cerca'),'Nessuna voce con questi filtri.')
+             : emptyState(ic('diario'),'Il diario è vuoto. Scrivi due righe a fine sessione: fra un mese saranno oro.'))}
     ${tot ? `<button class="btn btn-ghost btn-block" style="margin-top:14px" onclick="exportJournal()">⤓ Esporta il diario</button>` : ''}
   `;
 }

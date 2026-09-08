@@ -91,7 +91,7 @@ function leaveCampaignLocal(msg){
   detachCampaign();
   state.campaign = null; state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = []; state.sharedParty = []; state.sharedSuppliche = [];
   saveCampaignLocal(); render();
-  if (msg) toast('⚠️ ' + msg);
+  if (msg) toast('⚠ ' + msg);
 }
 
 /* ─── Creare, entrare, uscire ─── */
@@ -116,8 +116,8 @@ async function createCampaign(nome){
     state.campaign = { id, name, code, ownerUid: currentUser.uid, role: 'master', members: {} };
     saveCampaignLocal(); attachCampaign();
     closeModal(); render();
-    toast('⚔️ Campagna creata — codice ' + code);
-  } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a creare la campagna'); }
+    toast('⚔ Campagna creata — codice ' + code);
+  } catch(e){ console.error(e); toast('⚠ Non sono riuscito a creare la campagna'); }
 }
 async function joinCampaign(codice){
   if (!currentUser || !firebaseReady){ toast('Serve il collegamento all\'account'); return; }
@@ -129,7 +129,7 @@ async function joinCampaign(codice){
     // prima il registro: dal codice si ricava quale campagna è
     const reg = await db.collection('inviteCodes').doc(code).get();
     const dati = reg && (reg.exists ? reg.data() : (reg.data && reg.data()));
-    if (!dati || !dati.campaignId){ toast('⚠️ Nessuna campagna con questo codice'); return; }
+    if (!dati || !dati.campaignId){ toast('⚠ Nessuna campagna con questo codice'); return; }
     const cid = dati.campaignId;
     // ci si iscrive: solo dopo si è autorizzati a leggere il resto
     await db.collection('campaigns').doc(cid).set({
@@ -144,8 +144,8 @@ async function joinCampaign(codice){
     state.campaign = { id: cid, name: nome, code: bello, ownerUid: owner, role: 'giocatore', members: {} };
     saveCampaignLocal(); attachCampaign();
     closeModal(); render();
-    toast('⚔️ Sei entrato in «' + nome + '»');
-  } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a entrare'); }
+    toast('⚔ Sei entrato in «' + nome + '»');
+  } catch(e){ console.error(e); toast('⚠ Non sono riuscito a entrare'); }
 }
 function confirmLeaveCampaign(){
   const c = state.campaign; if (!c) return;
@@ -206,7 +206,7 @@ async function shareToCampaign(kind, items){
       messaggio: (e && e.message) || String(e),
       cosa: kind, quante: lista.length,
     };
-    toast('⚠️ Il server ha rifiutato: ' + spiegaErroreTavolo(__ultimoErroreTavolo));
+    toast('⚠ Il server ha rifiutato: ' + spiegaErroreTavolo(__ultimoErroreTavolo));
     return 0;
   }
 }
@@ -268,7 +268,7 @@ async function provaCondivisione(){
       <div class="row-between" style="margin-top:4px"><span class="muted">Tue aggiunte</span><b>${(state.homebrew||[]).length}</b></div>
       <div class="row-between" style="margin-top:4px"><span class="muted">Già sul tavolo</span><b>${(state.sharedHomebrew||[]).length}</b></div>
     </div>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="copiaProvaCondivisione(${JSON.stringify(JSON.stringify(righe)).replace(/"/g,'&quot;')})">📋 Copia il risultato</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="copiaProvaCondivisione(${JSON.stringify(JSON.stringify(righe)).replace(/"/g,'&quot;')})">${ic('copia')} Copia il risultato</button>
     <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="closeModal()">Chiudi</button>`) });
 }
 function copiaProvaCondivisione(json){
@@ -282,7 +282,7 @@ async function unshareFromCampaign(kind, id){
   try {
     await db.collection('campaigns').doc(state.campaign.id).collection(coll).doc(id).delete();
     toast('Ritirato dalla campagna');
-  } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a ritirarlo'); }
+  } catch(e){ console.error(e); toast('⚠ Non sono riuscito a ritirarlo'); }
 }
 /* Ritirare centinaia di voci una per una è la stessa fila della
    condivisione al contrario: anche qui si va a pacchetti. */
@@ -297,7 +297,7 @@ async function ritiraMolti(kind, ids){
       await pacco.commit();
       fatti += Math.min(400, ids.length - i);
     }
-  } catch(e){ console.error('Ritiro in blocco non riuscito', e); toast('⚠️ Non sono riuscito a ritirare tutto'); }
+  } catch(e){ console.error('Ritiro in blocco non riuscito', e); toast('⚠ Non sono riuscito a ritirare tutto'); }
   return fatti;
 }
 /* Puoi ritirare solo quello che hai messo tu — o qualunque cosa, se sei il master */
@@ -314,7 +314,7 @@ function openCampaign(){
 let campDraft = { nome:'', codice:'' };
 function campaignHTML(){
   const c = state.campaign;
-  if (!c) return modalShell('⚔️ Campagna', `
+  if (!c) return modalShell('⚔ Campagna', `
     <p class="muted" style="margin-bottom:14px">
       Una campagna è il tuo tavolo: tu, i tuoi giocatori e il master.
       Gli incantesimi e le aggiunte che ci metti dentro li vedono <b>solo i membri</b>.
@@ -324,7 +324,7 @@ function campaignHTML(){
       <div class="card-title">Crea un tavolo</div>
       <div class="field" style="margin-top:8px"><label>Nome della campagna</label>
         <input id="camp-name" value="${attr(campDraft.nome)}" placeholder="Es. La Cripta di Mezzanotte" oninput="campDraft.nome=this.value"></div>
-      <button class="btn btn-primary btn-block" onclick="createCampaign(document.getElementById('camp-name').value)">⚔️ Crea la campagna</button>
+      <button class="btn btn-primary btn-block" onclick="createCampaign(document.getElementById('camp-name').value)">${ic('tavolo')} Crea la campagna</button>
     </div>
     <div class="divider"><span class="flourish">❧</span><span>oppure</span></div>
     <div class="card">
@@ -338,18 +338,18 @@ function campaignHTML(){
   const membri = Object.entries(c.members || {});
   const nSp = (state.sharedSpells||[]).length, nHb = (state.sharedHomebrew||[]).length,
         nNp = (state.sharedNpcs||[]).length;
-  return modalShell('⚔️ ' + escapeHtml(c.name || 'Campagna'), `
+  return modalShell('⚔ ' + escapeHtml(c.name || 'Campagna'), `
     <div class="card" style="margin-bottom:12px; border-color:var(--gold-dim)">
       <div class="row-between" style="margin-bottom:6px"><span class="muted">Sei</span><b>${c.role === 'master' ? 'il master' : 'un giocatore'}</b></div>
       <div class="row-between"><span class="muted">Codice d'invito</span><b style="font-family:var(--font-ui); letter-spacing:.1em">${escapeHtml(c.code||'—')}</b></div>
-      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="copyInvite()">📋 Copia il codice</button>
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="copyInvite()">${ic('copia')} Copia il codice</button>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>In comune</span></div>
     <div class="combat-grid">
-      <button class="combat-stat tappable" onclick="closeModal(); goView('grimoire')"><div class="v">${nSp}</div><div class="l">Incantesimi</div></button>
+      <button class="combat-stat tappable" onclick="closeModalAll(); goView('grimoire')"><div class="v">${nSp}</div><div class="l">Incantesimi</div></button>
       <div class="combat-stat"><div class="v">${nHb}</div><div class="l">Aggiunte</div></div>
-      <button class="combat-stat tappable" onclick="closeModal(); goView('dm'); setDmTab('bestiary')"><div class="v">${nNp}</div><div class="l">Creature</div></button>
+      <button class="combat-stat tappable" onclick="closeModalAll(); goView('dm'); setDmTab('bestiary')"><div class="v">${nNp}</div><div class="l">Creature</div></button>
     </div>
     <div class="muted" style="font-size:.73rem; text-align:center; margin:-4px 0 12px">${membri.length} ${membri.length===1?'membro':'membri'} al tavolo</div>
 
@@ -364,18 +364,18 @@ function campaignHTML(){
           return `<button class="switch-row" style="margin-bottom:10px" onclick="apriSincroniaBestiario()">
             <div class="track"><div class="knob" style="${sinc?'transform:translateX(21px)':''}"></div></div>
             <div style="flex:1; text-align:left; font-family:var(--font-ui)">
-              <b style="font-size:.84rem">🔄 Bestiario sincronizzato</b>
+              <b style="font-size:.84rem">${ic('ricarica')} Bestiario sincronizzato</b>
               <div class="muted" style="font-size:.73rem; font-weight:600">${sinc
                 ? 'Ogni creatura che aggiungi o togli va sul tavolo da sola.'
                 : 'Accendila e il tuo bestiario resta sempre uguale a quello del tavolo.'}</div>
             </div>
           </button>`; })()}
-        <button class="btn btn-gold btn-block" ${n?'':'disabled'} onclick="condividiTutto()">⚔️ Condividi tutto${n?' ('+n+')':''}</button>
+        <button class="btn btn-gold btn-block" ${n?'':'disabled'} onclick="condividiTutto()">⚔ Condividi tutto${n?' ('+n+')':''}</button>
         <div class="btn-row" style="margin-top:8px">
           <button class="btn btn-ghost btn-sm" onclick="openCondivisione()">Scegli cosa</button>
           <button class="btn btn-ghost btn-sm" onclick="ritiraTutto()">Ritira tutto</button>
         </div>
-        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="provaCondivisione()">🩺 Non funziona? Provalo</button>
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="provaCondivisione()">${ic('salute')} Non funziona? Provalo</button>
       </div>`; })()}
 
     <div class="divider"><span class="flourish">❧</span><span>Al tavolo</span></div>
@@ -399,8 +399,8 @@ function campaignHTML(){
 
     ${nNp ? `<div class="divider"><span class="flourish">❧</span><span>Creature condivise (${nNp})</span></div>
       <div class="list-gap">${(state.sharedNpcs||[]).slice(0,40).map(np=>`<div class="attack-row">
-        <button class="attack-main" onclick="closeModal(); apriMostroCondiviso('${jsStr(np.id)}')">
-          <div class="attack-name">${escapeHtml(np.avatar||'🐉')} ${escapeHtml(np.name||'')}</div>
+        <button class="attack-main" onclick="closeModalAll(); apriMostroCondiviso('${jsStr(np.id)}')">
+          <div class="attack-name">${escapeHtml(np.avatar||ic('zampa'))} ${escapeHtml(np.name||'')}</div>
           <div class="muted" style="font-size:.72rem">${escapeHtml(np.type||'')}${np.ac!=null?' · CA '+np.ac:''} · da ${escapeHtml(np.sharedByName||'qualcuno')}</div>
         </button>
         ${canUnshare(np) ? `<button class="attack-btn" style="min-width:44px" title="Ritira" onclick="unshareFromCampaign('npcs','${jsStr(np.id)}')">✕</button>` : ''}
@@ -412,14 +412,14 @@ function campaignHTML(){
         const cls = h.classId && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[h.classId] ? CLASS_BY_ID[h.classId].name : '';
         return `<div class="attack-row">
           <div class="attack-main" style="pointer-events:none">
-            <div class="attack-name">${k?k.icon:'📚'} ${escapeHtml(h.name||'')}</div>
+            <div class="attack-name">${k?k.icon:ic('libro')} ${escapeHtml(h.name||'')}</div>
             <div class="muted" style="font-size:.72rem">${k?k.label:h.kind}${cls?' · '+escapeHtml(cls):''} · da ${escapeHtml(h.sharedByName||'qualcuno')}</div>
           </div>
           ${canUnshare(h) ? `<button class="attack-btn" style="min-width:44px" title="Ritira" onclick="unshareFromCampaign('homebrew','${jsStr(h.id)}')">✕</button>` : ''}
         </div>`;
       }).join('')}</div>` : `
       <div class="card" style="margin-top:14px">
-        <div class="muted" style="font-size:.8rem">Nessun archetipo, razza o background in comune. Li metti dal tasto ⚔️ in <b>Opzioni → Contenuti tuoi</b>, oppure appena ne crei uno dalla creazione guidata.</div>
+        <div class="muted" style="font-size:.8rem">Nessun archetipo, razza o background in comune. Li metti dal tasto ⚔ in <b>Opzioni → Contenuti tuoi</b>, oppure appena ne crei uno dalla creazione guidata.</div>
       </div>`}
 
     <button class="btn btn-danger btn-block" style="margin-top:16px" onclick="confirmLeaveCampaign()">Esci dalla campagna</button>`);
@@ -435,7 +435,7 @@ function copyInvite(){
 /* ═══════════════════════════════════════════════════════════════
    Metti in comune col tavolo — in un colpo solo
    Prima ogni incantesimo e ogni aggiunta andavano condivisi uno per
-   uno con il tasto ⚔️: con un manuale intero importato erano centinaia
+   uno con il tasto ⚔: con un manuale intero importato erano centinaia
    di tocchi. Qui si vede tutto insieme e si manda in blocco.
    ═══════════════════════════════════════════════════════════════ */
 
@@ -485,7 +485,7 @@ function condividiTutto(){
      migliaio di creature ogni membro se le scaricherebbe tutte. Va detto
      prima, non scoperto dopo. */
   const tanteBestie = da.npcs.length > 300
-    ? ' ⚠️ Sono tante creature: le scaricherà ogni membro del tavolo. Se ti servono solo alcune, usa «Scegli cosa».'
+    ? ' ⚠ Sono tante creature: le scaricherà ogni membro del tavolo. Se ti servono solo alcune, usa «Scegli cosa».'
     : '';
   confirmDialog('Mettere tutto in comune?',
     'Vanno sul tavolo «' + (state.campaign.name || 'la campagna') + '» ' + pezzi.join(', ') +
@@ -494,7 +494,7 @@ function condividiTutto(){
       let fatti = 0;
       for (const t of COND_TIPI){ if (da[t.kind].length) fatti += await shareToCampaign(t.kind, da[t.kind]); }
       renderModalRoot(); render();
-      toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
+      toast(fatti ? ('⚔ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠ Non è andato niente — apri «Non funziona? Provalo»');
     }, 'Condividi ' + n);
 }
 
@@ -558,7 +558,7 @@ function condivisioneHTML(){
     const on = condScelti.has(k);
     return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':''}"
         ${su ? 'disabled style="opacity:.55; width:100%; text-align:left"' : `onclick="condToggle('${jsStr(k)}')"`}>
-      <span style="flex-shrink:0; margin-right:10px; font-size:1.05rem">${su ? '⚔️' : (on ? '☑️' : '⬜')}</span>
+      <span style="flex-shrink:0; margin-right:10px; font-size:1.05rem">${su ? ic('tavolo') : (on ? '☑' : '⬜')}</span>
       <span class="attack-main">
         <span class="attack-name">${escapeHtml(nome)}</span>
         <span class="muted" style="font-size:.73rem; display:block">${escapeHtml(sotto)}${su ? ' · già sul tavolo' : ''}</span>
@@ -584,7 +584,7 @@ function condivisioneHTML(){
     const cl = x.classId && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[x.classId] ? CLASS_BY_ID[x.classId].name : '';
     return k + (cl ? ' · ' + cl : '');
   };
-  return modalShell('⚔️ Metti in comune', `
+  return modalShell('⚔ Metti in comune', `
     <p class="muted" style="margin-bottom:14px">
       Quello che scegli lo vedono i membri di <b>${escapeHtml(c.name||'la campagna')}</b> nel grimorio
       e nella creazione guidata. Le tue copie restano tue: ritiri quando vuoi.
@@ -592,7 +592,7 @@ function condivisioneHTML(){
     ${sezione('homebrew','Sottoclassi, razze e background', m.homebrew, x=>x.name||'', sottoHb)}
     ${sezione('spells','Incantesimi tuoi', m.spells, nomeSp, sottoSp)}
     ${sezione('npcs','PNG e mostri tuoi', m.npcs, x=>x.name||'', sottoNpc)}
-    ${(!m.homebrew.length && !m.spells.length && !m.npcs.length) ? emptyState('📭','Non hai ancora niente di tuo da mettere in comune. Importa qualcosa dai tuoi manuali e torna qui.') : ''}
+    ${(!m.homebrew.length && !m.spells.length && !m.npcs.length) ? emptyState(ic('vuoto'),'Non hai ancora niente di tuo da mettere in comune. Importa qualcosa dai tuoi manuali e torna qui.') : ''}
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>
       <button class="btn btn-primary" ${n?'':'disabled'} onclick="condividiScelti()">Condividi ${n||''}</button>
@@ -608,7 +608,7 @@ async function condividiScelti(){
   }
   condScelti = null;
   closeModal(); render();
-  toast(fatti ? ('⚔️ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
+  toast(fatti ? ('⚔ ' + fatti + (fatti===1?' cosa in comune col tavolo':' cose in comune col tavolo')) : '⚠ Non è andato niente — apri «Non funziona? Provalo»');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -621,7 +621,7 @@ function apriMostroCondiviso(id){
   const n = (state.sharedNpcs || []).find(x => x && x.id === id);
   if (!n){ toast('Questa creatura non è più sul tavolo'); return; }
   const giaMio = (state.npcs || []).some(x => x.id === id || norm(x.name||'') === norm(n.name||''));
-  openModal({ render: () => modalShell('⚔️ ' + (n.name || 'Creatura'), `
+  openModal({ render: () => modalShell('⚔ ' + (n.name || 'Creatura'), `
     <div class="muted" style="font-style:italic; margin-bottom:10px">
       ${escapeHtml(n.type || '')} · messa in comune da ${escapeHtml(n.sharedByName || 'un membro del tavolo')}
     </div>
@@ -633,9 +633,9 @@ function apriMostroCondiviso(id){
     </div>
     ${n.notes ? `<div class="card" style="margin-bottom:12px"><div class="muted" style="font-size:.82rem; white-space:pre-wrap; line-height:1.6">${escapeHtml(n.notes)}</div></div>` : ''}
     ${giaMio ? `<div class="muted" style="font-size:.78rem; margin-bottom:10px">Ne hai già una tua con questo nome.</div>` : ''}
-    <button class="btn btn-gold btn-block" onclick="closeModal(); addToCombat('${jsStr(n.id)}','npc'); toast('⚔️ ' + ${JSON.stringify(n.name || 'La creatura')} + ' è all\'iniziativa')">⚔️ Metti all'iniziativa</button>
+    <button class="btn btn-gold btn-block" onclick="closeModalAll(); addToCombat('${jsStr(n.id)}','npc'); toast(${JSON.stringify(n.name || 'La creatura')} + ' è all\'iniziativa')">${ic('tavolo')} Metti all'iniziativa</button>
     ${bestiarioSincronizzato()
-      ? `<div class="muted" style="font-size:.78rem; margin-top:10px; text-align:center">🔄 Il tuo bestiario è sincronizzato col tavolo: questa creatura la hai già, non serve copiarla.</div>`
+      ? `<div class="muted" style="font-size:.78rem; margin-top:10px; text-align:center">${ic('ricarica')} Il tuo bestiario è sincronizzato col tavolo: questa creatura la hai già, non serve copiarla.</div>`
       : `<button class="btn btn-primary btn-block" style="margin-top:8px" onclick="copiaMostroDalTavolo('${jsStr(n.id)}')">✦ Copia nel tuo bestiario</button>`}
     ${canUnshare(n) ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="closeModal(); unshareFromCampaign('npcs','${jsStr(n.id)}')">↩︎ Ritira dal tavolo</button>` : ''}
     <div class="spell-source-note">Quella sul tavolo resta di chi ce l'ha messa: la copia che prendi è tua e la modifichi come vuoi.</div>`) });
@@ -653,7 +653,7 @@ function copiaMostroDalTavolo(id, anchePerCombattere){
   closeModal(); render();
   if (anchePerCombattere && typeof addToCombat === 'function'){
     addToCombat(copia.id, 'npc');
-    toast('⚔️ ' + copia.name + ' è nel tuo bestiario e all\'iniziativa');
+    toast('⚔ ' + copia.name + ' è nel tuo bestiario e all\'iniziativa');
   } else toast('🐉 ' + copia.name + ' è nel tuo bestiario');
 }
 /* Condividere quello che il bestiario sta mostrando: con i filtri
@@ -666,12 +666,12 @@ function condividiMostrati(){
   if (!lista.length){ toast('Il tavolo le vede già tutte'); return; }
   confirmDialog('Condividere ' + lista.length + (lista.length===1?' creatura?':' creature?'),
     'Le vedranno i membri di «' + escapeHtml(state.campaign.name || 'la campagna') + '» nel loro bestiario.' +
-    (lista.length > 300 ? ' ⚠️ Sono tante: le scaricherà ognuno di loro.' : '') +
+    (lista.length > 300 ? ' ⚠ Sono tante: le scaricherà ognuno di loro.' : '') +
     ' Puoi ritirarle quando vuoi.',
     async () => {
       const n = await shareToCampaign('npcs', lista);
       render();
-      toast(n ? ('⚔️ ' + n + (n===1?' creatura sul tavolo':' creature sul tavolo')) : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
+      toast(n ? ('⚔ ' + n + (n===1?' creatura sul tavolo':' creature sul tavolo')) : '⚠ Non è andato niente — apri «Non funziona? Provalo»');
     }, 'Condividi ' + lista.length);
 }
 /* Una creatura sola, dalla sua scheda. */
@@ -679,7 +679,7 @@ async function shareOneNpc(id){
   const n = (state.npcs||[]).find(x => x.id === id);
   if (!n) return;
   const fatti = await shareToCampaign('npcs', [n]);
-  if (fatti) toast('⚔️ ' + (n.name||'La creatura') + ' è ora del tavolo');
+  if (fatti) toast('⚔ ' + (n.name||'La creatura') + ' è ora del tavolo');
   renderModalRoot(); render();
 }
 
@@ -705,7 +705,7 @@ function apriSincroniaBestiario(){
   confirmDialog('Sincronizzare il bestiario col tavolo?',
     'Da adesso ogni creatura che aggiungi, modifichi o elimini va sul tavolo da sola, senza chiedertelo.' +
     (mancano ? ' Per cominciare ne salgono ' + mancano + '.' : '') +
-    (mancano > 300 ? ' ⚠️ Sono tante: ogni membro del tavolo se le scaricherà.' : '') +
+    (mancano > 300 ? ' ⚠ Sono tante: ogni membro del tavolo se le scaricherà.' : '') +
     ' Puoi spegnerla quando vuoi.',
     () => accendiSincroniaBestiario(), 'Sincronizza');
 }
@@ -718,7 +718,7 @@ async function accendiSincroniaBestiario(){
   toast('🔄 Mando ' + mancano.length + (mancano.length===1?' creatura…':' creature…'));
   const n = await shareToCampaign('npcs', mancano);
   render();
-  toast(n ? ('🔄 Bestiario sincronizzato · ' + n + ' sul tavolo') : '⚠️ Non è andato niente — apri «Non funziona? Provalo»');
+  toast(n ? ('🔄 Bestiario sincronizzato · ' + n + ' sul tavolo') : '⚠ Non è andato niente — apri «Non funziona? Provalo»');
 }
 function spegniSincroniaBestiario(){
   const mie = (state.sharedNpcs || []).filter(canUnshare);

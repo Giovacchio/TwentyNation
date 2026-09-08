@@ -152,7 +152,7 @@ const SUPPLICHE_SRD = [
 /* ─── Incantesimi che arrivano dalla sottoclasse ──────────────────
    Per regola sono SEMPRE preparati e NON contano nel numero che puoi
    preparare. Chiave = livello di classe da cui li hai.
-   Solo sottoclassi SRD; le tue le configuri con l'ingranaggio ⚙️.
+   Solo sottoclassi SRD; le tue le configuri con l'ingranaggio ⚙.
    ──────────────────────────────────────────────────────────────── */
 const SPELL_SOTTOCLASSE = {
   /* Chierico — Dominio della Vita */

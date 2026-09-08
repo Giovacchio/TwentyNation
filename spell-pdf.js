@@ -371,7 +371,7 @@ function spellPdfHTML(){
       tempo di lancio, gittata, componenti, durata e testo, e te li propone.
       Finiscono fra i <b>tuoi</b> incantesimi, sul tuo account.
     </p>
-    <button class="btn btn-gold btn-block" onclick="document.getElementById('spell-pdf-file').click()">📂 ${s.buffer ? 'Cambia PDF' : 'Scegli il PDF'}</button>
+    <button class="btn btn-gold btn-block" onclick="document.getElementById('spell-pdf-file').click()">${ic('cartella')} ${s.buffer ? 'Cambia PDF' : 'Scegli il PDF'}</button>
     <input type="file" id="spell-pdf-file" accept="application/pdf,.pdf" style="display:none" onchange="spellPdfChoose(this)">
     ${s.buffer ? `
       <div class="card" style="margin-top:12px">
@@ -385,7 +385,7 @@ function spellPdfHTML(){
           <input type="number" inputmode="numeric" min="1" max="${s.pages}" value="${s.to||s.pages}" oninput="spdf.to=clamp(parseInt(this.value)||${s.pages},1,${s.pages})"></div>
       </div>
       <div class="field-hint" style="margin-bottom:12px">Lascia tutto per leggere l'intero PDF. Su file lunghi ci mette qualche secondo.</div>
-      <button class="btn btn-primary btn-block" ${s.busy?'disabled':''} onclick="spellPdfRun()">${s.busy ? '⏳ Sto leggendo…' : '🔍 Leggi gli incantesimi'}</button>
+      <button class="btn btn-primary btn-block" ${s.busy?'disabled':''} onclick="spellPdfRun()">${s.busy ? '⏳ Sto leggendo…' : ic('cerca') + ' Leggi gli incantesimi'}</button>
     ` : ''}
     ${s.found ? `<div class="card" style="margin-top:12px; border-color:var(--good)">
       <div class="row-between"><span class="muted">Riconosciuti</span><b style="color:var(--good)">${s.found}</b></div>
@@ -417,10 +417,10 @@ function spellPdfUseFile(file){
       renderModalRoot();
     } catch(e){
       console.error(e);
-      toast('⚠️ Non riesco ad aprire questo PDF');
+      toast('⚠ Non riesco ad aprire questo PDF');
     }
   };
-  reader.onerror = () => toast('⚠️ Impossibile leggere il file');
+  reader.onerror = () => toast('⚠ Impossibile leggere il file');
   reader.readAsArrayBuffer(file);
 }
 async function spellPdfRun(){
@@ -433,7 +433,7 @@ async function spellPdfRun(){
     spdf.busy = false;
     if (!spells.length){
       spdf.found = 0; renderModalRoot();
-      toast('⚠️ Nessun incantesimo riconosciuto: prova a restringere le pagine');
+      toast('⚠ Nessun incantesimo riconosciuto: prova a restringere le pagine');
       return;
     }
     spdf.found = spells.length;
@@ -448,6 +448,6 @@ async function spellPdfRun(){
   } catch(e){
     console.error('Lettura PDF fallita', e);
     spdf.busy = false; renderModalRoot();
-    toast('⚠️ Lettura non riuscita');
+    toast('⚠ Lettura non riuscita');
   }
 }

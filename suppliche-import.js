@@ -26,7 +26,7 @@ function importSupplicheHTML(){
       </p>
       <input type="file" id="supp-file" accept="application/pdf,.pdf,.txt,.md,text/plain" style="display:none"
              onchange="suppUsaFile(this)">
-      <button class="btn btn-primary btn-block" onclick="document.getElementById('supp-file').click()">📄 Scegli un PDF o un testo</button>
+      <button class="btn btn-primary btn-block" onclick="document.getElementById('supp-file').click()">${ic('foglio')} Scegli un PDF o un testo</button>
       <div class="divider"><span class="flourish">❧</span><span>oppure incolla</span></div>
       <div class="field">
         <textarea id="supp-testo" rows="7" placeholder="Nome della supplica&#10;Prerequisito: 5° livello, patto della lama&#10;Quello che fa…"
@@ -39,20 +39,20 @@ function importSupplicheHTML(){
         <div class="row-between" style="margin-top:4px"><span>Da tenere</span><b>${tenute}</b></div>
       </div>
       <p class="muted" style="font-size:.76rem; margin-bottom:10px">
-        Controlla quello che ho capito. L'effetto proposto lo puoi cambiare con ⚙️.
+        Controlla quello che ho capito. L'effetto proposto lo puoi cambiare con ⚙.
       </p>
       ${d.voci.map((v, i) => `<div class="attack-row" style="display:block; margin-bottom:8px; ${v.tenere?'':'opacity:.5'}">
         <div class="row-between" style="margin-bottom:4px">
           <b>${escapeHtml(v.nome)}</b>
           <span style="display:flex; gap:6px">
-            <button class="btn btn-sm btn-ghost" onclick="suppEffetto(${i})">⚙️</button>
+            <button class="btn btn-sm btn-ghost" onclick="suppEffetto(${i})">⚙</button>
             <button class="btn btn-sm ${v.tenere?'btn-gold':'btn-ghost'}" onclick="suppTieni(${i})">${v.tenere?'Tengo':'Salto'}</button>
           </span>
         </div>
         ${v.req && (v.req.livello || v.req.patto || v.req.trucchetto) ? `<div class="muted" style="font-size:.71rem">Richiede: ${escapeHtml(descriviReq(v.req))}</div>` : ''}
         <div class="muted" style="font-size:.75rem; margin-top:3px">${escapeHtml((v.testo||'').slice(0,190))}${(v.testo||'').length>190?'…':''}</div>
         <div class="muted" style="font-size:.71rem; margin-top:4px; color:var(--gold-dim)">
-          ⚙️ ${escapeHtml(descriviEffetti(v.effetti))}
+          ⚙ ${escapeHtml(descriviEffetti(v.effetti))}
         </div>
       </div>`).join('')}
       <button class="btn btn-primary btn-block" onclick="suppSalva()">Aggiungi ${tenute} ${tenute===1?'supplica':'suppliche'}</button>
@@ -327,7 +327,7 @@ function suppLeggiTesto(){
 }
 function suppAnalizza(testo){
   const grezze = suppSpezza(testo);
-  if (!grezze.length){ toast('⚠️ Non ho riconosciuto nessuna supplica in questo testo'); return; }
+  if (!grezze.length){ toast('⚠ Non ho riconosciuto nessuna supplica in questo testo'); return; }
   suppApplica(grezze, 'testo');
 }
 function suppApplica(grezze, come){
@@ -373,7 +373,7 @@ async function suppUsaFile(input){
     }
   } catch(e){
     console.error('Lettura suppliche non riuscita', e);
-    toast('⚠️ Non sono riuscito a leggere il file');
+    toast('⚠ Non sono riuscito a leggere il file');
   }
 }
 /* ARCHIVIATA: raggruppava i pezzi per coordinata Y su TUTTA la pagina,
@@ -395,7 +395,7 @@ function suppSalva(){
   nuove.forEach(s => state.suppliche.push(s));
   saveLocalOra();
   if (typeof fsSetMany === 'function') fsSetMany('suppliche', nuove);
-  toast('🕯️ ' + nuove.length + ' ' + (nuove.length===1?'supplica aggiunta':'suppliche aggiunte'));
+  toast('🕯 ' + nuove.length + ' ' + (nuove.length===1?'supplica aggiunta':'suppliche aggiunte'));
   const per = suppDraft.per;
   suppDraft = null;
   if (per) apriSuppliche(per); else closeModal();
@@ -419,7 +419,7 @@ function suppEffettoHTML(i){
     ['senso','Ti fa vedere qualcosa'],
     ['nota','Solo un promemoria in scheda'],
   ];
-  return modalShell('⚙️ ' + v.nome, `
+  return modalShell('⚙ ' + v.nome, `
     <div class="field"><label>Che tipo di effetto è</label>
       <select onchange="suppEffTipo(${i}, this.value)">
         ${TIPI.map(([k,l])=>`<option value="${k}" ${e.tipo===k?'selected':''}>${l}</option>`).join('')}
@@ -430,7 +430,7 @@ function suppEffettoHTML(i){
         <input value="${attr(e.id||'')}" placeholder="es. mage-armor"
                oninput="suppEffCampo(${i},'id',this.value)">
         <div class="muted" style="font-size:.72rem; margin-top:4px">
-          ${(()=>{ const s = spellByRef({id:e.id,source:'srd'}); return s ? '✓ ' + escapeHtml(spellName(s)) : '⚠️ nessun incantesimo con questo nome'; })()}
+          ${(()=>{ const s = spellByRef({id:e.id,source:'srd'}); return s ? '✓ ' + escapeHtml(spellName(s)) : '⚠ nessun incantesimo con questo nome'; })()}
         </div>
       </div>
       <div class="field"><label>Quando puoi lanciarlo</label>

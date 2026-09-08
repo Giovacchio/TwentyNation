@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '9.1';
+const APP_VERSION = '9.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -275,7 +275,7 @@ function toggleKeepAwake(){
   state.keepAwake = !state.keepAwake;
   localStorage.setItem('grimorio-awake', state.keepAwake ? '1' : '0');
   applyWakeLock(); render();
-  toast(state.keepAwake ? '☀️ Lo schermo resta acceso' : '🌙 Lo schermo si spegne come al solito');
+  toast(state.keepAwake ? '☀ Lo schermo resta acceso' : '🌙 Lo schermo si spegne come al solito');
 }
 function toggleHaptics(){
   state.haptics = !state.haptics;
@@ -403,7 +403,7 @@ function avatarHTML(e, size, extra){
   if (e && e.portrait){
     return `<span class="${cls} portrait" style="width:${s}px;height:${s}px"><img src="${attr(e.portrait)}" alt=""></span>`;
   }
-  return `<span class="${cls}" style="width:${s}px;height:${s}px;font-size:${Math.round(s*0.44)}px">${(e && e.avatar) || '⚔️'}</span>`;
+  return `<span class="${cls}" style="width:${s}px;height:${s}px;font-size:${Math.round(s*0.44)}px">${(e && e.avatar) || '⚔'}</span>`;
 }
 /* Il ritratto si conserva intero. Prima veniva ritagliato a quadrato
    dal centro appena caricato: nella pastiglia tonda non si notava, ma
@@ -457,11 +457,11 @@ function choosePortrait(onDone){
   input.onchange = async () => {
     const f = input.files && input.files[0];
     if (!f) return;
-    if (f.size > 20*1024*1024){ toast('⚠️ Immagine troppo grande (oltre 20 MB)'); return; }
+    if (f.size > 20*1024*1024){ toast('⚠ Immagine troppo grande (oltre 20 MB)'); return; }
     try {
       const url = await resizeImageFile(f, 480);
       onDone(url);
-    } catch(e){ console.error(e); toast('⚠️ Non sono riuscito a leggere l\'immagine'); }
+    } catch(e){ console.error(e); toast('⚠ Non sono riuscito a leggere l\'immagine'); }
   };
   input.click();
 }
@@ -482,6 +482,7 @@ const state = {
   campaign: null, sharedSpells: [], sharedHomebrew: [], sharedParty: [], sharedSuppliche: [],
   suppliche: [], suppQ: '',
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
+  partyVista: localStorage.getItem('grimorio-party-vista') || 'carte',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
   keepAwake: localStorage.getItem('grimorio-awake') === '1',
   caricoVariante: localStorage.getItem('grimorio-carico') === '1',
@@ -493,6 +494,7 @@ const state = {
   grimoireMode: 'browse',
   grimoirePickFor: null,
   grimoireFilter: { q: '', level: 'all', clas: 'all', tratto: 'all' },
+  grimoireFiltriAperti: false,
   knownFilter: 'all',
   knownQ: '',
   bestiarioQ: '', bestiarioGs: '', combatCercaQ: '',
@@ -613,7 +615,7 @@ function saveLocalOra(){
   } catch(e){
     __ultimoTestoLocale = null;        // non si sa piu' cosa c'e' scritto
     console.warn('Impossibile salvare in locale', e);
-    toast('⚠️ Memoria del dispositivo piena: libera spazio');
+    toast('⚠ Memoria del dispositivo piena: libera spazio');
     return false;
   }
 }
@@ -722,7 +724,7 @@ function mergeCollection(localArr, remoteArr, collection, completo){
                    daTogliere.length + ' voci su ' + totale);
       if (!__frenoAvvisato){
         __frenoAvvisato = true;
-        setTimeout(() => toast('🛡️ Ho ignorato un aggiornamento che avrebbe cancellato molte cose'), 800);
+        setTimeout(() => toast('🛡 Ho ignorato un aggiornamento che avrebbe cancellato molte cose'), 800);
       }
     }
   }
@@ -814,7 +816,7 @@ async function uploadUnsynced(name, remote){
     }
     saveLocal(); setSaveStatus('saved');
     const n = orfani.length;
-    toast('☁️ ' + n + (n === 1 ? ' modifica fatta offline è ora sul tuo account' : ' modifiche fatte offline sono ora sul tuo account'));
+    toast('☁ ' + n + (n === 1 ? ' modifica fatta offline è ora sul tuo account' : ' modifiche fatte offline sono ora sul tuo account'));
   } catch(e){
     console.error('Risalita non riuscita per ' + name, e);
     setSaveStatus('offline'); // restano senza bollo: riproveremo al prossimo collegamento
@@ -888,7 +890,7 @@ async function fsSet(collection, obj){
     const codice = (e && (e.code || e.message)) || '';
     if (/invalid|nested|argument|permission/i.test(codice) && !__avvisoRifiuto){
       __avvisoRifiuto = true;
-      toast('⚠️ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
+      toast('⚠ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
     }
     // il bollo non è stato messo: la copia locale deve dirlo, o al
     // prossimo collegamento questa modifica non risale
@@ -921,7 +923,7 @@ async function fsDeleteMany(collection, ids){
   } catch(e){
     console.error('Eliminazione in blocco non riuscita', e);
     setSaveStatus('offline');
-    toast('⚠️ Alcune eliminazioni non sono arrivate al tuo account');
+    toast('⚠ Alcune eliminazioni non sono arrivate al tuo account');
   }
 }
 async function fsDelete(collection, id){
@@ -929,7 +931,7 @@ async function fsDelete(collection, id){
   if (typeof rispecchiaTavoloElimina === 'function') rispecchiaTavoloElimina(collection, id);
   if (!currentUser || !firebaseReady) return;
   try { await userCol(collection).doc(id).delete(); }
-  catch(e){ console.error('Errore eliminazione', e); toast('⚠️ Eliminazione non sincronizzata'); }
+  catch(e){ console.error('Errore eliminazione', e); toast('⚠ Eliminazione non sincronizzata'); }
 }
 
 /* Salvataggio in blocco. Aggiungendo tanta roba insieme (un bestiario
@@ -979,7 +981,7 @@ async function fsSetMany(collection, oggetti, avanzamento){
     const codice = (e && (e.code || e.message)) || '';
     if (/invalid|nested|argument|permission/i.test(codice) && !__avvisoRifiuto){
       __avvisoRifiuto = true;
-      toast('⚠️ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
+      toast('⚠ Il server ha rifiutato un salvataggio: apri Opzioni → Diagnostica accesso');
     } else if (fatti < lista.length){
       toast('📴 ' + fatti + ' di ' + lista.length + ' sincronizzati: il resto sale al prossimo collegamento');
     }
@@ -1244,10 +1246,10 @@ function authDiagnosticsHTML(){
     ['Dominio', location.hostname || '(file locale)'],
     ['Dominio Firebase', FIREBASE_CONFIG.authDomain],
     ['Modalità', isStandalonePWA() ? 'app installata' : 'browser'],
-    ['Browser dentro un\'altra app', isInAppBrowser() ? '⚠️ sì' : 'no'],
-    ['Cookie', navigator.cookieEnabled ? 'ok' : '⚠️ bloccati'],
-    ['Archiviazione locale', storageOk() ? 'ok' : '⚠️ bloccata'],
-    ['Libreria Firebase', firebaseReady ? 'caricata' : '⚠️ non caricata'],
+    ['Browser dentro un\'altra app', isInAppBrowser() ? '⚠ sì' : 'no'],
+    ['Cookie', navigator.cookieEnabled ? 'ok' : '⚠ bloccati'],
+    ['Archiviazione locale', storageOk() ? 'ok' : '⚠ bloccata'],
+    ['Libreria Firebase', firebaseReady ? 'caricata' : '⚠ non caricata'],
     ['Metodo in uso', (localStorage.getItem('grimorio-auth-method') || 'popup') === 'redirect' ? 'reindirizzamento' : 'finestra popup'],
   ];
   if (__lastAuthError) rows.push(['Ultimo errore', __lastAuthError.code + ' (' + __lastAuthError.at + ')']);
@@ -1265,7 +1267,7 @@ function authDiagnosticsHTML(){
       <button class="btn btn-primary btn-block" onclick="closeModalAll(); signIn('popup')">Accedi con la finestra popup</button>
       <button class="btn btn-ghost btn-block" onclick="closeModalAll(); signIn('redirect')">Accedi con il reindirizzamento</button>
       <button class="btn btn-ghost btn-block" onclick="copyDiagnostics()">Copia questi dati</button>
-      <button class="btn btn-ghost btn-block" onclick="forceAppUpdate()">🔄 Forza aggiornamento dell'app</button>
+      <button class="btn btn-ghost btn-block" onclick="forceAppUpdate()">${ic('ricarica')} Forza aggiornamento dell'app</button>
     </div>
     <div class="spell-source-note">
       Se l'accesso non riesce da telefono: prova prima la finestra popup; se il browser la blocca, usa il reindirizzamento.
@@ -1465,7 +1467,7 @@ function migrateCharacter(c){
    tenerne conto e' qui, una volta sola: da qui passano tutti. */
 /* I sensi: quelli scritti in scheda PIÙ quelli che una supplica
    regala. L'effetto «senso» esisteva, si poteva perfino configurare
-   col ⚙️, e poi non arrivava da nessuna parte: né in scheda né sui due
+   col ⚙, e poi non arrivava da nessuna parte: né in scheda né sui due
    PDF. Come per le competenze, il calcolo passa da qui, una volta sola. */
 function sensiDi(c){
   const parti = [];
@@ -1709,12 +1711,12 @@ function toggleTheme(){
 
 function loaderHTML(){ return `<div id="loader"><div class="rune-load"></div><p>TwentyNation si sta aprendo…</p></div>`; }
 function emptyState(icon, text){ return `<div class="empty-state"><div class="ic">${icon}</div><p>${escapeHtml(text)}</p></div>`; }
-function themeToggleBtn(){ return `<button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema" title="Cambia tema">${state.theme==='dark'?'🌙':'☀️'}</button>`; }
+function themeToggleBtn(){ return `<button class="btn-icon" onclick="toggleTheme()" aria-label="Cambia tema" title="Cambia tema">${state.theme==='dark'?ic('luna'):ic('sole')}</button>`; }
 
 function offlineBannerHTML(){
   if (currentUser) return '';
-  if (!firebaseReady) return `<div class="offline-banner">📴 Modalità locale — i dati restano qui.</div>`;
-  return `<div class="offline-banner">📴 Modalità locale — <button onclick="signIn()">accedi</button> per sincronizzare.</div>`;
+  if (!firebaseReady) return `<div class="offline-banner">${ic('offline')} Modalità locale — i dati restano qui.</div>`;
+  return `<div class="offline-banner">${ic('offline')} Modalità locale — <button onclick="signIn()">accedi</button> per sincronizzare.</div>`;
 }
 
 function authScreenHTML(){
@@ -1735,17 +1737,17 @@ function continueOffline(){ state.offlineMode = true; localStorage.setItem('grim
 
 function bottomNavHTML(){
   const items = [
-    {v:'party', ic:'🎭', label:'Party'},
-    {v:'grimoire', ic:'📖', label:'Grimorio'},
-    {v:'dm', ic:'⚔️', label:'Tavolo'},
-    {v:'settings', ic:'⚙️', label:'Opzioni'},
+    {v:'party', ic:'party', label:'Party'},
+    {v:'grimoire', ic:'grimorio', label:'Grimorio'},
+    {v:'dm', ic:'tavolo', label:'Tavolo'},
+    {v:'settings', ic:'opzioni', label:'Opzioni'},
   ];
   const active = state.view === 'sheet' ? 'party' : state.view;
   return `<nav class="bottomnav"><div class="bottomnav-inner">
-    ${items.map(i=>`<button class="nav-btn ${active===i.v?'active':''}" onclick="goView('${i.v}')" aria-label="${i.label}"><span class="ic">${i.ic}</span>${i.label}</button>`).join('')}
+    ${items.map(i=>`<button class="nav-btn ${active===i.v?'active':''}" onclick="goView('${i.v}')" aria-label="${i.label}">${ic(i.ic)}${i.label}</button>`).join('')}
   </div></nav>`;
 }
-function fabHTML(){ return `<button class="fab" onclick="openDiceRoller()" aria-label="Tira i dadi" title="Tira i dadi">🎲</button>`; }
+function fabHTML(){ return `<button class="fab" onclick="openDiceRoller()" aria-label="Tira i dadi" title="Tira i dadi">${ic('dado')}</button>`; }
 
 // Le note lunghe (privilegi, tratti, storia) non devono stare in una
 // finestrella da tre righe: l'area di testo si adatta al contenuto.
@@ -2019,21 +2021,32 @@ function renderParty(){
   return `
     <div class="hero">
       <div class="hero-actions">
-        <button class="btn-icon" onclick="openGlobalSearch()" aria-label="Cerca ovunque" title="Cerca ovunque">🔍</button>
+        <button class="btn-icon" onclick="openGlobalSearch()" aria-label="Cerca ovunque" title="Cerca ovunque">${ic('cerca')}</button>
         ${themeToggleBtn()}
       </div>
       <h1>TwentyNation</h1>
       <div class="rule">❖</div>
       <div class="sub">La tua compagnia</div>
     </div>
+    ${/* Le carte grandi sono bellissime con due personaggi e diventano
+         un rullo con sei. La densità la sceglie chi gioca, e la scelta
+         resta anche dopo aver chiuso l'app. */''}
+    ${chars.length > 1 ? `<div class="vista-riga">
+      <span class="vista-conta">${chars.length} ${pluralize(chars.length,'personaggio','personaggi')}</span>
+      <div class="segmented segmented-mini">
+        <button class="${state.partyVista!=='elenco'?'active':''}" onclick="setPartyVista('carte')" aria-label="Carte grandi" title="Carte grandi">${ic('griglia')}</button>
+        <button class="${state.partyVista==='elenco'?'active':''}" onclick="setPartyVista('elenco')" aria-label="Elenco compatto" title="Elenco compatto">${ic('elenco')}</button>
+      </div>
+    </div>` : ''}
     ${chars.length
-      ? `<div class="stagger list-gap party-grid">${chars.map(charCardHTML).join('')}</div>`
-      : emptyState('🎭','Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
-    ${chars.length ? `<button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openTurno('${chars[0].id}')">⚔️ Il tuo turno</button>` : ''}
+      ? `<div class="stagger list-gap ${state.partyVista==='elenco'&&chars.length>1?'party-elenco':'party-grid'}">${
+          chars.map(state.partyVista==='elenco'&&chars.length>1 ? charCardCompattaHTML : charCardHTML).join('')}</div>`
+      : emptyState(ic('party'),'Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
+    ${chars.length ? `<button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openTurno('${chars[0].id}')">⚔ Il tuo turno</button>` : ''}
     <button class="btn btn-primary btn-block" style="margin-top:${chars.length?'10px':'16px'}" onclick="openBuilder()">✦ Crea personaggio guidato</button>
     <div class="btn-row" style="margin-top:10px">
-      <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">✎ Scheda vuota</button>
-      <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">⇪ Importa PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">${ic('penna')} Scheda vuota</button>
+      <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">${ic('carica')} Importa PDF</button>
     </div>
     ${campaignCardHTML()}
     ${(typeof compagniCampagnaHTML === 'function') ? compagniCampagnaHTML() : ''}
@@ -2049,7 +2062,7 @@ function campaignCardHTML(){
     return `<div class="card" style="margin-top:16px; border-color:var(--gold-dim)">
       <button class="attack-row" style="width:100%; text-align:left; background:none; border:0; padding:0"
               onclick="openCampaign()">
-        <span style="flex-shrink:0; margin-right:11px; font-size:1.2rem">⚔️</span>
+        <span style="flex-shrink:0; margin-right:11px; font-size:1.2rem">${ic('tavolo')}</span>
         <span class="attack-main">
           <span class="attack-name">${escapeHtml(c.name || 'La tua campagna')}</span>
           <span class="muted" style="font-size:.73rem; display:block">
@@ -2060,7 +2073,7 @@ function campaignCardHTML(){
       </button>
     </div>`;
   }
-  return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:16px" onclick="openCampaign()">⚔️ Entra in una campagna</button>`;
+  return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:16px" onclick="openCampaign()">${ic('tavolo')} Entra in una campagna</button>`;
 }
 /* La carta del personaggio nella schermata iniziale. È la prima cosa
    che si vede aprendo l'app, e per mesi è stata una riga con una
@@ -2074,11 +2087,11 @@ function charCardHTML(c){
                  c.race ? escapeHtml(c.race) : ''].filter(Boolean).join(' · ');
   // due segni che in gioco contano, leggibili senza aprire nulla
   const segni = [];
-  if (c.concentration) segni.push('<span class="hero-card-segno" title="Sta concentrando">🌀</span>');
+  if (c.concentration) segni.push(`<span class="hero-card-segno" title="Sta concentrando">${ic('concentra')}</span>`);
   if ((c.conditions || []).length) segni.push('<span class="hero-card-segno" title="' +
     attr((c.conditions||[]).map(x => (typeof x === 'string' ? x : x.name || '')).filter(Boolean).join(', ')) +
-    '">⚠️ ' + c.conditions.length + '</span>');
-  if (c.activeForm) segni.push('<span class="hero-card-segno" title="In forma selvatica">🐾</span>');
+    '">⚠ ' + c.conditions.length + '</span>');
+  if (c.activeForm) segni.push(`<span class="hero-card-segno" title="In forma selvatica">${ic('zampa')}</span>`);
 
   return `
     <button class="hero-card" onclick="openSheet('${c.id}')" aria-label="Apri la scheda di ${attr(c.name||'questo personaggio')}">
@@ -2086,7 +2099,7 @@ function charCardHTML(c){
         ${c.portrait
           ? `<img class="hero-card-sfondo" src="${attr(c.portrait)}" alt="" aria-hidden="true">
              <img class="hero-card-img" src="${attr(c.portrait)}" alt="">`
-          : `<div class="hero-card-glifo">${escapeHtml(c.avatar || '⚔️')}</div>`}
+          : `<div class="hero-card-glifo">${escapeHtml(c.avatar || '⚔')}</div>`}
         <div class="hero-card-velo"></div>
         ${segni.length ? `<div class="hero-card-segni">${segni.join('')}</div>` : ''}
         <div class="hero-card-livello">LIV ${c.level || 1}</div>
@@ -2101,6 +2114,43 @@ function charCardHTML(c){
       </div>
     </button>
   `;
+}
+
+function setPartyVista(v){
+  state.partyVista = v;
+  try { localStorage.setItem('grimorio-party-vista', v); } catch(e){}
+  render();
+}
+/* La stessa carta, ma alta un quinto: ritratto in miniatura, nome,
+   riga di sotto e la barra dei PF. Stessi dati, stesso tocco. */
+function charCardCompattaHTML(c){
+  const pct = hpPctFor(c);
+  const pf = (c.hp && c.hp.max) ? ((c.hp.current ?? 0) + '/' + c.hp.max) : '';
+  const sotto = [escapeHtml(c.classField || 'Avventuriero') + ' · Lv ' + (c.level || 1),
+                 c.race ? escapeHtml(c.race) : ''].filter(Boolean).join(' · ');
+  const segni = [];
+  if (c.concentration) segni.push(`<span class="hero-card-segno" title="Sta concentrando">${ic('concentra')}</span>`);
+  if ((c.conditions || []).length) segni.push('<span class="hero-card-segno" title="' +
+    attr((c.conditions||[]).map(x => (typeof x === 'string' ? x : x.name || '')).filter(Boolean).join(', ')) +
+    '">⚠ ' + c.conditions.length + '</span>');
+  if (c.activeForm) segni.push(`<span class="hero-card-segno" title="In forma selvatica">${ic('zampa')}</span>`);
+  return `<button class="hero-card compatta" onclick="openSheet('${c.id}')" aria-label="Apri la scheda di ${attr(c.name||'questo personaggio')}">
+    <div class="hc-mini">${c.portrait
+      ? `<img src="${attr(c.portrait)}" alt="">`
+      : `<div class="hc-mini-glifo">${escapeHtml(c.avatar || '⚔')}</div>`}</div>
+    <div class="hc-corpo">
+      <div class="hc-riga1">
+        <span class="hc-nome">${escapeHtml(c.name || 'Senza nome')}</span>
+        ${segni.length ? `<span class="hc-segni">${segni.join('')}</span>` : ''}
+      </div>
+      <div class="hc-sotto">${sotto}</div>
+      <div class="hp-mini"><div class="hp-mini-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
+    </div>
+    <div class="hc-coda">
+      ${pf ? `<span class="hc-pf">${pf}</span>` : ''}
+      <span class="char-card-chevron">›</span>
+    </div>
+  </button>`;
 }
 
 /* ─── 12. CREAZIONE / MODIFICA PERSONAGGIO ─── */
@@ -2227,7 +2277,7 @@ function characterFormHTML(isEdit){
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
           ${avatarHTML(d, 64)}
           <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
-            <button class="btn btn-ghost btn-sm" onclick="choosePortrait(setDraftPortrait)">📷 ${d.portrait?'Cambia foto':'Carica una foto'}</button>
+            <button class="btn btn-ghost btn-sm" onclick="choosePortrait(setDraftPortrait)">${ic('foto')} ${d.portrait?'Cambia foto':'Carica una foto'}</button>
             ${d.portrait?`<button class="btn btn-ghost btn-sm" onclick="setDraftPortrait(null)">Togli la foto</button>`:''}
           </div>
         </div>
@@ -2455,8 +2505,8 @@ function renderCharacterSheet(){
         <div class="topbar-sub">${escapeHtml(c.classField||'Avventuriero')} · Lv ${c.level||1}${c.race?(' · '+escapeHtml(c.race)):''}</div>
       </button>
       <div class="topbar-actions">
-        <button class="btn-icon" onclick="openTurno('${c.id}')" aria-label="Il tuo turno" title="Il tuo turno">⚔️</button>
-        <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">🏕️</button>
+        <button class="btn-icon" onclick="openTurno('${c.id}')" aria-label="Il tuo turno" title="Il tuo turno">${ic('tavolo')}</button>
+        <button class="btn-icon" onclick="openRestModal('${c.id}')" aria-label="Riposo" title="Riposo">${ic('tenda')}</button>
         <button class="btn-icon" onclick="openSheetMenu('${c.id}')" aria-label="Altre azioni" title="Altre azioni">⋯</button>
       </div>
     </div>
@@ -2487,7 +2537,7 @@ function renderSheetOverview(c){
       <div class="hp-block">
         <div class="hp-block-top">
           <div><span class="hp-num" id="hp-current">${cur}</span> <span class="hp-max" id="hp-max-lbl">/ ${max} PF</span>${
-            pfDimezzati ? `<span class="badge" style="margin-left:6px" title="Sfinimento ${c.exhaustion}: massimo dimezzato">💀 era ${maxBase}</span>` : ''}</div>
+            pfDimezzati ? `<span class="badge" style="margin-left:6px" title="Sfinimento ${c.exhaustion}: massimo dimezzato">${ic('teschio')} era ${maxBase}</span>` : ''}</div>
           ${getPath(c,'hp.temp',0) ? `<span class="badge arcane">+${getPath(c,'hp.temp',0)} temp.</span>` : ''}
         </div>
         <div class="hp-bar-lg"><div class="hp-bar-lg-fill ${pct<=25?'low':''}" id="hp-bar-fill" style="width:${pct}%"></div></div>
@@ -2514,19 +2564,19 @@ function renderSheetOverview(c){
             <span class="ds-label" style="color:var(--garnet-bright)">Fallimenti</span>
           </div>
         </div>
-        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="rollDeathSave('${c.id}')">💀 Tiro salvezza contro morte</button>
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="rollDeathSave('${c.id}')">${ic('teschio')} Tiro salvezza contro morte</button>
         ` : ''}
       </div>
 
       <div class="combat-grid" style="margin-top:10px">
         <div class="combat-stat"><input type="number" inputmode="numeric" class="v" value="${c.ac??10}" aria-label="Classe Armatura" oninput="updateCharField('${c.id}','ac',parseInt(this.value)||0)"><div class="l">CA</div></div>
         <div class="combat-stat"><input type="number" inputmode="numeric" class="v" id="cs-init" value="${c.initiative ?? mod(getPath(c,'abilities.dex',10))}" aria-label="Iniziativa" oninput="updateCharField('${c.id}','initiative',parseInt(this.value)||0)"><div class="l">Iniziativa</div></div>
-        <button class="combat-stat tappable" onclick="rollInitiative('${c.id}')"><div class="v">🎲</div><div class="l">Tira iniziativa</div></button>
+        <button class="combat-stat azione tappable" onclick="rollInitiative('${c.id}')">${ic('dado')}<div class="l">Tira iniziativa</div></button>
       </div>
 
       <div class="status-row">
-        <button class="status-chip ${c.inspiration?'on':''}" onclick="toggleInspiration('${c.id}')" title="Ispirazione">✨ Ispirazione</button>
-        <button class="status-chip ${c.exhaustion?'warn':''}" onclick="apriSfinimento('${c.id}')" title="Cosa comporta, e come cambiarlo">💀 Sfinimento ${c.exhaustion||0}${
+        <button class="status-chip ${c.inspiration?'on':''}" onclick="toggleInspiration('${c.id}')" title="Ispirazione">${ic('incantesimo')} Ispirazione</button>
+        <button class="status-chip ${c.exhaustion?'warn':''}" onclick="apriSfinimento('${c.id}')" title="Cosa comporta, e come cambiarlo">${ic('teschio')} Sfinimento ${c.exhaustion||0}${
           c.exhaustion ? ' · ' + escapeHtml(SFINIMENTO[c.exhaustion].testo.replace(/\.$/,'').toLowerCase()) : ''}</button>
       </div>
       ${conditionsRowHTML(c)}
@@ -2564,7 +2614,7 @@ function renderSheetOverview(c){
         <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
         <div class="combat-stat"><div class="v">${c.casterType && c.casterType!=='none' ? (8 + spellcastingMod(c)) : signStr(skillMod(c, SKILLS.find(s=>s.key==='perception')))}</div><div class="l">${c.casterType && c.casterType!=='none' ? 'CD incantesimi' : 'Percezione'}</div></div>
       </div>
-      ${sensiDi(c) ? `<div class="card" style="margin-top:10px"><div class="card-title">👁️ Sensi</div><div class="muted">${escapeHtml(sensiDi(c))}</div></div>` : ''}
+      ${sensiDi(c) ? `<div class="card" style="margin-top:10px"><div class="card-title">${ic('occhio')} Sensi</div><div class="muted">${escapeHtml(sensiDi(c))}</div></div>` : ''}
       ${/* I punti esperienza restano fuori dalla scheda principale: quasi
             nessun tavolo li conta, e chi gioca a traguardi si ritrovava
             una barra fissa per un numero che non tocca mai. Stanno nel
@@ -2689,7 +2739,7 @@ function rollDamage(charId, i, crit){
         </div>
         <div class="btn-row" style="margin-top:16px">
           <button class="btn btn-ghost btn-sm" onclick="rollDamage('${charId}',${i},true)">✦ Critico</button>
-          <button class="btn btn-ghost btn-sm" onclick="rollDamage('${charId}',${i})">↻ Ritira</button>
+          <button class="btn btn-ghost btn-sm" onclick="rollDamage('${charId}',${i})">${ic('ricarica')} Ritira</button>
         </div>
         <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="closeModal()">Chiudi</button>
       </div>
@@ -2801,7 +2851,7 @@ function xpBarHTML(c){
   }
   if (next == null){
     return `<div class="xp-block done">
-      <div class="row-between"><b style="font-size:.82rem">👑 20° livello</b>
+      <div class="row-between"><b style="font-size:.82rem">${ic('corona')} 20° livello</b>
         <button class="btn btn-ghost btn-sm" onclick="openXpDialog('${c.id}')">${fmtXp(xp)} px</button></div>
     </div>`;
   }
@@ -2819,7 +2869,7 @@ function xpBarHTML(c){
     </div>
     <div class="xp-bar"><div class="xp-fill" style="width:${pct}%"></div></div>
     ${ready
-      ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:8px" onclick="openLevelUp('${c.id}')">📈 Puoi salire al ${lv+1}° livello</button>`
+      ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:8px" onclick="openLevelUp('${c.id}')">${ic('livello')} Puoi salire al ${lv+1}° livello</button>`
       : `<div class="muted" style="font-size:.73rem; margin-top:5px">Mancano <b>${fmtXp(missing)}</b> punti al ${lv+1}° livello.</div>`}
   </div>`;
 }
@@ -2891,7 +2941,7 @@ function saveXp(charId){
 
 /* Dalla lista degli attacchi si può pescare direttamente un'arma vera */
 function weaponPickerButton(c){
-  return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openGear('${c.id}','armi')">⚔️ Scegli un'arma dalle tabelle</button>`;
+  return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openGear('${c.id}','armi')">${ic('tavolo')} Scegli un'arma dalle tabelle</button>`;
 }
 
 /* Gli EFFETTI restano in scheda: cambiano di turno in turno ed è quello
@@ -2908,7 +2958,7 @@ function conditionsRowHTML(c){
   <div class="chip-row" style="margin-top:${active.length?8:10}px; align-items:center">
     ${eff.map((e,k)=>`<button class="chip effetto ${e.round!=null && e.round<=1?'ultimo':''}" onclick="togliEffettoPg('${c.id}',${k})" title="Tocca per toglierlo">
       ${escapeHtml(e.nome)}${e.round!=null?` <b>${e.round}</b>`:''}${e.durata?` <span class="muted">${escapeHtml(e.durata)}</span>`:''}</button>`).join('')}
-    <button class="chip" onclick="apriEffettoPg('${c.id}')">⏳ Effetto</button>
+    <button class="chip" onclick="apriEffettoPg('${c.id}')">${ic('clessidra')} Effetto</button>
   </div>`;
 }
 
@@ -3012,7 +3062,7 @@ function activeFormBanner(c){
   return `<div class="conc-banner" style="border-color:var(--good); background:rgba(89,168,125,.14); flex-wrap:wrap">
     ${comp.portrait
       ? `<span class="comp-sigillo con-foto" style="width:32px;height:32px;flex-shrink:0"><img src="${attr(comp.portrait)}" alt=""></span>`
-      : `<span style="font-size:1.1rem">🐾</span>`}
+      : `<span style="font-size:1.1rem">${ic('zampa')}</span>`}
     <span class="t" style="flex:1 1 120px">Forma di ${escapeHtml(comp.name)} · ${m?`CA ${m.ac} · `:''}${comp.hp.current}/${comp.hp.max} PF</span>
     <button class="btn btn-sm btn-ghost" onclick="openCompanion('${c.id}','${comp.cid}')">Scheda</button>
     <button class="btn btn-sm btn-ghost" onclick="toggleWildShape('${c.id}','${comp.cid}')">Torna normale</button>
@@ -3185,7 +3235,7 @@ function restModalHTML(charId){
   const srCount = (c.resources||[]).filter(r => r.recovery === 'sr').length;
   const inner = `
     <div class="card" style="margin-bottom:12px">
-      <div class="card-title">☀️ Riposo breve</div>
+      <div class="card-title">${ic('sole')} Riposo breve</div>
       <p class="muted" style="margin-bottom:12px">Puoi spendere i dadi vita per curarti: ogni dado tira <b>d${c.hitDie||8} ${signStr(conMod)}</b> (Costituzione).</p>
       <div class="row-between" style="margin-bottom:12px">
         <span class="muted">Dadi vita disponibili</span>
@@ -3207,11 +3257,11 @@ function restModalHTML(charId){
         ].filter(Boolean).join(' e ')}, anche se non hai speso dadi vita.</p>` : ''}
     </div>
     <div class="card">
-      <div class="card-title">🌙 Riposo lungo</div>
+      <div class="card-title">${ic('luna')} Riposo lungo</div>
       <p class="muted" style="margin-bottom:12px">Ripristina tutti i PF, azzera i PF temporanei e gli slot incantesimo, recupera metà dei dadi vita e cancella i tiri contro morte.</p>
       <button class="btn btn-primary btn-block" onclick="longRest('${charId}')">Effettua riposo lungo</button>
     </div>`;
-  return modalShell('🏕️ Riposo', inner);
+  return modalShell('🏕 Riposo', inner);
 }
 function spendHitDice(charId, n, which){
   const c = charById(charId); if (!c) return;
@@ -3232,7 +3282,7 @@ function spendHitDice(charId, n, which){
   if (getPath(c,'hp.current',0) > 0) c.deathSaves = { win:0, fail:0 };
   scheduleSave('characters', c);
   closeModal(); render();
-  toast(`☀️ +${real} PF — ${n}d${die} [${rolls.join(', ')}] ${signStr(conMod)} per dado`);
+  toast(`+${real} PF — ${n}d${die} [${rolls.join(', ')}] ${signStr(conMod)} per dado`);
 }
 /* Ricarica quello che torna con un riposo breve. Vale anche senza dadi
    vita da spendere: il riposo lo fai comunque. */
@@ -3277,8 +3327,8 @@ function concludiRiposoBreve(charId){
   n += scadiEffettiRiposo(c, 'breve');
   scheduleSave('characters', c);
   closeModal(); render();
-  toast(n ? ('☀️ Riposo breve: ' + n + (n===1?' risorsa recuperata':' risorse recuperate'))
-          : '☀️ Riposo breve: non c\'era niente da recuperare');
+  toast(n ? ('☀ Riposo breve: ' + n + (n===1?' risorsa recuperata':' risorse recuperate'))
+          : '☀ Riposo breve: non c\'era niente da recuperare');
 }
 /* restorePactSlots: tolto. Gli slot del patto li rimette a posto
    concludiRiposoBreve(), che è la strada vera. */
@@ -3327,7 +3377,7 @@ function renderSheetInventory(c){
   const cap = parseFloat(String(c.carryCapacity).replace(',','.')) || (getPath(c,'abilities.str',10) * 7.5);
   return `
     <div class="card" style="margin-bottom:12px">
-      <div class="card-title">💰 Borsa</div>
+      <div class="card-title">${ic('monete')} Borsa</div>
       <div class="coin-grid">
         ${COINS.map(co=>`<div class="coin ${co.key}">
           <label title="${co.title}">${co.label}</label>
@@ -3356,13 +3406,13 @@ function renderSheetInventory(c){
     </div>` : ''}
     ${attunedCount(c) ? attunementRowHTML(c) : ''}
     <div class="list-gap">
-      ${items.length ? items.map((it,i)=>(it && typeof it === 'object') ? invItemHTML(c,it,i) : '').join('') : emptyState('🎒','Zaino vuoto. Aggiungi armi, armature e oggetti.')}
+      ${items.length ? items.map((it,i)=>(it && typeof it === 'object') ? invItemHTML(c,it,i) : '').join('') : emptyState(ic('zaino'),'Zaino vuoto. Aggiungi armi, armature e oggetti.')}
     </div>
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="addInventoryItem('${c.id}')">✦ A mano</button>
-      <button class="btn btn-gold" onclick="openGear('${c.id}')">🎒 Equipaggiamento</button>
+      <button class="btn btn-gold" onclick="openGear('${c.id}')">${ic('zaino')} Equipaggiamento</button>
     </div>
-    <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="openMagicItems({pickFor:'${c.id}'})">💍 Oggetti magici</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="openMagicItems({pickFor:'${c.id}'})">${ic('anello')} Oggetti magici</button>
   `;
 }
 function invItemHTML(c, it, i){
@@ -3604,7 +3654,7 @@ function renderSheetSpells(c){
 
   return `
     ${c.concentration ? `<div class="conc-banner">
-      <span style="font-size:1.1rem">🌀</span>
+      <span style="font-size:1.1rem">${ic('concentra')}</span>
       <span class="t">Concentrazione: ${escapeHtml(c.concentration.name)}</span>
       <button class="btn btn-sm btn-ghost" onclick="clearConcentration('${c.id}')">Interrompi</button>
     </div>` : ''}
@@ -3629,7 +3679,7 @@ function renderSheetSpells(c){
     ${isCaster ? `
       <div class="combat-grid">
         <div class="combat-stat"><div class="v">${8+spellcastingMod(c)}</div><div class="l">CD magia</div></div>
-        <button class="combat-stat tappable" onclick="rollSpellAttack('${c.id}')"><div class="v">${signStr(spellcastingMod(c))}</div><div class="l">Attacco 🎲</div></button>
+        <button class="combat-stat tappable" onclick="rollSpellAttack('${c.id}')"><div class="v">${signStr(spellcastingMod(c))}</div><div class="l">Attacco ${ic('dado')}</div></button>
         <div class="combat-stat"><div class="v">${signStr(profBonus(c.level))}</div><div class="l">Competenza</div></div>
       </div>
       <div class="slot-tracker">
@@ -3637,7 +3687,7 @@ function renderSheetSpells(c){
           <div class="section-title" style="margin:0;">Slot incantesimo${c.slotsOverride?' ·<span class="badge" style="margin-left:6px">personalizzati</span>':''}</div>
           <div style="display:flex; gap:6px;">
             ${c.slotsOverride?`<button class="btn btn-sm btn-ghost" onclick="clearSlotsOverride('${c.id}')" title="Torna alla tabella automatica">↺ Auto</button>`:''}
-            <button class="btn btn-sm btn-ghost" onclick="openRestModal('${c.id}')">🏕️ Riposo</button>
+            <button class="btn btn-sm btn-ghost" onclick="openRestModal('${c.id}')">${ic('tenda')} Riposo</button>
           </div>
         </div>
         ${slots.some(n=>n) ? slots.map((count,i)=>{
@@ -3662,9 +3712,9 @@ function renderSheetSpells(c){
           <div class="muted" style="font-size:.72rem; margin-top:4px">Slot del patto (warlock): livello fisso, tornano col riposo breve.</div>`;
         })()}
         ${haMulticlasse(c) ? `<div class="muted" style="font-size:.72rem; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line)">
-          🎓 ${escapeHtml(c.classField||'')} ${c.level||1} + ${escapeHtml(c.class2)} ${c.level2}: gli slot vengono dal livello da incantatore combinato (${livelloIncantatoreTotale(c)}).</div>` : ''}
+          ${ic('scolaro')} ${escapeHtml(c.classField||'')} ${c.level||1} + ${escapeHtml(c.class2)} ${c.level2}: gli slot vengono dal livello da incantatore combinato (${livelloIncantatoreTotale(c)}).</div>` : ''}
       </div>
-    ` : `<div class="empty-state" style="padding:26px 20px;"><div class="ic">🪄</div><p>Questo personaggio non lancia incantesimi. Se invece è un incantatore, imposta il tipo qui sopra.</p></div>`}
+    ` : `<div class="empty-state" style="padding:26px 20px;"><div class="ic">${ic('bacchetta')}</div><p>Questo personaggio non lancia incantesimi. Se invece è un incantatore, imposta il tipo qui sopra.</p></div>`}
 
     <div class="divider"><span class="flourish">❧</span><span>Incantesimi conosciuti</span></div>
     <div class="filter-bar">
@@ -3678,7 +3728,7 @@ function renderSheetSpells(c){
       const troppi = messi > tetto;
       return `<div class="card" style="margin-top:8px; ${troppi?'border-color:var(--garnet)':''}">
         <div class="row-between" style="align-items:baseline">
-          <b style="font-size:.86rem">${troppi?'⚠️ ':''}Ne prepari ${messi} su ${tetto}</b>
+          <b style="font-size:.86rem">${troppi?'⚠ ':''}Ne prepari ${messi} su ${tetto}</b>
           <span class="muted" style="font-size:.74rem">${troppi ? 'ne hai ' + (messi-tetto) + ' di troppo' : (tetto-messi) + ' ancora liberi'}</span>
         </div>
         <div class="muted" style="font-size:.74rem; margin-top:3px">${escapeHtml(
@@ -3703,7 +3753,7 @@ function renderSheetSpells(c){
 /* L'elenco vero e proprio, raggruppato per livello. */
 function conosciutiHTML(c){
   const { known, prepared } = conosciutiFiltrati(c);
-  if (!known.length) return `<div class="spell-grid list-gap">${emptyState('📜',
+  if (!known.length) return `<div class="spell-grid list-gap">${emptyState(ic('pergamena'),
     state.knownQ ? 'Nessuno dei tuoi incantesimi corrisponde a «' + escapeHtml(state.knownQ) + '».'
     : state.knownFilter==='prepared' ? 'Nessun incantesimo preparato: tocca la stella per prepararne uno.'
     : 'Nessun incantesimo: aggiungine dal Grimorio.')}</div>`;
@@ -3752,11 +3802,11 @@ function ritoccoSpell(c, sp){
 function knownSpellRow(c, ref, sp){
   const isPrep = (c.preparedSpells||[]).includes(sp.id);
   return `<div class="spell-item">
-    <div class="spell-lvl-badge">${sp.level===0?'C':sp.level}</div>
+    <div class="spell-lvl-badge lv${sp.level||0}">${sp.level===0?'C':sp.level}</div>
     <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${sp.id}','${ref.source}','${c.id}')">
       <div class="spell-item-name">${escapeHtml(spellName(sp))}</div>
       <div class="spell-item-meta">${(c.spellNotes||{})[sp.id]
-        ? '📌 ' + escapeHtml(c.spellNotes[sp.id])
+        ? ic('nota') + ' ' + escapeHtml(c.spellNotes[sp.id])
         : [quantoFa(sp, c), schoolIt(sp.school||''), sp.conc?'concentrazione':'', ref.source==='custom'?'personalizzato':'']
             .filter(Boolean).map(escapeHtml).join(' · ')}</div>
       ${/* Le suppliche che cambiano un incantesimo — «+Carisma ai danni
@@ -3845,7 +3895,7 @@ function sottoclasseSceltaHTML(c){
       <option value="">— nessuna —</option>
       ${subs.map(s=>`<option value="${attr(s.id)}" ${c.subclassId===s.id?'selected':''}>${escapeHtml(s.name)}${s.fromCampaign?' · dal tavolo':''}</option>`).join('')}
     </select>
-    ${attuale && m ? `<div class="muted" style="font-size:.73rem; margin-top:6px">⚙️ Cambia le regole: ${escapeHtml((typeof riassuntoMeccaniche==='function'?riassuntoMeccaniche({meccaniche:m}):'') || 'sì')}</div>` : ''}
+    ${attuale && m ? `<div class="muted" style="font-size:.73rem; margin-top:6px">⚙ Cambia le regole: ${escapeHtml((typeof riassuntoMeccaniche==='function'?riassuntoMeccaniche({meccaniche:m}):'') || 'sì')}</div>` : ''}
   </div>`;
 }
 function impostaSottoclasse(charId, id){
@@ -3855,7 +3905,7 @@ function impostaSottoclasse(charId, id){
   if (cl && !c.classId) c.classId = cl.id;
   scheduleSave('characters', c); render();
   const sc = (typeof sottoclasseDi === 'function') ? sottoclasseDi(c) : null;
-  if (sc) toast('⚔️ ' + sc.name);
+  if (sc) toast('⚔ ' + sc.name);
 }
 
 /* ─── 19b. ORIGINI ─── Razza, background e sottoclasse sulla scheda.
@@ -3905,7 +3955,7 @@ function origineVoci(c){
   return [
     { kind:'race',       icona:'🧝', etichetta:'Razza',      nome: c.race || '', x: razza },
     { kind:'background', icona:'📜', etichetta:'Background', nome: c.background || '', x: bg },
-    { kind:'subclass',   icona:'⚔️', etichetta: (cl && cl.subclassLabel) || 'Sottoclasse',
+    { kind:'subclass',   icona:'⚔', etichetta: (cl && cl.subclassLabel) || 'Sottoclasse',
       nome: sc ? sc.name : '', x: sc },
   ].filter(v => v.nome || v.x);
 }
@@ -3979,7 +4029,7 @@ function privilegiAttiviDi(c){
 function apriPrivilegio(charId, i){
   const c = charById(charId); if (!c) return;
   const r = privilegiAttiviDi(c)[i]; if (!r) return;
-  const icona = r.kind === 'race' ? '🧝' : '⚔️';
+  const icona = r.kind === 'race' ? '🧝' : '⚔';
   openModal({ render: () => `
     <div class="overlay center" onclick="if(event.target===this) closeModal()">
       <div class="sheet-modal frame" style="max-width:440px">
@@ -4148,7 +4198,7 @@ function renderGrimoire(){
         <div class="sub">${allSpells().length} incantesimi</div>
       </div>`}
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input id="grimoire-search-input" placeholder="Cerca nel nome o nel testo…" value="${attr(f.q)}" oninput="setGrimoireSearch(this.value)" autocomplete="off">
       ${f.q ? `<button class="search-clear" onclick="clearGrimoireSearch()" aria-label="Cancella">✕</button>` : ''}
     </div>
@@ -4157,23 +4207,79 @@ function renderGrimoire(){
       <button class="filter-chip ${f.level==='0'?'active':''}" onclick="setGrimoireFilter('level','0')">Trucchetti</button>
       ${[1,2,3,4,5,6,7,8,9].map(l=>`<button class="filter-chip ${f.level===String(l)?'active':''}" onclick="setGrimoireFilter('level','${l}')">${l}°</button>`).join('')}
     </div>
-    <div class="filter-bar">
-      <button class="filter-chip ${f.clas==='all'?'active':''}" onclick="setGrimoireFilter('clas','all')">Tutte le classi</button>
-      ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
-    </div>
-    ${/* I dati c'erano gia' in spells-data.js e non li usava nessuno.
-         «Cosa posso lanciare senza rompere la concentrazione che ho»
-         e' una decisione che al tavolo si prende ogni turno. */''}
-    <div class="filter-bar">
-      ${[['all','Tutto'],['conc','🌀 Concentrazione'],['noconc','Senza 🌀'],['ritual','⏳ Rituali'],['costoso','💰 Costano soldi']]
-        .map(([k,et])=>`<button class="filter-chip ${f.tratto===k?'active':''}" onclick="setGrimoireFilter('tratto','${k}')">${et}</button>`).join('')}
-    </div>
+    ${/* Tre file di filtri mangiavano mezzo schermo prima del primo
+         incantesimo. Resta fuori il livello — quello si cambia di
+         continuo — e le altre due vanno in un pannello che dice
+         quanti filtri stai tenendo accesi. */''}
+    ${grimoireFiltriHTML()}
     <div id="grimoire-results">${grimoireResultsHTML()}</div>
     ${!picking ? `<div class="btn-row" style="margin-top:14px;">
       <button class="btn btn-primary" onclick="openCustomSpellForm()">✦ Nuovo</button>
       <button class="btn btn-ghost" onclick="openSpellImport()">⤒ Importa</button>
     </div>` : ''}
   `;
+}
+/* ── i filtri secondari, in un pannello ── */
+const GRIMOIRE_TRATTI = [
+  ['all',     'Tutto',            'Tutto'],
+  ['conc',    'Concentrazione',   'concentra'],
+  ['noconc',  'Senza concentrazione', 'concentra'],
+  ['ritual',  'Rituali',          'clessidra'],
+  ['costoso', 'Costano soldi',    'monete'],
+];
+function grimoireQuantiFiltri(){
+  const f = state.grimoireFilter;
+  return (f.clas !== 'all' ? 1 : 0) + (f.tratto !== 'all' ? 1 : 0);
+}
+function grimoireEtichettaTratto(k){
+  const t = GRIMOIRE_TRATTI.find(t => t[0] === k);
+  return t ? t[1] : k;
+}
+function toggleGrimoireFiltri(){
+  setGrimoireSearch.annulla();
+  const box = document.getElementById('grimoire-search-input');
+  if (box) state.grimoireFilter.q = box.value;
+  state.grimoireFiltriAperti = !state.grimoireFiltriAperti;
+  render();
+}
+function azzeraGrimoireFiltri(){
+  setGrimoireSearch.annulla();
+  const box = document.getElementById('grimoire-search-input');
+  if (box) state.grimoireFilter.q = box.value;
+  state.grimoireFilter.clas = 'all';
+  state.grimoireFilter.tratto = 'all';
+  render();
+}
+function grimoireFiltriHTML(){
+  const f = state.grimoireFilter;
+  const n = grimoireQuantiFiltri();
+  const aperti = !!state.grimoireFiltriAperti;
+  const attivi = [];
+  if (f.clas !== 'all')   attivi.push(['clas',   CLASSES_IT[f.clas] || f.clas]);
+  if (f.tratto !== 'all') attivi.push(['tratto', grimoireEtichettaTratto(f.tratto)]);
+  return `<div class="filter-riga">
+      <button class="filter-toggle ${aperti?'aperto':''}" onclick="toggleGrimoireFiltri()"
+        aria-expanded="${aperti?'true':'false'}" aria-controls="grimoire-filtri">${ic('filtro')} Filtri${
+        n ? `<span class="filter-conta">${n}</span>` : ''}</button>
+      ${!aperti ? attivi.map(([k,et])=>`<button class="filter-attivo" onclick="setGrimoireFilter('${k}','all')"
+        aria-label="Togli il filtro ${attr(et)}"><b>${escapeHtml(et)}</b><span class="via">✕</span></button>`).join('') : ''}
+    </div>
+    ${aperti ? `<div class="filter-pannello" id="grimoire-filtri">
+      <div class="filter-pannello-tit">Classe</div>
+      <div class="filter-bar">
+        <button class="filter-chip ${f.clas==='all'?'active':''}" onclick="setGrimoireFilter('clas','all')">Tutte le classi</button>
+        ${GRIMOIRE_CLASSES.map(en=>`<button class="filter-chip ${f.clas===en?'active':''}" onclick="setGrimoireFilter('clas','${en}')">${CLASSES_IT[en]||en}</button>`).join('')}
+      </div>
+      ${/* I dati c'erano gia' in spells-data.js e non li usava nessuno.
+           «Cosa posso lanciare senza rompere la concentrazione che ho»
+           e' una decisione che al tavolo si prende ogni turno. */''}
+      <div class="filter-pannello-tit">Come funziona</div>
+      <div class="filter-bar">
+        ${GRIMOIRE_TRATTI.map(([k,et,icona])=>`<button class="filter-chip ${f.tratto===k?'active':''}" onclick="setGrimoireFilter('tratto','${k}')">${
+          k==='all' ? et : (k==='noconc' ? 'Senza ' + ic('concentra') : ic(icona) + ' ' + et)}</button>`).join('')}
+      </div>
+      ${n ? `<button class="btn btn-ghost btn-block btn-sm" style="margin:2px 0 8px" onclick="azzeraGrimoireFiltri()">Azzera i filtri</button>` : ''}
+    </div>` : ''}`;
 }
 /* Restituisce DUE liste: quelli che rispondono al nome e quelli che ne
    parlano soltanto nel testo. Tenerle separate e' il punto: cercando
@@ -4212,13 +4318,13 @@ function grimoireResultsHTML(){
     if (f.clas !== 'all' && !f.q){
       const nome = CLASSES_IT[f.clas] || f.clas;
       return countLine + `<div class="empty-state">
-        <div class="ic">🏷️</div>
+        <div class="ic">${ic('etichetta')}</div>
         <p>Nessun incantesimo dell'SRD è marcato <b>${escapeHtml(nome)}</b>${f.clas==='Artificer'?": la lista dell'Artificiere non fa parte dell'SRD":''}.</p>
         <div class="list-gap" style="margin-top:16px; text-align:left">
           <button class="btn btn-ghost btn-block btn-sm" onclick="setGrimoireFilter('clas','all')">Togli il filtro</button>
-          <button class="btn btn-ghost btn-block btn-sm" onclick="openSpellImport()">⤒ Importa una lista da file</button>
+          <button class="btn btn-ghost btn-block btn-sm" onclick="openSpellImport()">${ic('carica')} Importa una lista da file</button>
         </div>
-        <p style="margin-top:14px; font-size:.78rem; opacity:.8">Puoi anche aprire un incantesimo qualsiasi e usare <b>🏷️ Liste di classe</b> per aggiungerlo a questa classe.</p>
+        <p style="margin-top:14px; font-size:.78rem; opacity:.8">Puoi anche aprire un incantesimo qualsiasi e usare <b>${ic('etichetta')} Liste di classe</b> per aggiungerlo a questa classe.</p>
       </div>`;
     }
     return countLine + emptyState('🔍','Nessun incantesimo trovato con questi filtri.');
@@ -4238,7 +4344,7 @@ function grimoireItemHTML(s, picking, pickChar, estratto){
   const classesIt = spellClasses(s).map(en=>CLASSES_IT[en]||en).join(', ');
   const alt = spellAltName(s);
   return `<div class="spell-item" id="sp-row-${s.source}-${s.id}">
-    <div class="spell-lvl-badge">${s.level===0?'C':s.level}</div>
+    <div class="spell-lvl-badge lv${s.level||0}">${s.level===0?'C':s.level}</div>
     <button class="spell-item-body" style="text-align:left" onclick="viewSpellDetail('${s.id}','${s.source}'${picking?`,'${pickChar.id}'`:''})">
       <div class="spell-item-name">${escapeHtml(spellName(s))}</div>
       ${/* nel grimorio non c'è un personaggio: i dadi mostrati sono quelli
@@ -4294,19 +4400,19 @@ function spellShareRow(sp, source){
   if (source === 'shared'){
     const puo = typeof canUnshare === 'function' && canUnshare((state.sharedSpells||[]).find(x=>x.id===sp.id));
     return `<div class="card" style="margin-top:12px; border-color:var(--gold-dim); padding:10px 13px">
-      <div class="muted" style="font-size:.78rem">⚔️ Condiviso nella campagna${sp.sharedByName?' da '+escapeHtml(sp.sharedByName):''}.</div>
+      <div class="muted" style="font-size:.78rem">${ic('tavolo')} Condiviso nella campagna${sp.sharedByName?' da '+escapeHtml(sp.sharedByName):''}.</div>
       ${puo ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="unshareFromCampaign('spells','${jsStr(sp.id)}'); closeModal();">Ritira dalla campagna</button>` : ''}
     </div>`;
   }
   return `<button class="btn ${su?'btn-ghost':'btn-gold'} btn-block btn-sm" style="margin-top:10px"
     onclick="${su ? `unshareFromCampaign('spells','${jsStr(sp.id)}')` : `shareOneSpell('${jsStr(sp.id)}')`}">
-    ⚔️ ${su ? 'Ritira dalla campagna' : 'Condividi con la campagna'}</button>`;
+    ${ic('tavolo')} ${su ? 'Ritira dalla campagna' : 'Condividi con la campagna'}</button>`;
 }
 async function shareOneSpell(id){
   const sp = state.customSpells.find(x => x.id === id);
   if (!sp) return;
   const n = await shareToCampaign('spells', [sp]);
-  if (n) toast('⚔️ ' + sp.name + ' è ora del tavolo');
+  if (n) toast('⚔ ' + sp.name + ' è ora del tavolo');
   renderModalRoot();
 }
 
@@ -4325,7 +4431,9 @@ function spellDetailHTML(sp, source, charId){
       <div style="margin-bottom:6px">
         <div class="spell-detail-name">${escapeHtml(spellName(sp))}</div>
         ${alt?`<div class="muted" style="font-size:.8rem">${escapeHtml(alt)}</div>`:''}
-        <div class="muted" style="font-style:italic;">${levelLabel(sp.level)} · ${escapeHtml(schoolIt(sp.school||''))}${sp.ritual?' · rituale':''}</div>
+        ${/* «3° livello» era scritto due volte: in grande qui sopra e di
+             nuovo in questa riga. Qui resta la scuola. */''}
+        <div class="muted" style="font-style:italic;">${escapeHtml(schoolIt(sp.school||''))}${sp.ritual?' · rituale':''}</div>
       </div>
       <div class="spell-detail-tags">
         ${sp.conc?'<span class="badge garnet">Concentrazione</span>':''}
@@ -4354,8 +4462,8 @@ function spellDetailHTML(sp, source, charId){
       ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a.${tradotto?' Traduzione d\'uso al tavolo, non ufficiale.':' Lingua originale inglese.'}</div>` : ''}
       <div class="list-gap" style="margin-top:16px;">
         ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
-        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${jsStr(spellName(sp))}')">🌀 Concentrati su questo</button>` : ''}
-        <button class="btn btn-ghost btn-block" onclick="openSpellClassEditor('${sp.id}','${source}')">🏷️ Liste di classe${isSpellTagged(sp)?' (modificate)':''}</button>
+        ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${jsStr(spellName(sp))}')">${ic('concentra')} Concentrati su questo</button>` : ''}
+        <button class="btn btn-ghost btn-block" onclick="openSpellClassEditor('${sp.id}','${source}')">${ic('etichetta')} Liste di classe${isSpellTagged(sp)?' (modificate)':''}</button>
         ${source==='custom' ? `<div class="btn-row">
           <button class="btn btn-ghost" onclick="editCustomSpell('${sp.id}')">✎ Modifica</button>
           <button class="btn btn-danger" onclick="confirmDeleteCustomSpell('${sp.id}')">Elimina</button>
@@ -4404,7 +4512,7 @@ function openCopyPicker(){
   const inner = `
     <p class="muted" style="margin-bottom:12px">Scegli un incantesimo simile: campi e formattazione vengono precompilati, poi cambi quello che serve.</p>
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input id="copy-search" placeholder="Cerca un incantesimo da cui partire…" oninput="renderCopyResults(this.value)" autocomplete="off">
     </div>
     <div id="copy-results" class="list-gap">${copyResultsHTML('')}</div>`;
@@ -4418,7 +4526,7 @@ function copyResultsHTML(q){
   all = all.slice(0, 40);
   if (!all.length) return emptyState('🔍','Nessun incantesimo trovato.');
   return all.map(s=>`<button class="spell-item" style="width:100%" onclick="copySpellAsCustom('${s.id}','${s.source}')">
-    <span class="spell-lvl-badge">${s.level===0?'C':s.level}</span>
+    <span class="spell-lvl-badge lv${s.level||0}">${s.level===0?'C':s.level}</span>
     <span class="spell-item-body">
       <span class="spell-item-name">${escapeHtml(spellName(s))}</span>
       <span class="spell-item-meta">${escapeHtml(schoolIt(s.school||''))}</span>
@@ -4541,7 +4649,7 @@ function spellClassEditorHTML(){
     </div>
     <button class="btn btn-primary btn-block" onclick="saveSpellClasses()">Salva</button>
     ${isSpellTagged({id:t.id, source:t.source}) ? `<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="resetSpellClasses()">Ripristina l'originale</button>` : ''}`;
-  return modalShell('🏷️ Liste di classe', inner);
+  return modalShell('🏷 Liste di classe', inner);
 }
 function saveSpellClasses(){
   if (draftTagSpell.source === 'custom'){
@@ -4551,7 +4659,7 @@ function saveSpellClasses(){
     setSpellClasses(draftTagSpell.id, draftTagClasses, draftTagSpell.base);
   }
   closeModal(); render();
-  toast('🏷️ Liste aggiornate');
+  toast('🏷 Liste aggiornate');
 }
 function resetSpellClasses(){
   setSpellClasses(draftTagSpell.id, draftTagSpell.base, draftTagSpell.base);
@@ -4587,9 +4695,9 @@ function renderDM(){
       <div class="sub">Bestiario, iniziativa e diario</div>
     </div>
     <div class="segmented" style="margin-bottom:14px;">
-      <button class="${state.dmTab==='bestiary'||!state.dmTab?'active':''}" onclick="setDmTab('bestiary')">🐉 Bestiario</button>
-      <button class="${state.dmTab==='initiative'?'active':''}" onclick="setDmTab('initiative')">⚔️ Iniziativa${state.combat.list.length?' ('+state.combat.list.length+')':''}</button>
-      <button class="${state.dmTab==='journal'?'active':''}" onclick="setDmTab('journal')">📓 Diario${(state.journal||[]).length?' ('+(state.journal||[]).length+')':''}</button>
+      <button class="${state.dmTab==='bestiary'||!state.dmTab?'active':''}" onclick="setDmTab('bestiary')">${ic('zampa')} Bestiario</button>
+      <button class="${state.dmTab==='initiative'?'active':''}" onclick="setDmTab('initiative')">⚔ Iniziativa${state.combat.list.length?' ('+state.combat.list.length+')':''}</button>
+      <button class="${state.dmTab==='journal'?'active':''}" onclick="setDmTab('journal')">${ic('diario')} Diario${(state.journal||[]).length?' ('+(state.journal||[]).length+')':''}</button>
     </div>
     ${state.dmTab==='initiative' ? renderInitiativeTracker() : (state.dmTab==='journal' ? renderJournal() : renderBestiary())}
   `;
@@ -4643,14 +4751,14 @@ function renderBestiary(){
     ? [...new Set(tutti.map(npcGs).filter(Boolean))].sort((a,b)=> (typeof crValue==='function' ? crValue(a)-crValue(b) : 0))
     : [];
   return `
-    <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">🎒 Armi, armature ed equipaggiamento</button>
-    <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">💍 Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
-    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">🐉 Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:10px" onclick="openMostriPdf()">📖 Leggi i mostri dal tuo manuale</button>
-    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openIncontri()">⚔️ Costruisci un incontro</button>
+    <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">${ic('zaino')} Armi, armature ed equipaggiamento</button>
+    <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">${ic('anello')} Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
+    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">${ic('zampa')} Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:10px" onclick="openMostriPdf()">${ic('grimorio')} Leggi i mostri dal tuo manuale</button>
+    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openIncontri()">⚔ Costruisci un incontro</button>
     ${(state.npcs||[]).length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
     ${tanti ? `
-      <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">🐉 Il tuo bestiario</b><span class="muted" style="font-size:.75rem">${tutti.length} creature</span></div>
+      <div class="row-between" style="margin-bottom:8px"><b style="font-size:.86rem">${ic('zampa')} Il tuo bestiario</b><span class="muted" style="font-size:.75rem">${tutti.length} creature</span></div>
       ${cercaLista('bestiario-cerca', state.bestiarioQ, 'bestiarioCerca', 'Cerca per nome o tipo…')}
       ${gsPresenti.length > 1 ? `<div class="filtro-riga">
         <button class="chip ${state.bestiarioGs?'':'active'}" onclick="bestiarioFiltraGs('')">Tutti i GS</button>
@@ -4661,11 +4769,11 @@ function renderBestiary(){
           ? bloccoLista('bestiario', visti, npcCardHTML, { classe:'stagger list-gap party-grid', nome:'creature' })
             + ((typeof campaignReady === 'function' && campaignReady())
                 ? (typeof bestiarioSincronizzato === 'function' && bestiarioSincronizzato()
-                    ? `<div class="muted" style="font-size:.73rem; text-align:center; margin-top:10px">🔄 Sincronizzato con «${escapeHtml((state.campaign||{}).name || 'il tavolo')}»: quello che aggiungi qui ci arriva da solo.</div>`
+                    ? `<div class="muted" style="font-size:.73rem; text-align:center; margin-top:10px">${ic('ricarica')} Sincronizzato con «${escapeHtml((state.campaign||{}).name || 'il tavolo')}»: quello che aggiungi qui ci arriva da solo.</div>`
                     : (()=>{ const daDare = visti.filter(n => !n.__dalTavolo && !giaSuTavolo('npcs', n.id)).length;
-                        return daDare ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiMostrati()">⚔️ Condividi col tavolo ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + daDare + ' mostrate' : '(' + daDare + ')'}</button>` : ''; })())
+                        return daDare ? `<button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="condividiMostrati()">⚔ Condividi col tavolo ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + daDare + ' mostrate' : '(' + daDare + ')'}</button>` : ''; })())
                 : '')
-            + (tanti ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px; color:var(--warn)" onclick="confermaEliminaMostrati()">🗑️ Elimina ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + visti.length + ' mostrate' : 'tutto il bestiario (' + visti.length + ')'}</button>` : '')
+            + (tanti ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px; color:var(--warn)" onclick="confermaEliminaMostrati()">${ic('cestino')} Elimina ${(state.bestiarioQ||state.bestiarioGs) ? 'le ' + visti.length + ' mostrate' : 'tutto il bestiario (' + visti.length + ')'}</button>` : '')
           : `<div class="lista-vuota">Nessuna creatura con questi filtri.</div>`)
       : emptyState('🐉','Nessun PNG o mostro tuo. Puoi partire dal bestiario SRD qui sopra, oppure crearne uno da zero.')}
     <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="openNpcForm()">✦ Nuovo PNG / Mostro</button>
@@ -4703,7 +4811,7 @@ async function eliminaMostrati(lista){
   listaAzzera('bestiario');
   saveLocalOra();
   render();
-  toast('🗑️ ' + ids.size + (ids.size===1?' creatura eliminata':' creature eliminate'));
+  toast('🗑 ' + ids.size + (ids.size===1?' creatura eliminata':' creature eliminate'));
   // il server dopo: la schermata non deve aspettare la rete
   if (typeof fsDeleteMany === 'function') await fsDeleteMany('npcs', [...ids]);
   else for (const id of ids) await fsDelete('npcs', id);
@@ -4712,7 +4820,7 @@ function npcCardHTML(n){
   if (n.__dalTavolo) return `<button class="char-card npc-card" style="border-color:var(--gold-dim)" onclick="apriMostroCondiviso('${jsStr(n.id)}')">
     ${avatarHTML(n, 46)}
     <div class="char-card-body">
-      <div class="char-card-name">${escapeHtml(n.name||'Senza nome')} <span style="color:var(--gold)">⚔️</span></div>
+      <div class="char-card-name">${escapeHtml(n.name||'Senza nome')} <span style="color:var(--gold)">${ic('tavolo')}</span></div>
       <div class="char-card-sub">${n.type?escapeHtml(n.type)+' · ':''}CA ${n.ac??10} · PF ${n.hpMax??0} · da ${escapeHtml(n.sharedByName||'un membro')}</div>
     </div>
     <div class="char-card-chevron">›</div>
@@ -4754,18 +4862,18 @@ function npcFormHTML(isEdit){
         <label>Ritratto</label>
         <div style="display:flex; align-items:center; gap:12px;">
           ${avatarHTML(d, 56)}
-          <button class="btn btn-ghost btn-sm" onclick="choosePortrait(setNpcPortrait)">📷 ${d.portrait?'Cambia':'Carica'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="choosePortrait(setNpcPortrait)">${ic('foto')} ${d.portrait?'Cambia':'Carica'}</button>
           ${d.portrait?`<button class="btn btn-ghost btn-sm" onclick="setNpcPortrait(null)">Togli</button>`:''}
         </div>
       </div>
       <div class="field"><label>Azioni / Note</label><textarea style="min-height:110px;" placeholder="Attacchi, abilità speciali, tattiche…" oninput="draftNpc.notes=this.value">${escapeHtml(d.notes)}</textarea></div>
       <button class="btn btn-primary btn-block" onclick="saveNpcDraft()">${isEdit?'Salva modifiche':'Aggiungi al bestiario'}</button>
-      ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:10px;" onclick="addNpcToInitiative('${d.id}')">⚔️ Aggiungi all'iniziativa</button>
+      ${isEdit?`<button class="btn btn-gold btn-block" style="margin-top:10px;" onclick="addNpcToInitiative('${d.id}')">⚔ Aggiungi all'iniziativa</button>
       ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
         const su = giaSuTavolo('npcs', d.id);
         return `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px;${su?'color:var(--gold); border-color:var(--gold-dim)':''}"
           onclick="${su ? `unshareFromCampaign('npcs','${jsStr(d.id)}')` : `shareOneNpc('${jsStr(d.id)}')`}">
-          ⚔️ ${su ? 'Ritira dal tavolo' : 'Condividi con la campagna'}</button>`; })() : ''}
+          ⚔ ${su ? 'Ritira dal tavolo' : 'Condividi con la campagna'}</button>`; })() : ''}
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-ghost" onclick="duplicateNpc('${d.id}')">⧉ Duplica</button>
         <button class="btn btn-danger" onclick="confirmDeleteNpc('${d.id}')">Elimina</button>
@@ -4824,9 +4932,9 @@ function renderInitiativeTracker(){
         </div>
       </div>
       <div class="list-gap">${list.map((cb,i)=>initRowHTML(cb,i,i===turn)).join('')}</div>
-      <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="apriTsGruppo()">🎲 Tiro salvezza per tutti</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="apriTsGruppo()">${ic('dado')} Tiro salvezza per tutti</button>
       <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="confirmResetCombat()">Termina combattimento</button>
-    ` : emptyState('⚔️','Nessun combattimento attivo. Aggiungi i combattenti qui sotto: l\'iniziativa viene tirata automaticamente.')}
+    ` : emptyState(ic('tavolo'),'Nessun combattimento attivo. Aggiungi i combattenti qui sotto: l\'iniziativa viene tirata automaticamente.')}
 
     <div class="divider"><span class="flourish">❧</span><span>Aggiungi combattente</span></div>
     <div class="card">
@@ -4842,8 +4950,8 @@ function renderInitiativeTracker(){
         }
         return `${molti ? cercaLista('combat-cerca', q, 'combatCerca', 'Cerca fra le ' + state.npcs.length + ' creature del bestiario\u2026') : ''}
         <div class="chip-row" style="margin-bottom:12px;">
-          ${state.characters.map(c=>`<button class="chip" onclick="addToCombat('${c.id}','pc')">${c.avatar||'⚔️'} ${escapeHtml(c.name)}</button>`).join('')}
-          ${mostri.slice(0,40).map(n=>`<button class="chip" onclick="addToCombat('${n.id}','npc')">${n.avatar||'🐉'} ${escapeHtml(n.name)}</button>`).join('')}
+          ${state.characters.map(c=>`<button class="chip" onclick="addToCombat('${c.id}','pc')">${c.avatar||ic('tavolo')} ${escapeHtml(c.name)}</button>`).join('')}
+          ${mostri.slice(0,40).map(n=>`<button class="chip" onclick="addToCombat('${n.id}','npc')">${n.avatar||ic('zampa')} ${escapeHtml(n.name)}</button>`).join('')}
         </div>
         ${molti && q && !mostri.length ? `<div class="lista-vuota">Nessuna creatura con questo nome.</div>` : ''}
         ${mostri.length > 40 ? `<div class="muted" style="font-size:.72rem; margin:-6px 0 12px">…e altre ${mostri.length-40}: restringi la ricerca.</div>` : ''}`;
@@ -4865,23 +4973,31 @@ function initRowHTML(cb, i, isCurrent){
      portano dietro: si va a riprenderla dalla fonte. */
   const ca = caCombattente(cb);
   const apribile = !!schedaCombattente(cb);
-  const nome = `${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' 💀':''}${cb.conc?' <span title="Sta concentrando">🌀</span>':''}`;
+  const nome = `${cb.avatar?cb.avatar+' ':''}${escapeHtml(cb.name)}${down?' ' + ic('teschio'):''}${cb.conc?' <span title="Sta concentrando">' + ic('concentra') + '</span>':''}`;
   return `<div class="init-row ${isCurrent?'current-turn':''} ${down?'down':''}">
     <button class="init-badge" onclick="editCombatInit(${i})" title="Modifica iniziativa">${cb.init}</button>
     <div style="flex:1; min-width:0;">
       ${apribile
         ? `<button class="init-name" style="text-align:left; width:100%; background:none; border:0; color:inherit; font:inherit; cursor:pointer" onclick="apriCombattente(${i})" title="Apri la scheda">${nome} <span class="muted" style="font-size:.7rem">›</span></button>`
         : `<div class="init-name">${nome}</div>`}
-      <div class="init-hp">${[
-        cb.hp!=null ? ('PF ' + cb.hp + (cb.hpMax?('/'+cb.hpMax):'')) : (cb.kind==='quick'?'—':''),
-        ca != null ? ('CA ' + ca) : ''
-      ].filter(Boolean).join(' · ')}</div>
+      ${(() => {
+        /* Thorgar a 9/40 e il goblin a 21/21 erano due righe identiche con
+           un numero diverso: il master doveva rileggerle una per una.
+           Adesso il numero cambia colore e sotto c'è un filo di barra. */
+        const q = (cb.hp != null && cb.hpMax) ? clamp(cb.hp / cb.hpMax, 0, 1) : null;
+        const cls = q == null ? '' : (q <= .25 ? 'pf-basso' : (q <= .5 ? 'pf-mezzo' : ''));
+        const pf = cb.hp != null
+          ? `<span class="${cls}">PF ${cb.hp}${cb.hpMax?('/'+cb.hpMax):''}</span>`
+          : (cb.kind==='quick' ? '—' : '');
+        return `<div class="init-hp">${[pf, ca != null ? ('CA ' + ca) : ''].filter(Boolean).join(' · ')}</div>
+          ${q != null ? `<div class="init-barra ${q<=.25?'bassa':''}"><i style="width:${Math.round(q*100)}%"></i></div>` : ''}`;
+      })()}
       ${eff.length ? `<div class="init-effetti">${eff.map((e,k)=>`
         <button class="chip effetto ${e.round!=null && e.round<=1?'ultimo':''}" onclick="togliEffetto(${i},${k})" title="Tocca per toglierlo">
           ${escapeHtml(e.nome)}${e.round!=null?` <b>${e.round}</b>`:''}${e.durata?` <span class="muted">${escapeHtml(e.durata)}</span>`:''}</button>`).join('')}</div>` : ''}
     </div>
     <div class="init-actions">
-      <button class="btn-icon" style="width:34px;height:34px;font-size:.8rem;" onclick="apriEffetto(${i})" aria-label="Aggiungi un effetto a tempo" title="Effetto a tempo">⏳</button>
+      <button class="btn-icon" style="width:34px;height:34px;font-size:.8rem;" onclick="apriEffetto(${i})" aria-label="Aggiungi un effetto a tempo" title="Effetto a tempo">${ic('clessidra')}</button>
       ${cb.hp!=null ? `<button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem;" onclick="bumpCombatHP(${i},-1)" aria-label="-1 PF">−</button>
       <button class="stepper-btn" style="width:34px;height:34px;font-size:.9rem;" onclick="bumpCombatHP(${i},1)" aria-label="+1 PF">+</button>` : ''}
       <button class="btn-icon" style="width:34px;height:34px;font-size:.75rem;" onclick="removeFromCombat(${i})" aria-label="Rimuovi">✕</button>
@@ -5159,7 +5275,7 @@ function renderSettings(){
     <div class="divider"><span class="flourish">❧</span><span>Account</span></div>
     ${currentUser ? `
       <div class="card" style="display:flex; align-items:center; gap:12px;">
-        <div class="seal" style="width:48px;height:48px;font-size:1.2rem;">👤</div>
+        <div class="seal" style="width:48px;height:48px;font-size:1.2rem;">${ic('persona')}</div>
         <div style="flex:1; min-width:0;">
           <div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(currentUser.displayName||'Avventuriero')}</div>
           <div class="muted" style="font-size:.76rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(currentUser.email||'')}</div>
@@ -5167,12 +5283,12 @@ function renderSettings(){
         <span class="badge gold">Sync</span>
       </div>
       <div class="btn-row" style="margin-top:10px;">
-        <button class="btn btn-ghost" onclick="openAuthDiagnostics()">🔐 Diagnostica</button>
+        <button class="btn btn-ghost" onclick="openAuthDiagnostics()">${ic('lucchetto')} Diagnostica</button>
         <button class="btn btn-danger" onclick="confirmSignOut()">Esci</button>
       </div>
     ` : `
       <div class="card">
-        <div class="card-title">📴 Modalità locale</div>
+        <div class="card-title">${ic('offline')} Modalità locale</div>
         <p class="muted" style="margin-bottom:12px">I dati sono salvati solo su questo dispositivo. Accedi con Google per ritrovarli su telefono e computer.</p>
         ${firebaseReady ? `<button class="btn btn-primary btn-block" onclick="signIn()">Accedi con Google</button>
         <button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="openAuthDiagnostics()">L'accesso non funziona?</button>` : `<p class="muted">Connessione ai server non disponibile in questo momento.</p>`}
@@ -5182,7 +5298,7 @@ function renderSettings(){
     <div class="divider"><span class="flourish">❧</span><span>Aspetto</span></div>
     <button class="switch-row" onclick="toggleTheme()">
       <div class="track"><div class="knob"></div></div>
-      <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Tema ${state.theme==='dark'?'Mezzanotte 🌙':'Pergamena ☀️'}</div>
+      <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Tema ${state.theme==='dark'?'Mezzanotte ' + ic('luna'):'Pergamena ' + ic('sole')}</div>
     </button>
 
     <div class="divider"><span class="flourish">❧</span><span>Durante la sessione</span></div>
@@ -5218,8 +5334,8 @@ function renderSettings(){
     <div class="card" style="margin-top:10px">
       <p class="muted" style="margin-bottom:12px">Nel compendio ci sono ${(typeof SRD_SPELLS!=='undefined'?SRD_SPELLS.length:0)} incantesimi SRD e ${state.customSpells.length} tuoi. Puoi aggiungerne quanti vuoi da un file JSON.</p>
       <div class="btn-row">
-        <button class="btn btn-gold" onclick="openSpellImport()">⤒ Importa</button>
-        <button class="btn btn-ghost" onclick="exportCustomSpells()">⤓ Esporta i tuoi</button>
+        <button class="btn btn-gold" onclick="openSpellImport()">${ic('carica')} Importa</button>
+        <button class="btn btn-ghost" onclick="exportCustomSpells()">${ic('scarica')} Esporta i tuoi</button>
       </div>
       ${state.customSpells.some(s=>s.imported) ? `<button class="btn btn-danger btn-block btn-sm" style="margin-top:10px" onclick="confirmClearImported()">Rimuovi gli incantesimi importati</button>` : ''}
     </div>
@@ -5230,18 +5346,18 @@ function renderSettings(){
         ? `<div class="row-between" style="margin-bottom:8px"><span class="muted">Sei in</span><b>${escapeHtml(state.campaign.name||'una campagna')}</b></div>
            <div class="row-between" style="margin-bottom:10px"><span class="muted">In comune</span><b>${(state.sharedSpells||[]).length} incantesimi · ${(state.sharedHomebrew||[]).length} aggiunte</b></div>`
         : `<p class="muted" style="margin-bottom:10px">Un tavolo condiviso con i tuoi giocatori: quello che ci metti dentro lo vedono solo i membri. I personaggi restano privati.</p>`}
-      <button class="btn ${state.campaign?'btn-ghost':'btn-gold'} btn-block" onclick="openCampaign()">⚔️ ${state.campaign?'Gestisci la campagna':'Crea o entra in una campagna'}</button>
+      <button class="btn ${state.campaign?'btn-ghost':'btn-gold'} btn-block" onclick="openCampaign()">${ic('tavolo')} ${state.campaign?'Gestisci la campagna':'Crea o entra in una campagna'}</button>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Contenuti tuoi</span></div>
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Sottoclassi, razze e background che non sono nell'SRD: li aggiungi tu dai manuali che possiedi e compaiono nella creazione guidata.${(state.homebrew||[]).length ? ' Ne hai <b>'+state.homebrew.length+'</b>.' : ''}</p>
-      <button class="btn btn-gold btn-block" onclick="openHomebrew()">📚 Gestisci i tuoi contenuti</button>
+      <button class="btn btn-gold btn-block" onclick="openHomebrew()">${ic('libro')} Gestisci i tuoi contenuti</button>
       ${/* Le suppliche si caricavano SOLO passando dalla scheda di un
            warlock: senza un warlock in squadra non c'era nessuna strada
            per metterle in archivio prima di crearne uno. */''}
       <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="apriImportSuppliche(null)">
-        🕯️ Carica suppliche occulte${(state.suppliche||[]).length ? ' · ne hai ' + state.suppliche.length : ''}
+        ${ic('candela')} Carica suppliche occulte${(state.suppliche||[]).length ? ' · ne hai ' + state.suppliche.length : ''}
       </button>
     </div>
 
@@ -5249,8 +5365,8 @@ function renderSettings(){
     <div class="card" style="margin-bottom:12px">
       <p class="muted" style="margin-bottom:12px">Cosa è al sicuro sul tuo account e cosa esiste solo qui. Quello che elimini resta recuperabile per 30 giorni.</p>
       <div class="btn-row">
-        <button class="btn btn-gold" onclick="openSaluteDati()">🩺 Salute dei dati</button>
-        <button class="btn btn-ghost" onclick="openCestino()">🗑️ Cestino${(typeof quantoNelCestino==='function' && quantoNelCestino())?' ('+quantoNelCestino()+')':''}</button>
+        <button class="btn btn-gold" onclick="openSaluteDati()">${ic('salute')} Salute dei dati</button>
+        <button class="btn btn-ghost" onclick="openCestino()">${ic('cestino')} Cestino${(typeof quantoNelCestino==='function' && quantoNelCestino())?' ('+quantoNelCestino()+')':''}</button>
       </div>
     </div>
 
@@ -5258,11 +5374,11 @@ function renderSettings(){
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Salva una copia di tutto (personaggi, bestiario, incantesimi personalizzati) in un file sul dispositivo, da reimportare quando vuoi.</p>
       <div class="btn-row">
-        <button class="btn btn-gold" onclick="exportData()">⤓ Esporta</button>
-        <button class="btn btn-ghost" onclick="triggerImport()">⤒ Importa</button>
+        <button class="btn btn-gold" onclick="exportData()">${ic('scarica')} Esporta</button>
+        <button class="btn btn-ghost" onclick="triggerImport()">${ic('carica')} Importa</button>
       </div>
       <p class="muted" style="font-size:.75rem; margin-top:10px">«Importa» accetta anche una <b>scheda PDF compilabile</b> e i <b>PDF o file di testo dei tuoi manuali</b>: capisco da solo di che file si tratta.</p>
-      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="openPdfImport()">⇪ Importa una scheda PDF compilabile</button>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="openPdfImport()">${ic('carica')} Importa una scheda PDF compilabile</button>
       <input type="file" id="import-file" accept="application/json,.json,application/pdf,.pdf,.txt,text/plain,.md" style="display:none" onchange="handleImportFile(this)">
     </div>
 
@@ -5348,7 +5464,7 @@ function exportData(){
     }, 'grimorio-backup');
     segnaBackupFatto();
     toast('⤓ Backup esportato');
-  } catch(e){ console.error(e); toast('⚠️ Esportazione non riuscita'); }
+  } catch(e){ console.error(e); toast('⚠ Esportazione non riuscita'); }
 }
 function exportCustomSpells(){
   if (!state.customSpells.length){ toast('Non hai ancora incantesimi tuoi'); return; }
@@ -5372,30 +5488,30 @@ function handleImportFile(input){
   if (isTesto && typeof hbBulkUsaFile === 'function'){
     openHomebrewBulk(); hbBulkUsaFile([file]); return;
   }
-  if (!isJson && !isTesto){ toast('⚠️ Non so leggere questo tipo di file'); return; }
+  if (!isJson && !isTesto){ toast('⚠ Non so leggere questo tipo di file'); return; }
   const reader = new FileReader();
   reader.onload = () => {
     let data;
     try { data = JSON.parse(reader.result); }
-    catch(e){ toast('⚠️ File non valido'); return; }
+    catch(e){ toast('⚠ File non valido'); return; }
     if (data && data.type === 'spells' && Array.isArray(data.spells)){
       openSpellImport(); analyzeSpellImport(JSON.stringify(data)); return;
     }
     if (!data || (!Array.isArray(data.characters) && !Array.isArray(data.npcs) && !Array.isArray(data.customSpells))){
-      toast('⚠️ Questo file non è un backup di TwentyNation'); return;
+      toast('⚠ Questo file non è un backup di TwentyNation'); return;
     }
     const nc = (data.characters||[]).length, nn = (data.npcs||[]).length, ns = (data.customSpells||[]).length;
     confirmDialog('Importare il backup?',
       `Contiene ${nc} ${pluralize(nc,'personaggio','personaggi')}, ${nn} PNG e ${ns} ${pluralize(ns,'incantesimo','incantesimi')} personalizzati. Le voci con lo stesso identificativo verranno aggiornate, il resto viene aggiunto.`,
       () => doImport(data), 'Importa');
   };
-  reader.onerror = () => toast('⚠️ Impossibile leggere il file');
+  reader.onerror = () => toast('⚠ Impossibile leggere il file');
   reader.readAsText(file);
 }
 /* Una scheda compilabile ha i campi del modulo; un manuale no. Lo si
    capisce provando a leggerli, senza chiedere niente all'utente. */
 async function instradaPdf(file){
-  if (typeof readPdfFields !== 'function'){ toast('⚠️ Non so leggere questo tipo di file'); return; }
+  if (typeof readPdfFields !== 'function'){ toast('⚠ Non so leggere questo tipo di file'); return; }
   toast('Sto guardando che PDF è…');
   let campi = [];
   try {
@@ -5411,7 +5527,7 @@ async function instradaPdf(file){
   if (typeof hbBulkUsaFile === 'function'){
     openHomebrewBulk(); hbBulkUsaFile([file]); return;
   }
-  toast('⚠️ Questo PDF non ha campi compilabili da leggere');
+  toast('⚠ Questo PDF non ha campi compilabili da leggere');
 }
 /* Ripristinare un backup e' l'importazione con PIU' roba dentro, ed era
    l'unica rimasta sulla via lenta: fsSet() una voce alla volta, e fsSet
@@ -5449,7 +5565,7 @@ async function doImport(data){
 
   /* Una sola scrittura locale per tutto, poi i blocchi verso il server. */
   if (!saveLocalOra()){
-    toast('⚠️ Non c\'è spazio per questo backup: libera qualcosa e riprova');
+    toast('⚠ Non c\'è spazio per questo backup: libera qualcosa e riprova');
     return;
   }
   let pieno = false;
@@ -5459,9 +5575,9 @@ async function doImport(data){
   }
   state.offlineMode = true;
   render();
-  if (pieno){ toast('⚠️ Memoria piena a metà importazione: controlla «Salute dei dati»'); return; }
+  if (pieno){ toast('⚠ Memoria piena a metà importazione: controlla «Salute dei dati»'); return; }
   const a = conti.characters, b = conti.npcs, c = conti.customSpells, d = conti.journal;
-  toast(`⤒ Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi${d?`, ${d} voci di diario`:''}`);
+  toast(`Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi${d?`, ${d} voci di diario`:''}`);
 }
 
 /* ─── 23. TIRA DADI ─── */
@@ -5477,7 +5593,7 @@ function diceRollerHTML(){
         <div class="field"><label>Facce</label><input id="dice-sides" type="number" inputmode="numeric" min="2" max="1000" value="20"></div>
         <div class="field"><label>Modif.</label><input id="dice-mod" type="number" inputmode="numeric" value="0"></div>
       </div>
-      <button class="btn btn-primary btn-block" onclick="doRollCustom()">🎲 Tira</button>
+      <button class="btn btn-primary btn-block" onclick="doRollCustom()">${ic('dado')} Tira</button>
       ${hist.length ? `
         <div class="divider"><span class="flourish">❧</span><span>Cronologia</span></div>
         <div class="list-gap">${hist.slice(0,10).map(h=>`<div class="hist-item">
@@ -5511,7 +5627,7 @@ function doRoll(count, sides, bonus){
           <div class="roll-detail">[${rolls.join(', ')}]${bonus?` ${signStr(bonus)}`:''}</div>
         </div>
         <div class="btn-row" style="margin-top:16px">
-          <button class="btn btn-ghost" onclick="doRoll(${count},${sides},${bonus})">↻ Ritira</button>
+          <button class="btn btn-ghost" onclick="doRoll(${count},${sides},${bonus})">${ic('ricarica')} Ritira</button>
           <button class="btn btn-primary" onclick="openDiceRoller()">Chiudi</button>
         </div>
       </div>
@@ -5660,8 +5776,8 @@ function spellImportHTML(){
       Gli incantesimi finiscono fra i tuoi personalizzati: restano modificabili e si sincronizzano sull'account.
     </p>
     <div class="btn-row">
-      <button class="btn btn-gold" onclick="document.getElementById('spell-import-file').click()">📂 Scegli un file</button>
-      <button class="btn btn-gold" onclick="openSpellPdfImport()">📄 Da un PDF</button>
+      <button class="btn btn-gold" onclick="document.getElementById('spell-import-file').click()">${ic('cartella')} Scegli un file</button>
+      <button class="btn btn-gold" onclick="openSpellPdfImport()">${ic('foglio')} Da un PDF</button>
     </div>
     <input type="file" id="spell-import-file" accept="application/json,.json,.txt,application/pdf,.pdf" style="display:none" onchange="handleSpellImportFile(this)">
     <div class="divider"><span class="flourish">❧</span><span>oppure incolla</span></div>
@@ -5697,12 +5813,12 @@ function spellImportPreviewHTML(){
     <div class="muted" style="margin-bottom:8px">Anteprima:</div>
     <div class="list-gap" style="margin-bottom:16px">
       ${p.toImport.slice(0,6).map(s=>`<div class="spell-item">
-        <span class="spell-lvl-badge">${s.level===0?'C':s.level}</span>
+        <span class="spell-lvl-badge lv${s.level||0}">${s.level===0?'C':s.level}</span>
         <span class="spell-item-body">
           <span class="spell-item-name">${escapeHtml(s.name)}</span>
           <span class="spell-item-meta">${escapeHtml(s.school||'—')}${s.classes.length?' · '+escapeHtml(s.classes.map(c=>CLASSES_IT[c]||c).join(', ')):''}</span>
         </span>
-      </div>`).join('') || emptyState('🤔','Non c\'è niente da importare con queste impostazioni.')}
+      </div>`).join('') || emptyState(ic('domanda'),'Non c\'è niente da importare con queste impostazioni.')}
       ${p.toImport.length>6?`<div class="muted" style="text-align:center">…e altri ${p.toImport.length-6}</div>`:''}
     </div>
     <button class="btn btn-primary btn-block" ${p.toImport.length?'':'disabled'} onclick="confirmSpellImport()">Importa ${p.toImport.length} incantesim${p.toImport.length===1?'o':'i'}</button>
@@ -5718,12 +5834,12 @@ function handleSpellImportFile(input){
   const isPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
   if (isPdf){
     if (typeof spellPdfUseFile === 'function') spellPdfUseFile(file);
-    else toast('⚠️ Lettore PDF non disponibile: aggiorna l\'app');
+    else toast('⚠ Lettore PDF non disponibile: aggiorna l\'app');
     return;
   }
   const reader = new FileReader();
   reader.onload = () => analyzeSpellImport(reader.result);
-  reader.onerror = () => toast('⚠️ Impossibile leggere il file');
+  reader.onerror = () => toast('⚠ Impossibile leggere il file');
   reader.readAsText(file);
 }
 function analyzeSpellImport(text){
@@ -5734,9 +5850,9 @@ function analyzeSpellImport(text){
   if (!String(text).trim()){ toast('Incolla il testo o scegli un file'); return; }
   let data;
   try { data = JSON.parse(text); }
-  catch(e){ toast('⚠️ Il testo non è JSON valido'); return; }
+  catch(e){ toast('⚠ Il testo non è JSON valido'); return; }
   const all = normalizeImportedSpells(data);
-  if (!all.length){ toast('⚠️ Nessun incantesimo riconosciuto nel file'); return; }
+  if (!all.length){ toast('⚠ Nessun incantesimo riconosciuto nel file'); return; }
   const srdNames = new Set((typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).map(s=>norm(s.name)));
   const customNames = new Set(state.customSpells.map(s=>norm(s.name)));
   pendingImport = {
@@ -5788,12 +5904,12 @@ async function confirmSpellImport(){
   closeModal();
   state.offlineMode = state.offlineMode || !currentUser;
   render();
-  toast(`⤒ ${saved.length} incantesim${saved.length===1?'o':'i'} nel Grimorio`);
+  toast(`${saved.length} incantesim${saved.length===1?'o':'i'} nel Grimorio`);
   const condividi = pendingImport && pendingImport.shareToCamp;
   await bulkSaveSpells(saved);
   if (condividi && typeof shareToCampaign === 'function'){
     const n = await shareToCampaign('spells', saved);
-    if (n) toast('⚔️ ' + n + ' anche nella campagna');
+    if (n) toast('⚔ ' + n + ' anche nella campagna');
   }
   pendingImport = null;
 }
@@ -5816,7 +5932,7 @@ async function bulkSaveSpells(list){
   } catch(e){
     console.error('Errore importazione', e);
     setSaveStatus('offline');
-    toast('⚠️ Salvati in locale: sincronizzazione non riuscita');
+    toast('⚠ Salvati in locale: sincronizzazione non riuscita');
   }
 }
 function confirmClearImported(){
@@ -5898,7 +6014,7 @@ function markUpdateReady(){
 function updateBannerHTML(){
   if (!state.updateReady) return '';
   return `<div class="update-banner">
-    <span>✨ C'è una versione nuova di TwentyNation.</span>
+    <span>${ic('incantesimo')} C'è una versione nuova di TwentyNation.</span>
     <button class="btn btn-sm btn-gold" onclick="forceAppUpdate()">Aggiorna ora</button>
   </div>`;
 }
@@ -5994,27 +6110,27 @@ function openSheetMenu(charId){
   </button>`;
   openModal({ render: () => modalShell('⋯ ' + escapeHtml(c.name || 'Scheda'), `
     <div class="list-gap">
-      ${item('🏕️', 'Riposo', 'Breve o lungo, con i dadi vita e le risorse', `openRestModal('${c.id}')`)}
+      ${item(ic('tenda'), 'Riposo', 'Breve o lungo, con i dadi vita e le risorse', `openRestModal('${c.id}')`)}
       ${item('✦', 'Punti esperienza', (c.xp ? fmtXp(xpNum(c)) + ' px · tocca per aggiornarli' : 'Se giocate a traguardi, lascia stare'), `openXpDialog('${c.id}')`)}
-      ${item('🩸', 'Condizioni', ((c.conditions||[]).length ? (c.conditions||[]).map(id => (CONDITION_BY_ID[id]||{}).name || id).join(', ') : 'Prono, avvelenato, affascinato…'), `openConditionPicker('${c.id}')`)}
-      ${(c.level||1) < 20 ? item('📈', 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
-      ${item('📄', 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
+      ${item(ic('sangue'), 'Condizioni', ((c.conditions||[]).length ? (c.conditions||[]).map(id => (CONDITION_BY_ID[id]||{}).name || id).join(', ') : 'Prono, avvelenato, affascinato…'), `openConditionPicker('${c.id}')`)}
+      ${(c.level||1) < 20 ? item(ic('livello'), 'Sali di livello', 'Dal ' + (c.level||1) + '° al ' + ((c.level||1)+1) + '°, con privilegi e punti ferita', `openLevelUp('${c.id}')`) : ''}
+      ${item(ic('foglio'), 'Esporta in PDF', 'Un foglio da stampare o da mandare al master', `exportCharacterPdf('${c.id}')`)}
       ${(typeof exportSpellBook === 'function' && (c.knownSpells||[]).length)
-        ? item('📖', 'Libretto degli incantesimi', 'I testi per intero, in italiano, su due colonne da stampare', `exportSpellBook('${c.id}')`)
+        ? item(ic('grimorio'), 'Libretto degli incantesimi', 'I testi per intero, in italiano, su due colonne da stampare', `exportSpellBook('${c.id}')`)
         : ''}
       ${typeof apriRiempiScheda === 'function'
-        ? item('🖊️', 'Riempi la tua scheda compilabile', 'Metti il tuo modulo e ci scrivo dentro: ogni dato nella sua casella', `apriRiempiScheda('${c.id}')`)
+        ? item(ic('penna'), 'Riempi la tua scheda compilabile', 'Metti il tuo modulo e ci scrivo dentro: ogni dato nella sua casella', `apriRiempiScheda('${c.id}')`)
         : ''}
       ${(state.campaign && state.campaign.id && typeof apriCondividiPg === 'function')
-        ? item('⚔️', (typeof dettaglioDi === 'function' && dettaglioDi(c.id)) ? 'Al tavolo · ' + PARTY_DETTAGLI[dettaglioDi(c.id)].label.toLowerCase() : 'Mostra al tavolo',
+        ? item(ic('tavolo'), (typeof dettaglioDi === 'function' && dettaglioDi(c.id)) ? 'Al tavolo · ' + PARTY_DETTAGLI[dettaglioDi(c.id)].label.toLowerCase() : 'Mostra al tavolo',
                (typeof dettaglioDi === 'function' && dettaglioDi(c.id))
                  ? 'Gli altri vedono questa scheda: tocca per cambiare o togliere'
                  : 'Fai vedere questa scheda agli altri giocatori — decidi tu quanto',
                `apriCondividiPg('${c.id}')`)
         : ''}
-      ${item('✎', 'Modifica la scheda', 'Nome, caratteristiche, competenze, tutto il resto', `openCharacterForm('${c.id}')`)}
-      ${item('🖼️', 'Cambia ritratto', 'Una foto o un disegno al posto del simbolo', `choosePortrait(u=>setCharPortrait('${c.id}',u))`)}
-      ${state.characters.length > 1 ? item('🎭', 'Cambia personaggio', 'Salta su un\'altra scheda senza tornare al party', `openCharSwitcher()`) : ''}
+      ${item(ic('penna'), 'Modifica la scheda', 'Nome, caratteristiche, competenze, tutto il resto', `openCharacterForm('${c.id}')`)}
+      ${item(ic('immagine'), 'Cambia ritratto', 'Una foto o un disegno al posto del simbolo', `choosePortrait(u=>setCharPortrait('${c.id}',u))`)}
+      ${state.characters.length > 1 ? item(ic('party'), 'Cambia personaggio', 'Salta su un\'altra scheda senza tornare al party', `openCharSwitcher()`) : ''}
     </div>`) });
 }
 function openCharSwitcher(){
@@ -6090,7 +6206,7 @@ function globalSearchResults(q){
      perche' allSpells() li mescola ai tuoi, i mostri no. */
   (state.sharedNpcs || []).forEach(p => {
     if (norm(p.name||'').includes(n) || norm(p.type||'').includes(n))
-      push('Dal tavolo', '⚔️', p.name || 'Senza nome',
+      push('Dal tavolo', '⚔', p.name || 'Senza nome',
         [p.type || '', p.sharedByName ? ('condiviso da ' + p.sharedByName) : ''].filter(Boolean).join(' · '),
         `closeModalAll(); apriMostroCondiviso('${jsStr(p.id)}')`);
   });
@@ -6102,9 +6218,9 @@ function globalSearchResults(q){
 
   if (typeof SRD_WEAPONS !== 'undefined'){
     SRD_WEAPONS.forEach(w => { if (norm(gearName(w)).includes(n) || norm(w.n).includes(n))
-      push('Armi', '⚔️', gearName(w), w.d + ' ' + w.dt + ' · ' + w.cat, `closeModal(); viewGear('arma','${w.id}')`); });
+      push('Armi', '⚔', gearName(w), w.d + ' ' + w.dt + ' · ' + w.cat, `closeModal(); viewGear('arma','${w.id}')`); });
     SRD_ARMORS.forEach(a => { if (norm(gearName(a)).includes(n) || norm(a.n).includes(n))
-      push('Armature', '🛡️', gearName(a), 'CA ' + a.ac + ' · ' + a.cat, `closeModal(); viewGear('armatura','${a.id}')`); });
+      push('Armature', '🛡', gearName(a), 'CA ' + a.ac + ' · ' + a.cat, `closeModal(); viewGear('armatura','${a.id}')`); });
     SRD_GEAR.forEach(g => { if (norm(gearName(g)).includes(n))
       push('Equipaggiamento', '🎒', gearName(g), g.k + ' · ' + costLabel(g.c), `closeModal(); viewGear('roba','${g.id}')`); });
   }
@@ -6128,7 +6244,7 @@ function globalSearchResults(q){
     : (state.homebrew || []);
   aggiunte.forEach(h => {
     if (norm(h.name||'').includes(n))
-      push(h.fromCampaign ? 'Dal tavolo' : 'Aggiunte personali', h.fromCampaign ? '⚔️' : '✍️', h.name,
+      push(h.fromCampaign ? 'Dal tavolo' : 'Aggiunte personali', h.fromCampaign ? '⚔' : '✍', h.name,
         [(HB_KINDS[h.kind] ? HB_KINDS[h.kind].label : ''), h.sharedByName ? ('condiviso da ' + h.sharedByName) : ''].filter(Boolean).join(' · '),
         `closeModalAll(); goView('settings')`);
   });
@@ -6143,7 +6259,7 @@ function globalSearchHTML(){
 
   const inner = `
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input id="gs-input" placeholder="Cerca ovunque: nomi, incantesimi, creature…" value="${attr(q)}" oninput="gsType(this.value)" autocomplete="off">
     </div>
     ${norm(q).length < 2
@@ -6160,7 +6276,7 @@ function globalSearchHTML(){
                 </span>
               </button>`).join('')}
             </div>`).join('')
-        : emptyState('🔍', 'Niente che somigli a «' + escapeHtml(q) + '».'))}`;
+        : emptyState(ic('cerca'), 'Niente che somigli a «' + escapeHtml(q) + '».'))}`;
   return modalShell('🔍 Cerca', inner);
 }
 const gsType = debounce((v) => { state.search.q = v; renderModalRoot({ toTop:true }); }, 200);
@@ -6261,7 +6377,7 @@ function tsGruppoHTML(){
       </div>
     </div>
     <button class="btn btn-gold btn-block" style="margin-top:12px" onclick="tsGruppoTira()">
-      🎲 Tira ${ab.label} CD ${g.cd} per ${state.combat.list.length}</button>
+      ${ic('dado')} Tira ${ab.label} CD ${g.cd} per ${state.combat.list.length}</button>
     ${esiti ? `
       <div class="divider" style="margin-top:16px"><span class="flourish">❧</span><span>${passati} passano · ${falliti} falliscono</span></div>
       <div class="list-gap">
@@ -6271,7 +6387,7 @@ function tsGruppoHTML(){
               <span class="attack-name">${e.avatar?e.avatar+' ':''}${escapeHtml(e.nome)} ${e.passa?'<span style="color:var(--gold)">✓</span>':'<span style="color:var(--garnet)">✗</span>'}</span>
               <span class="muted" style="font-size:.73rem; display:block">d20 (${e.nat})${e.altro!=null?' · scartato '+e.altro:''} ${signStr(e.mod)} = <b>${e.tot}</b>${e.crit?' · 20 naturale':''}${e.zero?' · 1 naturale':''}</span>
             </span>
-            <button class="attack-btn" title="Ritira solo questo" onclick="tsGruppoRitira(${e.i})">↻</button>
+            <button class="attack-btn" title="Ritira solo questo" onclick="tsGruppoRitira(${e.i})">${ic('ricarica')}</button>
           </div>`).join('')}
       </div>
       ${senza.length ? `<div class="muted" style="font-size:.74rem; margin-top:10px">Per ${senza.map(e=>escapeHtml(e.nome)).join(', ')} non ho i punteggi: ${senza.length===1?'tiralo':'tirali'} a mano.</div>` : ''}

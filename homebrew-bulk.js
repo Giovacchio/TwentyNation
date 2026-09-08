@@ -568,7 +568,7 @@ function hbBulkHTML(){
       Quello che entra resta tuo; lo condividi col tavolo solo se lo decidi.
     </p>
     <div class="btn-row">
-      <button class="btn btn-gold" ${b.busy?'disabled':''} onclick="document.getElementById('hb-bulk-file').click()">📂 ${b.busy
+      <button class="btn btn-gold" ${b.busy?'disabled':''} onclick="document.getElementById('hb-bulk-file').click()">${ic('cartella')} ${b.busy
         ? ((b.file_n > 1 ? 'File '+b.file+' di '+b.file_n+' · ' : '') + (b.tot ? 'pagina '+b.pag+' di '+b.tot+'…' : 'leggo…'))
         : 'Scegli i file'}</button>
       <button class="btn btn-ghost" ${b.busy?'disabled':''} onclick="hbBulkFromBox()">Analizza il testo</button>
@@ -581,7 +581,7 @@ function hbBulkHTML(){
     </div>
     <div class="spell-source-note">Carica solo materiale di cui hai i diritti: i tuoi appunti, il tuo homebrew, o i manuali che possiedi. Resta sul tuo account e, se lo scegli, sul tavolo che hai creato tu.</div>`);
 
-  if (b.salvando) return modalShell('📚 Le metto fra le tue voci', `
+  if (b.salvando) return modalShell(ic('libro') + ' Le metto fra le tue voci', `
     <p class="muted" style="margin-bottom:14px">Ci vuole qualche secondo. Tieni l'app aperta.</p>
     <div class="card">
       <div class="row-between"><span class="muted">Salvate</span><b style="color:var(--gold)">${b.salvando.fatti} di ${b.salvando.tot}</b></div>
@@ -604,7 +604,7 @@ function hbBulkHTML(){
         : [(x.skills||[]).map(s=>(SKILLS.find(y=>y.key===s)||{}).label).filter(Boolean).join(', '), x.feature].filter(Boolean).join(' · ');
     const st = hbStatoVoce(x);
     return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':(st.stato!=='nuova'?'border-color:var(--line)':'')}" onclick="hbBulkToggle('${x.id}')">
-      <span style="flex-shrink:0; margin-right:10px; font-size:1.1rem">${on?'☑️':'⬜'}</span>
+      <span style="flex-shrink:0; margin-right:10px; font-size:1.1rem">${on?'☑':'⬜'}</span>
       <span class="attack-main">
         <span class="attack-name" style="${st.stato!=='nuova'&&!on?'opacity:.72':''}">${k.icon||''} ${escapeHtml(x.name)}${
           st.stato==='mia' ? ' <span class="badge">già tua</span>' : st.stato==='tavolo' ? ' <span class="badge">dal tavolo</span>' : ''}</span>
@@ -758,7 +758,7 @@ function hbBulkAssegna(classId){
   if (hbBulk.aperti) hbBulk.aperti.add('Sottoclassi:'+classId);
   if (hbBulk.chiusi) hbBulk.chiusi.delete('Sottoclassi:'+classId);
   renderModalRoot();
-  if (n) toast('⚔️ ' + n + ' sottoclassi assegnate a ' + ((CLASS_BY_ID[classId]||{}).name || classId));
+  if (n) toast(n + ' sottoclassi assegnate a ' + ((CLASS_BY_ID[classId]||{}).name || classId));
 }
 /* Apre o chiude il gruppo di una classe nell'elenco. */
 function hbBulkApri(chiave, quante, unoSolo){
@@ -798,7 +798,7 @@ function hbBulkAnalizza(testo){
   hbBulk.q = '';
   listaAzzeraTutte('hb');
   renderModalRoot({ toTop:true });
-  toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' voci') : '⚠️ Non ho riconosciuto niente');
+  toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' voci') : 'Non ho riconosciuto niente');
 }
 function hbBulkFromBox(){
   const el = document.getElementById('hb-bulk-text');
@@ -832,7 +832,7 @@ async function hbBulkUsaFile(files){
       if (testo) testi.push(testo);
     } catch(e){
       console.error(e);
-      toast('⚠️ Non riesco a leggere «' + (f.name||'il file') + '»');
+      toast(' Non riesco a leggere «' + (f.name||'il file') + '»');
     }
   }
   if (!testi.length){ hbBulk.busy = false; renderModalRoot(); return; }
@@ -878,7 +878,7 @@ async function hbBulkConfirm(){
   const ora = Date.now();
   scelti.forEach(x => {
     // se dal testo si capiscono gli effetti sulle regole, glieli si mette
-    // già addosso: poi si aprono con ⚙️ e si sistemano.
+    // già addosso: poi si aprono con ${ic('opzioni')} e si sistemano.
     if (typeof proponiMeccaniche === 'function'){
       try { const m = proponiMeccaniche(x); if (m){ x.meccaniche = m; conEffetti++; } } catch(e){}
     }
@@ -886,7 +886,7 @@ async function hbBulkConfirm(){
     /* Se una voce con lo stesso nome ce l'hai già, si AGGIORNA quella
        invece di affiancarne una copia: si tiene il suo identificativo,
        così le schede che ci sono attaccate (raceId, subclassId) non
-       restano a puntare a una voce morta. Gli effetti ⚙️ che avevi
+       restano a puntare a una voce morta. Gli effetti ${ic('opzioni')} che avevi
        configurato a mano non si buttano se la lettura non ne propone. */
     const mia = hbGiaTua(x);
     if (mia){
@@ -928,12 +928,12 @@ async function hbBulkConfirm(){
 
   const condividi = hbBulk.condividi;
   closeModal(); render();
-  toast('📚 ' + (scelti.length - aggiornate) + ' voci aggiunte' +
+  toast((scelti.length - aggiornate) + ' voci aggiunte' +
         (aggiornate ? ' · ' + aggiornate + (aggiornate === 1 ? ' aggiornata' : ' aggiornate') : '') +
         (conEffetti ? ' · ' + conEffetti + ' con effetti riconosciuti' : ''));
   if (condividi && typeof shareToCampaign === 'function'){
     const n = await shareToCampaign('homebrew', scelti);
-    if (n) toast('⚔️ ' + n + ' anche nella campagna');
+    if (n) toast(n + ' anche nella campagna');
   }
   hbBulk = null;
 }

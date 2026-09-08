@@ -46,7 +46,7 @@ function monsterBrowserHTML(){
   const inner = `
     ${mbFilter.hint ? `<p class="muted" style="margin-bottom:12px">${escapeHtml(mbFilter.hint)}</p>` : ''}
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input id="mb-search" placeholder="Cerca una creatura…" value="${attr(mbFilter.q)}" oninput="mbSearch(this.value)" autocomplete="off">
     </div>
     ${(!mbFilter.onlyFam && !mbFilter.onlyBeasts) ? `<div class="filter-bar">
@@ -62,7 +62,7 @@ function monsterBrowserHTML(){
           <span class="spell-item-meta">${m.sz} · ${m.t} · CA ${m.ac} · PF ${m.hp}</span>
         </button>
         <button class="spell-item-add" onclick="${picking ? `pickMonster('${m.id}')` : `addMonsterToBestiary('${m.id}')`}" aria-label="Aggiungi">✦</button>
-      </div>`).join('') || emptyState('🔍','Nessuna creatura trovata.')}
+      </div>`).join('') || emptyState(ic('cerca'),'Nessuna creatura trovata.')}
     </div>`;
   return modalShell(mbFilter.title || '🐉 Bestiario SRD', inner);
 }
@@ -89,7 +89,7 @@ function monsterSheetHTML(m, pickKind, companionRef){
     <div class="combat-grid" style="margin-bottom:10px">
       <div class="combat-stat"><div class="v">${m.ac}</div><div class="l">CA</div></div>
       <div class="combat-stat"><div class="v">${m.hp}</div><div class="l">PF (${m.hd})</div></div>
-      <button class="combat-stat tappable" onclick="rollMonsterHp('${m.id}')"><div class="v">🎲</div><div class="l">Tira i PF</div></button>
+      <button class="combat-stat tappable" onclick="rollMonsterHp('${m.id}')"><div class="v">${ic('dado')}</div><div class="l">Tira i PF</div></button>
     </div>
     <div class="ability-grid" style="grid-template-columns:repeat(6,1fr); gap:5px; margin-bottom:12px">${abRow}</div>
     <div class="card" style="margin-bottom:12px">
@@ -170,7 +170,7 @@ function addMonsterToCombat(id){
   sortCombat(); saveSession();
   state.view = 'dm'; state.dmTab = 'initiative';
   closeModal(); render();
-  toast('⚔️ ' + monsterName(m) + ' in campo con ' + hp + ' PF');
+  toast('⚔ ' + monsterName(m) + ' in campo con ' + hp + ' PF');
 }
 
 /* ─── Compagni legati alla scheda ─── */
@@ -190,7 +190,7 @@ function companionHpBlock(found){
       <span class="badge">${COMPANION_KINDS[comp.kind]?COMPANION_KINDS[comp.kind].label:''}</span>
     </div>
     <div class="btn-row" style="margin:8px 0 4px">
-      <button class="btn btn-ghost btn-sm" onclick="scegliFotoCompagno('${found.charId}','${comp.cid}')">📷 ${comp.portrait?'Cambia foto':'Carica una foto'}</button>
+      <button class="btn btn-ghost btn-sm" onclick="scegliFotoCompagno('${found.charId}','${comp.cid}')">${ic('foto')} ${comp.portrait?'Cambia foto':'Carica una foto'}</button>
       ${comp.portrait?`<button class="btn btn-ghost btn-sm" onclick="togliFotoCompagno('${found.charId}','${comp.cid}')">Togli</button>`:''}
     </div>
     <div class="hp-bar-lg"><div class="hp-bar-lg-fill ${pct<=25?'low':''}" style="width:${pct}%"></div></div>
@@ -214,7 +214,7 @@ function compSigilloHTML(c, comp, kind, lato){
   const s = lato || 44;
   const dentro = comp.portrait
     ? `<img src="${attr(comp.portrait)}" alt="">`
-    : `<span style="font-size:${Math.round(s*0.46)}px">${kind ? kind.icon : '🐾'}</span>`;
+    : `<span style="font-size:${Math.round(s*0.46)}px">${kind ? kind.icon : ic('zampa')}</span>`;
   return `<button class="comp-sigillo ${comp.portrait?'con-foto':''}" style="width:${s}px;height:${s}px"
       onclick="scegliFotoCompagno('${c.id}','${comp.cid}')"
       title="${comp.portrait?'Cambia la foto':'Carica una foto'}"
@@ -290,7 +290,7 @@ function toggleWildShape(charId, cid){
   if (c.activeForm === cid){
     c.activeForm = null;
     scheduleSave('characters', c); render();
-    toast('↩️ Sei tornato alla tua forma');
+    toast('↩ Sei tornato alla tua forma');
     return;
   }
   const comp = (c.companions||[]).find(x => x.cid === cid); if (!comp) return;
@@ -338,7 +338,7 @@ function companionDetailHTML(c, comp, m){
       <div class="btn-row" style="margin-top:10px">
         <button class="btn btn-ghost btn-sm" onclick="openCompanion('${c.id}','${comp.cid}')">Scheda intera</button>
         <button class="btn btn-ghost btn-sm" onclick="bumpCompanionHp('${c.id}','${comp.cid}',999)">Cura tutto</button>
-        <button class="btn btn-ghost btn-sm" onclick="scegliFotoCompagno('${c.id}','${comp.cid}')">📷 ${comp.portrait?'Cambia foto':'Foto'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="scegliFotoCompagno('${c.id}','${comp.cid}')">${ic('foto')} ${comp.portrait?'Cambia foto':'Foto'}</button>
         ${comp.portrait?`<button class="btn btn-ghost btn-sm" onclick="togliFotoCompagno('${c.id}','${comp.cid}')">Togli la foto</button>`:''}
       </div>
     </div>`;
@@ -374,8 +374,8 @@ function companionsBlockHTML(c){
                 <div class="hero-card-sotto">${escapeHtml(sotto)}</div>
               </div>
             </button>
-            <button class="comp-poster-foto" onclick="scegliFotoCompagno('${c.id}','${comp.cid}')" title="Cambia la foto" aria-label="Cambia la foto">📷</button>
-            ${comp.kind==='wildshape' ? `<button class="comp-poster-azione" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
+            <button class="comp-poster-foto" onclick="scegliFotoCompagno('${c.id}','${comp.cid}')" title="Cambia la foto" aria-label="Cambia la foto">${ic('foto')}</button>
+            ${comp.kind==='wildshape' ? `<button class="comp-poster-azione" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩':ic('zampa')}</button>` : ''}
           </div>`
         : `<div class="comp-head">
             ${compSigilloHTML(c, comp, kind, 44)}
@@ -383,7 +383,7 @@ function companionsBlockHTML(c){
               <div class="attack-name">${escapeHtml(comp.name)}${active?' · in forma':''} <span class="muted" style="font-size:.72rem">${open?'▴':'▾'}</span></div>
               <div class="muted" style="font-size:.72rem; margin-top:2px">${escapeHtml(sotto)}</div>
             </button>
-            ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:46px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩️':'🐾'}</button>` : ''}
+            ${comp.kind==='wildshape' ? `<button class="attack-btn" style="min-width:46px" onclick="toggleWildShape('${c.id}','${comp.cid}')" title="${active?'Torna normale':'Trasformati'}">${active?'↩':ic('zampa')}</button>` : ''}
           </div>`;
       return `<div class="comp-card ${active?'active':''} ${comp.portrait?'con-manifesto':''}">
         ${testa}

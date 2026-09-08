@@ -148,7 +148,7 @@ function levelUpHTML(){
       <button class="chip ${lvup.hpMode==='roll'?'active':''}" onclick="lvSetHpMode('roll')">Tira il d${g.hitDie}</button>
     </div>
     ${lvup.hpMode === 'roll' ? `<div style="text-align:center; margin-bottom:12px">
-      <button class="btn btn-ghost" onclick="lvRollHp()">🎲 ${g.rollGain != null ? 'Ritira' : 'Tira'} d${g.hitDie}</button>
+      <button class="btn btn-ghost" onclick="lvRollHp()">${ic('dado')} ${g.rollGain != null ? 'Ritira' : 'Tira'} d${g.hitDie}</button>
       ${g.rollGain != null ? `<div style="margin-top:8px; font-family:var(--font-head); font-size:1.3rem; color:var(--gold)">+${g.rollGain} PF <span class="muted" style="font-size:.8rem">(${lvup.hpRoll} ${g.conMod>=0?'+':''}${g.conMod} COS)</span></div>` : ''}
     </div>` : `<div class="muted" style="text-align:center; margin-bottom:12px">${Math.floor(g.hitDie/2)+1} fissi ${g.conMod>=0?'+':''}${g.conMod} di Costituzione. Il dado vita in più lo hai anche per i riposi brevi.</div>`}
 
@@ -324,8 +324,8 @@ function confirmLevelUp(){
   closeModal(); render();
   const coda = (g.isAsi && asiScritto && !/da mettere|talento/.test(asiScritto)) ? ' · ' + asiScritto : '';
   toast((lvup.quale === 2
-    ? `📈 ${c.name}: ${g.cl.name} ${c.level2}° (+${gain} PF)`
-    : `📈 ${c.name} è di ${c.level}° livello (+${gain} PF)`) + coda);
+    ? `${ic('livello')} ${c.name}: ${g.cl.name} ${c.level2}° (+${gain} PF)`
+    : `${ic('livello')} ${c.name} è di ${c.level}° livello (+${gain} PF)`) + coda);
   celebrate();
   if (wantsSpells) setTimeout(() => { state.sheetTab = 'spells'; render(); }, 900);
   lvup = null;

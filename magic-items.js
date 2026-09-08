@@ -34,7 +34,7 @@ function magicItemsHTML(){
   const inner = `
     ${picking ? `<p class="muted" style="margin-bottom:12px">Scegli un oggetto: finisce nello zaino di ${escapeHtml((charById(miFilter.pickFor)||{}).name || 'questo personaggio')}.</p>` : ''}
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input id="mi-search" placeholder="Cerca fra gli oggetti magici…" value="${attr(miFilter.q)}" oninput="miSearch(this.value)" autocomplete="off">
     </div>
     <div class="filter-bar">
@@ -55,7 +55,7 @@ function magicItemsHTML(){
           <span class="spell-item-meta">${m.t} · ${m.r}${m.ch?(' · '+m.ch+' cariche'):''}</span>
         </button>
         <button class="spell-item-add" onclick="${picking ? `addMagicItemToChar('${miFilter.pickFor}','${m.id}')` : `pickCharForMagicItem('${m.id}')`}" aria-label="Metti nello zaino">✦</button>
-      </div>`).join('') || emptyState('🔍','Nessun oggetto con questi filtri.')}
+      </div>`).join('') || emptyState(ic('cerca'),'Nessun oggetto con questi filtri.')}
     </div>
     <div class="spell-source-note">Oggetti dal System Reference Document 5.1 di Wizards of the Coast, licenza Open Gaming License 1.0a.</div>`;
   return modalShell('💍 Oggetti magici', inner);
@@ -63,7 +63,7 @@ function magicItemsHTML(){
 const miSearch = debounce((v)=>{ miFilter.q = v; renderModalRoot({ toTop:true }); }, 220);
 function miSet(k,v){ miFilter[k] = v; renderModalRoot({ toTop:true }); }
 function miTypeIcon(t){
-  return ({ arma:'⚔️', armatura:'🛡️', scudo:'🛡️', anello:'💍', bacchetta:'🪄', bastone:'🦯',
+  return ({ arma:'⚔', armatura:'🛡', scudo:'🛡', anello:'💍', bacchetta:'🪄', bastone:'🦯',
             verga:'🔱', pozione:'🧪', pergamena:'📜', meraviglioso:'✨' })[t] || '✨';
 }
 

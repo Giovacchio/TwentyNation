@@ -84,7 +84,7 @@ function stepRace(){
   const needLingue = bld.raceLingue.length < quanteLingue;
   return `
     ${sceltaChip(allRaces(), bld.raceId, 'pickRace', 'raceQ', 'Cerca fra le ' + allRaces().length + ' razze\u2026',
-        r => escapeHtml(r.name) + (r.notSrd?' *':'') + (r.fromCampaign?' ⚔️':(r.homebrew?' ✦':'')))}
+        r => escapeHtml(r.name) + (r.notSrd?' *':'') + (r.fromCampaign?' ' + ic('tavolo'):(r.homebrew?' ✦':'')))}
     ${race ? `
       <div class="card" style="margin-bottom:12px">
         <div class="card-title">${escapeHtml(race.name)}</div>
@@ -131,8 +131,8 @@ function stepRace(){
         </div>` : ''}
       ${race.notSrd ? `<div class="spell-source-note">* Variante non compresa nell'SRD: le meccaniche sono riassunte, il talento va scritto a mano.</div>` : ''}
     ` : `<p class="muted">Scegli una razza per vedere cosa comporta.</p>`}
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">📚 Aggiungi una razza tua</button>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">📖 Leggile tutte dal tuo manuale</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">${ic('libro')} Aggiungi una razza tua</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">${ic('grimorio')} Leggile tutte dal tuo manuale</button>
     ${bldNav(!!race && !needSub && !needBonus && !needSkills && !needCantrip && !needLingue)}
   `;
 }
@@ -286,13 +286,13 @@ function stepSubclass(){
     const feats = featuresUpTo(x, bld.level);
     return `<button class="card sub-card ${on?'on':''}" style="width:100%; text-align:left" onclick="bldSet({subclassId:'${x.id}'})">
       <div class="row-between" style="align-items:center">
-        <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.fromCampaign?' ⚔️':(x.homebrew?' ✦':'')}</b>
+        <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.fromCampaign?' ⚔':(x.homebrew?' ✦':'')}</b>
         <span class="badge">${on ? 'scelto' : 'scegli'}</span>
       </div>
       ${(()=>{ const r = (typeof riassuntoMeccaniche === 'function') ? riassuntoMeccaniche(x) : '';
-        // gli effetti dichiarati con ⚙️ si vedono qui: è la differenza fra
+        // gli effetti dichiarati con ⚙ si vedono qui: è la differenza fra
         // una scheda di testo e una sottoclasse che cambia il gioco
-        return r ? `<div class="muted" style="font-size:.73rem; margin-top:4px; color:var(--gold)">⚙️ ${escapeHtml(r)}</div>` : ''; })()}
+        return r ? `<div class="muted" style="font-size:.73rem; margin-top:4px; color:var(--gold)">⚙ ${escapeHtml(r)}</div>` : ''; })()}
       ${feats.length ? `<div class="list-gap" style="margin-top:9px">${feats.map(f=>`
         <div>
           <div class="row-between"><b style="font-size:.83rem">${escapeHtml(f[0])}</b><span class="muted" style="font-size:.72rem">${f[2]}° liv.</span></div>
@@ -307,7 +307,7 @@ function stepSubclass(){
     <div class="card" style="margin-bottom:14px; border-color:var(--gold-dim); padding:11px 13px">
       <div class="muted" style="font-size:.78rem; line-height:1.55">Nell'app c'è ${srd.length === 1 ? "l'unico archetipo" : 'solo quello'} che la licenza libera (SRD) permette di includere: uno per classe. Gli altri sono materiale dei manuali, quindi te li aggiungi tu dal tuo libro — bastano un nome e i privilegi per livello, e poi restano lì per sempre.</div>
       <button class="btn btn-gold btn-block btn-sm" style="margin-top:10px" onclick="hbFromBuilder('subclass','${c.id}')">✦ Crea il tuo ${escapeHtml(c.subclassLabel.toLowerCase())}</button>
-      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">📖 Leggili tutti dal tuo manuale</button>
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">${ic('grimorio')} Leggili tutti dal tuo manuale</button>
     </div>
 
     <div class="list-gap">
@@ -319,7 +319,7 @@ function stepSubclass(){
             return visti.length
               ? bloccoLista('bld-sub', visti, cardFor, { modale:true, nome:'archetipi' })
               : `<div class="lista-vuota">Nessun archetipo con questo nome.</div>`; })()}
-        <div class="muted" style="font-size:.72rem; text-align:center">✦ tuoi · ⚔️ condivisi nella campagna</div>` : ''}
+        <div class="muted" style="font-size:.72rem; text-align:center">✦ tuoi · ⚔ condivisi nella campagna</div>` : ''}
     </div>
 
     ${(()=>{
@@ -361,12 +361,12 @@ function stepBackground(){
   const bg = allBackgrounds().find(b => b.id === bld.bgId);
   return `
     ${sceltaChip(allBackgrounds(), bld.bgId, 'pickBackground', 'bgQ', 'Cerca fra i ' + allBackgrounds().length + ' background\u2026',
-        x => escapeHtml(x.name) + (x.fromCampaign?' ⚔️':(x.homebrew?' ✦':'')))}
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('background')">📚 Aggiungi un background tuo</button>
-    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="openHomebrewBulk()">📖 Leggili tutti dal tuo manuale</button>
+        x => escapeHtml(x.name) + (x.fromCampaign?' ⚔':(x.homebrew?' ✦':'')))}
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="hbFromBuilder('background')">${ic('libro')} Aggiungi un background tuo</button>
+    <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:12px" onclick="openHomebrewBulk()">${ic('grimorio')} Leggili tutti dal tuo manuale</button>
     ${bg && bg.skills.some(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)) ? `
       <div class="card" style="margin-bottom:12px; border-color:var(--warn)">
-        <div class="muted" style="font-size:.8rem">⚠️ ${escapeHtml(bg.skills.filter(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)).map(k=>SKILLS.find(s=>s.key===k).label).join(' e '))} l'hai già presa dalla classe o dalla razza: una competenza doppia non serve a nulla. Torna indietro e cambia la scelta della classe, oppure chiedi al master di sostituirla.</div>
+        <div class="muted" style="font-size:.8rem">⚠ ${escapeHtml(bg.skills.filter(k => bld.classSkills.includes(k) || bld.raceSkills.includes(k)).map(k=>SKILLS.find(s=>s.key===k).label).join(' e '))} l'hai già presa dalla classe o dalla razza: una competenza doppia non serve a nulla. Torna indietro e cambia la scelta della classe, oppure chiedi al master di sostituirla.</div>
       </div>` : ''}
     ${bg ? `
       <div class="card">
@@ -454,7 +454,7 @@ function stepAbilities(){
       <div class="muted" style="font-size:.74rem; margin-top:6px">Metti tu ogni numero dove vuoi: ognuno una volta sola. Per spostarne uno, rimettilo su «—».</div>
     </div>` : ''}
     ${bld.method==='roll' ? `<div class="card" style="margin-bottom:12px">
-      <button class="btn btn-gold btn-block btn-sm" onclick="rollAbilityScores()">🎲 Tira 6 volte 4d6 (scarta il più basso)</button>
+      <button class="btn btn-gold btn-block btn-sm" onclick="rollAbilityScores()">${ic('dado')} Tira 6 volte 4d6 (scarta il più basso)</button>
       ${bld.rolled ? `
       <div class="row-between" style="margin-top:10px"><span class="muted" style="font-size:.8rem">Da assegnare</span><b>${quanteAssegnate()} / 6</b></div>
       ${numeriLiberi().length ? `<div class="chip-row" style="margin-top:8px">${numeriLiberi().map(v=>`<span class="badge gold">${v}</span>`).join('')}</div>` : ''}
@@ -649,7 +649,7 @@ function stepSpells(){
         : (c.spellType==='book' ? 'Questi finiscono nel tuo libro degli incantesimi.' : 'Questi sono gli incantesimi che conosci in modo permanente.')}</div>
     </div>
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input placeholder="Filtra per nome…" value="${attr(bld.spellFilter)}" oninput="bldFilterSpells(this.value)">
     </div>
     ${budget.cantrips ? `<div class="divider"><span class="flourish">❧</span><span>Trucchetti</span></div>
@@ -658,7 +658,7 @@ function stepSpells(){
     <div class="list-gap">${spellList.map(s=>bldSpellRow(s,false)).join('') || '<p class="muted">Nessun incantesimo trovato.</p>'}</div>
     ${senzaClasse.length ? `
       <div class="divider"><span class="flourish">❧</span><span>I tuoi, senza classe (${senzaClasse.length})</span></div>
-      <p class="muted" style="font-size:.75rem; margin-bottom:8px">Li hai importati tu ma non dicono a quale classe appartengono, quindi non compaiono nella lista qui sopra. Se sono di ${escapeHtml(c.name)} prendili pure: con 🏷️ nel grimorio puoi assegnarli una volta per tutte e non ricapita.</p>
+      <p class="muted" style="font-size:.75rem; margin-bottom:8px">Li hai importati tu ma non dicono a quale classe appartengono, quindi non compaiono nella lista qui sopra. Se sono di ${escapeHtml(c.name)} prendili pure: con ${ic('etichetta')} nel grimorio puoi assegnarli una volta per tutte e non ricapita.</p>
       ${bloccoLista('bld-senza-classe', senzaClasse, (s)=>bldSpellRow(s, s.level===0), { modale:true, nome:'incantesimi' })}` : ''}
     ${bldNav(bld.cantrips.length<=budget.cantrips && bld.spells.length<=budget.spells)}
   `;
@@ -880,7 +880,7 @@ function stepSummary(){
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
         ${avatarHTML(bld, 64)}
         <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
-          <button class="btn btn-ghost btn-sm" onclick="choosePortrait(u=>bldSet({portrait:u}))">📷 ${bld.portrait?'Cambia foto':'Carica una foto'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="choosePortrait(u=>bldSet({portrait:u}))">${ic('foto')} ${bld.portrait?'Cambia foto':'Carica una foto'}</button>
           ${bld.portrait?`<button class="btn btn-ghost btn-sm" onclick="bldSet({portrait:null})">Togli la foto</button>`:''}
         </div>
       </div>
@@ -1082,7 +1082,7 @@ function bldToggleSupplica(id){
   const c = bozzaPerSuppliche();
   const s = supplicaById(id); if (!s) return;
   const motivo = perchePuoiNo(c, s);
-  if (motivo){ toast('⚠️ ' + motivo); return; }
+  if (motivo){ toast('⚠ ' + motivo); return; }
   if (bld.suppliche.length >= quanteSuppliche(bld.level)){
     toast('Ne puoi scegliere ' + quanteSuppliche(bld.level) + ': togline una prima'); return;
   }

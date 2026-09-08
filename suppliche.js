@@ -170,7 +170,7 @@ function scegliSupplica(charId, id){
   else {
     const s = supplicaById(id); if (!s) return;
     const motivo = perchePuoiNo(c, s);
-    if (motivo){ toast('⚠️ ' + motivo); return; }
+    if (motivo){ toast('⚠ ' + motivo); return; }
     if (c.suppliche.length >= supplicheSpettanti(c)){
       toast('Ne hai già ' + c.suppliche.length + ': togline una prima');
       return;
@@ -263,7 +263,7 @@ function supplicheHTML(charId){
     </button>`;
   };
 
-  return modalShell('🕯️ Suppliche occulte', `
+  return modalShell('🕯 Suppliche occulte', `
     <div class="card" style="margin-bottom:10px">
       <div class="row-between"><span>Ne conosci</span><b>${scelte.length} / ${spettanti}</b></div>
       ${spettanti === 0 ? `<div class="muted" style="font-size:.74rem; margin-top:4px">Le suppliche arrivano dal 2° livello da warlock.</div>` : ''}
@@ -276,7 +276,7 @@ function supplicheHTML(charId){
       Qui ci sono quelle dell'SRD. Se il tuo manuale ne ha altre, caricale tu:
       restano nel tuo account.
     </p>
-    <button class="btn btn-ghost btn-block" onclick="apriImportSuppliche('${c.id}')">⇪ Carica altre suppliche</button>
+    <button class="btn btn-ghost btn-block" onclick="apriImportSuppliche('${c.id}')">${ic('carica')} Carica altre suppliche</button>
     <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="closeModal()">Chiudi</button>
   `);
 }
@@ -291,7 +291,7 @@ function supplicheSchedaHTML(c){
   return `
     <div class="divider"><span class="flourish">❧</span><span>Suppliche occulte</span></div>
     <button class="btn btn-ghost btn-block btn-sm" onclick="apriSuppliche('${c.id}')">
-      🕯️ ${scelte.length} su ${spettanti} — tocca per scegliere
+      ${ic('candela')} ${scelte.length} su ${spettanti} — tocca per scegliere
     </button>
     ${scelte.length ? `<div class="list-gap" style="margin-top:8px">
       ${scelte.map(s => `<div class="attack-row promemoria" style="display:block">

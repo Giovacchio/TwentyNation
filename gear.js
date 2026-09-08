@@ -41,12 +41,12 @@ function gearHTML(){
   const inner = `
     ${c ? `<p class="muted" style="margin-bottom:12px">Quello che scegli finisce nello zaino di ${escapeHtml(c.name||'questo personaggio')}, col peso già dentro.</p>` : ''}
     <div class="segmented" style="margin-bottom:12px">
-      <button class="${tab==='armi'?'active':''}" onclick="gearTab('armi')">⚔️ Armi</button>
-      <button class="${tab==='armature'?'active':''}" onclick="gearTab('armature')">🛡️ Armature</button>
-      <button class="${tab==='roba'?'active':''}" onclick="gearTab('roba')">🎒 Attrezzatura</button>
+      <button class="${tab==='armi'?'active':''}" onclick="gearTab('armi')">${ic('tavolo')} Armi</button>
+      <button class="${tab==='armature'?'active':''}" onclick="gearTab('armature')">${ic('scudo')} Armature</button>
+      <button class="${tab==='roba'?'active':''}" onclick="gearTab('roba')">${ic('zaino')} Attrezzatura</button>
     </div>
     <div class="search-wrap">
-      <span class="search-ic">🔍</span>
+      <span class="search-ic">${ic('cerca')}</span>
       <input id="gear-search" placeholder="Cerca…" value="${attr(gearFilter.q)}" oninput="gearSearch(this.value)" autocomplete="off">
     </div>
     <div class="filter-bar">
@@ -56,7 +56,7 @@ function gearHTML(){
     <div class="muted" style="margin:2px 0 10px">${list.length} voc${list.length===1?'e':'i'}</div>
     <div class="list-gap">
       ${list.map(x => tab==='armi' ? weaponRowHTML(x, c) : (tab==='armature' ? armorRowHTML(x, c) : gearRowHTML(x, c))).join('')
-        || emptyState('🔍','Niente con questi filtri.')}
+        || emptyState(ic('cerca'),'Niente con questi filtri.')}
     </div>
     <div class="spell-source-note">Tabelle dal System Reference Document 5.1 di Wizards of the Coast, licenza Open Gaming License 1.0a.</div>`;
   return modalShell('🎒 Equipaggiamento', inner);
@@ -83,7 +83,7 @@ function weaponRowHTML(w, c){
     ${c ? `<div class="gear-actions">
       <span class="gear-bonus" title="Tiro per colpire con questo personaggio">${signStr(bonus)}</span>
       <button class="btn-icon" style="width:34px;height:34px" title="Nello zaino" onclick="buyGear('${c.id}','arma','${w.id}')">✦</button>
-      <button class="btn-icon" style="width:34px;height:34px" title="Aggiungi agli attacchi" onclick="weaponToAttack('${c.id}','${w.id}')">⚔️</button>
+      <button class="btn-icon" style="width:34px;height:34px" title="Aggiungi agli attacchi" onclick="weaponToAttack('${c.id}','${w.id}')">⚔</button>
     </div>` : `<span class="gear-cost-only">${costLabel(w.c)}</span>`}
   </div>`;
 }
@@ -99,7 +99,7 @@ function armorRowHTML(a, c){
     ${c ? `<div class="gear-actions">
       <span class="gear-bonus" title="La CA che ti darebbe">${a.cat==='scudo' ? ('+'+a.ac) : ac}</span>
       <button class="btn-icon" style="width:34px;height:34px" title="Nello zaino" onclick="buyGear('${c.id}','armatura','${a.id}')">✦</button>
-      <button class="btn-icon" style="width:34px;height:34px" title="Indossala e aggiorna la CA" onclick="wearArmor('${c.id}','${a.id}')">🛡️</button>
+      <button class="btn-icon" style="width:34px;height:34px" title="Indossala e aggiorna la CA" onclick="wearArmor('${c.id}','${a.id}')">${ic('scudo')}</button>
     </div>` : `<span class="gear-cost-only">${costLabel(a.c)}</span>`}
   </div>`;
 }
@@ -139,8 +139,8 @@ function viewGear(kind, id){
     ${props ? `<div class="divider"><span class="flourish">❧</span><span>Proprietà</span></div>${props}` : ''}
     ${c ? `<div class="list-gap" style="margin-top:16px">
       <button class="btn btn-primary btn-block" onclick="buyGear('${c.id}','${kind}','${x.id}')">✦ Nello zaino</button>
-      ${kind==='arma' ? `<button class="btn btn-gold btn-block" onclick="weaponToAttack('${c.id}','${x.id}')">⚔️ Aggiungi agli attacchi</button>` : ''}
-      ${kind==='armatura' ? `<button class="btn btn-gold btn-block" onclick="wearArmor('${c.id}','${x.id}')">🛡️ Indossala e aggiorna la CA</button>` : ''}
+      ${kind==='arma' ? `<button class="btn btn-gold btn-block" onclick="weaponToAttack('${c.id}','${x.id}')">${ic('tavolo')} Aggiungi agli attacchi</button>` : ''}
+      ${kind==='armatura' ? `<button class="btn btn-gold btn-block" onclick="wearArmor('${c.id}','${x.id}')">${ic('scudo')} Indossala e aggiorna la CA</button>` : ''}
     </div>` : ''}
     <div class="spell-source-note">System Reference Document 5.1, Open Gaming License 1.0a.</div>`) });
 }
@@ -180,7 +180,7 @@ function weaponToAttack(charId, weaponId){
   // se non ce l'ha già, finisce anche nello zaino
   if (!zainoDi(c).some(i => i.gearId === w.id)) buyGear(charId, 'arma', weaponId);
   else { scheduleSave('characters', c); renderModalRoot(); render(); }
-  toast('⚔️ ' + gearName(w) + ' fra gli attacchi (' + signStr(ab.m + prof) + ')');
+  toast('⚔ ' + gearName(w) + ' fra gli attacchi (' + signStr(ab.m + prof) + ')');
 }
 
 /* ─── Indossare un'armatura ─── */
@@ -204,9 +204,9 @@ function wearArmor(charId, armorId){
     if (i.gearId === a.id) i.equipped = true;
   });
   if (a.str && getPath(c,'abilities.str',10) < a.str){
-    toast('🛡️ CA ' + c.ac + ' — attenzione: serve Forza ' + a.str + ', altrimenti −3 m di velocità');
+    toast('🛡 CA ' + c.ac + ' — attenzione: serve Forza ' + a.str + ', altrimenti −3 m di velocità');
   } else {
-    toast('🛡️ ' + gearName(a) + ' indossata — CA ' + c.ac);
+    toast('🛡 ' + gearName(a) + ' indossata — CA ' + c.ac);
   }
   scheduleSave('characters', c);
   closeModal(); render();

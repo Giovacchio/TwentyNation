@@ -278,7 +278,7 @@ function analyzeSheet(fields){
   if (cls) c.classField = CLASSES_IT[cls] || cls;
   else if (classText) { c.classField = classText; warn.push('Classe "'+classText+'" non riconosciuta: impostala a mano.'); }
   /* La classe come identificativo, non solo come scritta: senza questo
-     l'app non sa che sei un druido, e gli effetti ⚙️ delle sottoclassi
+     l'app non sa che sei un druido, e gli effetti ⚙ delle sottoclassi
      (forma selvatica del Cerchio della Luna, famigli del Patto della
      Catena) non si accendono su un personaggio importato. */
   if (cls && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[cls.toLowerCase()]) c.classId = cls.toLowerCase();
@@ -679,7 +679,7 @@ function pdfImportHTML(){
       Leggo caratteristiche, competenze, attacchi, equipaggiamento, incantesimi, background e note,
       e ne creo un personaggio nel Grimorio.
     </p>
-    <button class="btn btn-gold btn-block" onclick="document.getElementById('sheet-pdf-file').click()">📄 Scegli il PDF</button>
+    <button class="btn btn-gold btn-block" onclick="document.getElementById('sheet-pdf-file').click()">${ic('foglio')} Scegli il PDF</button>
     <input type="file" id="sheet-pdf-file" accept="application/pdf,.pdf" style="display:none" onchange="handleSheetPdf(this)">
     <div class="spell-source-note">
       Funziona con le schede compilabili in italiano (formato "CS") e con quella ufficiale in inglese.
@@ -696,7 +696,7 @@ function handleSheetPdf(input){
    delle opzioni, che accetta qualsiasi tipo di file). */
 function useSheetPdf(file){
   if (!file) return;
-  if (file.size > 40 * 1024 * 1024){ toast('⚠️ PDF troppo grande (oltre 40 MB)'); return; }
+  if (file.size > 40 * 1024 * 1024){ toast('⚠ PDF troppo grande (oltre 40 MB)'); return; }
   pendingSheet = 'loading';
   renderModalRoot();
   const reader = new FileReader();
@@ -705,7 +705,7 @@ function useSheetPdf(file){
       const fields = await readPdfFields(reader.result);
       if (!fields.length){
         pendingSheet = null; renderModalRoot();
-        toast('⚠️ Questo PDF non ha campi compilabili da leggere');
+        toast('⚠ Questo PDF non ha campi compilabili da leggere');
         return;
       }
       pendingSheet = analyzeSheet(fields);
@@ -716,11 +716,11 @@ function useSheetPdf(file){
       // I messaggi della libreria sono incomprensibili: si traducono.
       const tech = /instance of|Failed to parse|Invalid PDF|No PDF header|Cannot read/i.test(e.message || '');
       toast(tech
-        ? '⚠️ Questo file non è un PDF valido, oppure è una scansione senza campi compilabili'
-        : '⚠️ Non sono riuscito a leggere il PDF: ' + e.message);
+        ? '⚠ Questo file non è un PDF valido, oppure è una scansione senza campi compilabili'
+        : '⚠ Non sono riuscito a leggere il PDF: ' + e.message);
     }
   };
-  reader.onerror = () => { pendingSheet = null; renderModalRoot(); toast('⚠️ Impossibile leggere il file'); };
+  reader.onerror = () => { pendingSheet = null; renderModalRoot(); toast('⚠ Impossibile leggere il file'); };
   reader.readAsArrayBuffer(file);
 }
 function pdfPreviewHTML(){
@@ -780,12 +780,12 @@ function pdfPreviewHTML(){
       </div>` : ''}
 
     ${(p.riconosciute && p.riconosciute.length) ? `<div class="card" style="margin-bottom:12px; border-color:var(--gold)">
-      <div class="card-title" style="margin-bottom:6px">📚 Dalle tue cose</div>
+      <div class="card-title" style="margin-bottom:6px">${ic('libro')} Dalle tue cose</div>
       ${p.riconosciute.map(w=>`<div class="muted" style="font-size:.78rem">✓ ${escapeHtml(w)}</div>`).join('')}
     </div>` : ''}
 
     ${p.warnings.length ? `<div class="card" style="margin-bottom:12px; border-color:var(--warn)">
-      ${p.warnings.map(w=>`<div class="muted" style="font-size:.78rem">⚠️ ${escapeHtml(w)}</div>`).join('')}
+      ${p.warnings.map(w=>`<div class="muted" style="font-size:.78rem">${ic('avviso')} ${escapeHtml(w)}</div>`).join('')}
     </div>` : ''}
 
     <button class="btn btn-primary btn-block" onclick="confirmSheetImport()">✦ Crea ${escapeHtml(c.name)}</button>
