@@ -484,7 +484,7 @@ function applyParsedText(){
   hbWriteRows(existing.concat(rows));
   hbPendingText = '';
   reopenHbEditor();
-  toast('✓ ' + rows.length + ' voci aggiunte');
+  toast('✓ ' + rows.length + ' ' + pluralize(rows.length, 'voce aggiunta', 'voci aggiunte'));
 }
 function reopenHbEditor(){ modalPopTo(homebrewEditorHTML); }
 

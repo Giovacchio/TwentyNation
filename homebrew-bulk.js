@@ -897,7 +897,7 @@ function hbBulkAnalizza(testo){
   hbBulk.q = '';
   listaAzzeraTutte('hb');
   renderModalRoot({ toTop:true });
-  toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' voci') : 'Non ho riconosciuto niente');
+  toast(trovati.length ? ('Ho riconosciuto ' + trovati.length + ' ' + pluralize(trovati.length,'voce','voci')) : 'Non ho riconosciuto niente');
 }
 function hbBulkFromBox(){
   const el = document.getElementById('hb-bulk-text');
@@ -1027,7 +1027,8 @@ async function hbBulkConfirm(){
 
   const condividi = hbBulk.condividi;
   closeModal(); render();
-  toast((scelti.length - aggiornate) + ' voci aggiunte' +
+  const nuove = scelti.length - aggiornate;
+  toast(nuove + ' ' + pluralize(nuove, 'voce aggiunta', 'voci aggiunte') +
         (aggiornate ? ' · ' + aggiornate + (aggiornate === 1 ? ' aggiornata' : ' aggiornate') : '') +
         (conEffetti ? ' · ' + conEffetti + ' con effetti riconosciuti' : ''));
   if (condividi && typeof shareToCampaign === 'function'){

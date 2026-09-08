@@ -25,8 +25,11 @@ E un'**etichetta di campo** adesso deve sembrare un'etichetta: comincia in maius
 ### Cosa NON è cambiato
 I testi restano nella lingua del manuale: l'app traduce i **nomi** con il suo glossario, non le descrizioni. Se importi una guida inglese, i tratti restano in inglese — e con nomi mezzi tradotti dove il glossario arriva. È una cosa diversa da sistemare, non un pezzo di questa.
 
+### E una svista da niente
+Il messaggio dopo l'importazione diceva **«1 voci aggiunte»**. Adesso conta: una voce, due voci.
+
 ### Cosa ho verificato
-26 controlli nuovi (`test-v93`), su testi inventati da me con la **stessa forma** di un manuale — righe mandate a capo a metà frase, due punti dentro la prosa, quadratini, parole spezzate — e le 56 serie di prima rifatte da capo.
+28 controlli nuovi (`test-v93`), su testi inventati da me con la **stessa forma** di un manuale — righe mandate a capo a metà frase, due punti dentro la prosa, quadratini, parole spezzate — e le 56 serie di prima rifatte da capo.
 
 ## v9.2 — 8 settembre 2026
 **Una passata sull'aspetto. Nessuna funzione nuova: le stesse cose, viste meglio.**
