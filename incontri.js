@@ -121,7 +121,7 @@ function incontriHTML(){
      quelle del tavolo: al momento di preparare uno scontro non
      interessa da dove vengono. */
   const catalogo = []
-    .concat((typeof SRD_MONSTERS !== 'undefined' ? SRD_MONSTERS : []).map(m => ({ x:m, fonte:'srd', id:m.id })))
+    .concat(mostriBase().map(m => ({ x:m, fonte:'srd', id:m.id })))
     .concat((state.npcs || []).map(n => ({ x:n, fonte:'mio', id:n.id })))
     .concat((state.sharedNpcs || []).map(n => ({ x:n, fonte:'tavolo', id:n.id })));
   const trovati = nq

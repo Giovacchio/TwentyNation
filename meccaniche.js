@@ -11,8 +11,8 @@ function classeDi(c){
   if (c.classId && typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[c.classId]) return CLASS_BY_ID[c.classId];
   // schede vecchie: si risale dal nome scritto a mano
   const n = norm(c.classField || '');
-  if (!n || typeof CLASSES_FULL === 'undefined') return null;
-  return CLASSES_FULL.find(x => norm(x.name) === n || norm(x.id) === n) || null;
+  if (!n) return null;
+  return classiBase().find(x => norm(x.name) === n || norm(x.id) === n) || null;
 }
 function sottoclasseDi(c){
   if (!c || !c.subclassId) return null;
@@ -114,7 +114,7 @@ function famigliDi(c){
   let extra = (f && Array.isArray(f.extra)) ? f.extra.filter(Boolean) : [];
   let daPatto = '';
   if (c && c.pactBoon === 'chain'){
-    const delPatto = (typeof SRD_MONSTERS !== 'undefined' ? SRD_MONSTERS : []).filter(x => x.pf).map(x => x.id);
+    const delPatto = mostriBase().filter(x => x.pf).map(x => x.id);
     extra = [...new Set(extra.concat(delPatto))];
     daPatto = DONI_PATTO.chain.nome;
   }
@@ -173,7 +173,7 @@ function proponiMeccaniche(voce){
   pezzi.forEach(([lv, nome, testo]) => {
     const t = (nome + ' ' + testo);
     if (!/famiglio|familiar|patto della catena|pact of the chain/i.test(t)) return;
-    (typeof SRD_MONSTERS !== 'undefined' ? SRD_MONSTERS : []).forEach(mo => {
+    mostriBase().forEach(mo => {
       const a = norm(mo.it || ''), b = norm(mo.n || '');
       if ((a && norm(t).includes(a)) || (b && norm(t).includes(b))) nomiFam.push(mo.id);
     });
@@ -266,7 +266,7 @@ function meccanicheHTML(){
   const fam = d.famigli || {};
   const righe = f.gsPerLivello || [];
   const scelti = fam.extra || [];
-  const bestie = (typeof SRD_MONSTERS !== 'undefined' ? SRD_MONSTERS : [])
+  const bestie = mostriBase()
     .filter(m => crValue(m.cr) <= 1)
     .sort((a,b)=> monsterName(a).localeCompare(monsterName(b),'it'));
 

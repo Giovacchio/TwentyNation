@@ -81,11 +81,31 @@ function attachCampaign(){
   wireShared('party', 'sharedParty'); // le schede che i giocatori hanno scelto di mostrare
   wireShared('suppliche', 'sharedSuppliche'); // le suppliche caricate da chi è al tavolo
 }
+/* Un tavolo è di un sistema solo: il gruppo che gioca a D&D e quello che
+   gioca a Star Wars non condividono niente, nemmeno il codice d'invito. */
+function chiaveCampagna(){
+  return (typeof chiaveDi === 'function') ? chiaveDi('grimorio-campaign') : 'grimorio-campaign';
+}
 function saveCampaignLocal(){
-  try { localStorage.setItem('grimorio-campaign', JSON.stringify(state.campaign || null)); } catch(e){}
+  try { localStorage.setItem(chiaveCampagna(), JSON.stringify(state.campaign || null)); } catch(e){}
 }
 function loadCampaignLocal(){
-  try { state.campaign = JSON.parse(localStorage.getItem('grimorio-campaign') || 'null'); } catch(e){ state.campaign = null; }
+  try { state.campaign = JSON.parse(localStorage.getItem(chiaveCampagna()) || 'null'); } catch(e){ state.campaign = null; }
+}
+/* Cambiando sistema il tavolo si stacca: quello dell'altro mondo si
+   ritrova tornando indietro, perché resta scritto con la sua chiave. */
+function campaignScorda(){
+  if (typeof detachCampaign === 'function') detachCampaign();
+  state.campaign = null;
+  state.sharedSpells = []; state.sharedHomebrew = []; state.sharedNpcs = [];
+  state.sharedParty = []; state.sharedSuppliche = [];
+}
+function campaignCarica(){
+  loadCampaignLocal();
+  if (state.campaign && state.campaign.id && typeof attachCampaign === 'function'
+      && typeof currentUser !== 'undefined' && currentUser){
+    try { attachCampaign(); } catch(e){ console.warn('Tavolo non riagganciato', e); }
+  }
 }
 function leaveCampaignLocal(msg){
   detachCampaign();

@@ -283,7 +283,7 @@ function hbClasseDaNome(nome){
     fighter:'fighter', monk:'monk', paladin:'paladin', ranger:'ranger', rogue:'rogue',
     sorcerer:'sorcerer', warlock:'warlock', wizard:'wizard' };
   const tab = {};
-  (typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : []).forEach(c => {
+  classiBase().forEach(c => {
     tab[norm(c.name)] = c.id; tab[norm(c.id)] = c.id;
   });
   Object.keys(EN).forEach(k => { tab[k] = EN[k]; });
@@ -434,7 +434,7 @@ function hbScanGuida(raw){
 function hbMappaSottoclassi(voci){
   const mappa = {};
   const perNome = {};
-  (typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : []).forEach(c => {
+  classiBase().forEach(c => {
     perNome[norm(c.name)] = c.id;
     perNome[norm(c.id)] = c.id;
   });
@@ -778,7 +778,7 @@ function hbBulkHTML(){
         <label>Assegna tutto il gruppo a una classe</label>
         <select onchange="hbBulkAssegna(this.value)">
           <option value="">— scegli la classe —</option>
-          ${(typeof CLASSES_FULL!=='undefined'?CLASSES_FULL:[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+          ${classiBase().map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
         </select>
       </div>`);
   const sezioneRazze = () => gruppi(

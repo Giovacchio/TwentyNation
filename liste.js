@@ -113,7 +113,14 @@ function sceltaChip(lista, sceltoId, azione, campoQ, segnaposto, etichetta){
   return `${molte ? cercaLista('scelta-'+campoQ, q, 'bldCercaScelta_'+campoQ, segnaposto) : ''}
     ${mostrate.length ? `<div class="chip-row" style="margin-bottom:${troppe?'6px':'14px'}">${mostrate.map(chip).join('')}</div>` : ''}
     ${troppe ? `<div class="muted" style="font-size:.72rem; margin-bottom:14px">…e altre ${viste.length - SCELTA_MAX}: scrivi qualche lettera del nome per trovarla.</div>` : ''}
-    ${(!mostrate.length) ? `<div class="lista-vuota">Nessuna voce con questo nome.</div>` : ''}`;
+    ${(!mostrate.length) ? `<div class="lista-vuota">${
+      tutte.length ? 'Nessuna voce con questo nome.' : listaVuotaPerSistema()}</div>` : ''}`;
+}
+/* Un elenco vuoto perché non hai cercato male, ma perché il sistema di
+   gioco non ha ancora niente: dirlo è più utile che dire «nessuna voce». */
+function listaVuotaPerSistema(){
+  if (typeof sistemaAttivo !== 'function' || sistemaAttivo().conContenuti) return 'Non c\'è ancora niente qui.';
+  return sistemaAttivo().nome + ' parte vuoto: il materiale lo porti tu, coi tasti qui sotto.';
 }
 /* Le due caselle della creazione guidata: nomi fissi, così l'onclick
    nell'HTML resta una stringa semplice. */

@@ -205,7 +205,7 @@ function stepClass(){
   const need = c ? bld.classSkills.length < c.skillCount : true;
   return `
     <div class="chip-row" style="margin-bottom:14px">
-      ${CLASSES_FULL.map(cl=>`<button class="chip ${bld.classId===cl.id?'active':''}" onclick="pickClass('${cl.id}')">${cl.name}</button>`).join('')}
+      ${classiBase().map(cl=>`<button class="chip ${bld.classId===cl.id?'active':''}" onclick="pickClass('${cl.id}')">${cl.name}</button>`).join('')}
     </div>
     ${c ? `
       <div class="field"><label>Livello</label>

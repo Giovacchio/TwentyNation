@@ -9,13 +9,13 @@ let lvup = null; /* { charId, from, to, classId, subclassId, hpMode, hpRoll } */
 
 function levelUpClassId(c){
   if (c.builder && c.builder.classId && CLASS_BY_ID[c.builder.classId]) return c.builder.classId;
-  const byName = CLASSES_FULL.find(cl => cl.name.toLowerCase() === String(c.classField||'').trim().toLowerCase());
+  const byName = classiBase().find(cl => cl.name.toLowerCase() === String(c.classField||'').trim().toLowerCase());
   return byName ? byName.id : null;
 }
 
 /* L'identificativo di classe dal nome, per la seconda classe. */
 function classIdDaNome(nome){
-  const cl = (typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : [])
+  const cl = classiBase()
     .find(x => x.name.toLowerCase() === String(nome||'').trim().toLowerCase());
   return cl ? cl.id : null;
 }
@@ -78,7 +78,7 @@ function openLevelUpClassPicker(charId){
   openModal({ render: () => modalShell('📈 Che classe sali?', `
     <p class="muted" style="margin-bottom:12px">Questa scheda non è stata creata col builder, quindi non so a quale classe agganciare i privilegi. Scegline una: la ricordo per le prossime volte.</p>
     <div class="list-gap">
-      ${CLASSES_FULL.map(cl=>`<button class="attack-row" style="width:100%; text-align:left" onclick="setLevelUpClass('${charId}','${cl.id}')">
+      ${classiBase().map(cl=>`<button class="attack-row" style="width:100%; text-align:left" onclick="setLevelUpClass('${charId}','${cl.id}')">
         <span class="attack-main"><span class="attack-name">${cl.name}</span>
         <span class="muted" style="font-size:.74rem; display:block">Dado vita d${cl.hitDie} · ${cl.subclassLabel} al ${cl.subclassLevel}°</span></span>
       </button>`).join('')}

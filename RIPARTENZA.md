@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.3** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.4** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -19,6 +19,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 |---|---|
 | `index.html` | guscio dell'app e **tutto il CSS** |
 | **`icone.js`** | **le 75 icone disegnate (`ICONE`) e l'aiuto `ic(nome, extraClasse)` che le stampa** |
+| **`sistemi.js`** | **i sistemi di gioco: `SISTEMI`, `colDi()`, `setSistema()`, le tabelle di regole per sistema** |
 | `app.js` | il cuore: stato, schede, sincronizzazione, grimorio, iniziativa, opzioni |
 | `sw.js` | service worker: l'app parte offline e si aggiorna da sola |
 | `rules-data.js` | classi, razze, background, condizioni, abilità (SRD) |
@@ -54,6 +55,11 @@ in `localStorage` e funzionamento completo anche scollegati.
 ---
 
 ## Cosa sa fare, oggi
+
+**Sistemi di gioco (v9.4)** — sotto il titolo c'è il sistema attivo, e si tocca per
+cambiarlo. D&D 5e porta le sue tabelle SRD; gli altri partono vuoti e si riempiono con
+quello che importi tu. I due mondi non si vedono fra loro: cassetti diversi in locale,
+collezioni diverse su Firebase, tavoli diversi.
 
 **Personaggi** — schermata iniziale a carte grandi: il ritratto si vede intero (4:3, con
 lo stesso ritratto sfocato dietro al posto delle bande), livello, PF e i segni di
@@ -163,6 +169,27 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    manuali usano sempre uguali: quelli aprono una voce comunque.
    **Chi tocca il lettore:** la prova da estendere è `test-v93.mjs`, e i testi di prova
    vanno **inventati** con la forma di un manuale, mai copiati da uno vero.
+
+0#. **Ogni sistema di gioco ha il suo CASSETTO (v9.4).**
+   `state.sistema` vale `dnd5e` o `sw5e`. In locale l'archivio è
+   `{ diChi, sistemi: { dnd5e:{…}, sw5e:{…} } }`; su Firebase le collezioni
+   prendono un prefisso (`colDi('characters')` → `sw5e__characters`), e D&D
+   tiene i nomi di sempre perché gli archivi che esistono non si toccano.
+   In memoria c'è **solo** il cassetto aperto: `apriCassetto()` fa puntare
+   `state.characters` & co. dentro `__archivioSistemi[state.sistema]`, con gli
+   **stessi array**, così un `push` finisce anche nell'archivio.
+   **La trappola da conoscere:** la sincronia sostituisce gli array interi
+   (`state[name] = mergeCollection(...)`) invece di modificarli — per questo
+   `pacchettoLocale()` riallinea il cassetto **prima** di scrivere. Chi tocca
+   quella parte deve tenerlo, o l'archivio resta indietro di un giro.
+   **Perché non un campo `sistema` su ogni scheda:** i punti che leggono una
+   lista sono più di duecento; col campo, dimenticarne uno significa mostrare
+   roba dell'altro mondo. Col cassetto non c'è niente da ricordare.
+   Le tabelle di regole passano da `razzeBase()`, `classiBase()`,
+   `incantesimiBase()`, `mostriBase()`, `backgroundBase()`: **mai** più da
+   `RACES`/`CLASSES_FULL`/`SRD_SPELLS`/`SRD_MONSTERS` diretti.
+   **I sistemi diversi da D&D partono vuoti, per scelta**: vedi «Il vincolo
+   sui contenuti» in fondo. Non ci si mette dentro materiale di altri.
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**
@@ -477,3 +504,11 @@ resta sul suo account.
 
 Casi già decisi: *Patto della Catena* **è** nell'SRD (implementato di serie);
 *Cerchio della Luna* **non** lo è (il testo lo carica lui, gli effetti li configura con ⚙️).
+
+**Star Wars 5e (v9.4): stessa regola, ed è per questo che parte vuoto.** È un lavoro
+fatto da fan sopra l'SRD, ma sopra l'SRD ci sono i nomi e il mondo di Lucasfilm e la
+scrittura di chi l'ha fatto: «fanmade» non vuol dire libero, e il sito non ha una licenza
+che dica il contrario. Nell'app non entra **niente** di loro — né specie, né classi, né
+poteri, né testi. Entra la macchina; il materiale lo porta Giova nel suo account.
+Chi in futuro fosse tentato di «riempirlo un po' per comodità»: no. La decisione è questa
+e vale finché non arriva una licenza scritta che dica altro.

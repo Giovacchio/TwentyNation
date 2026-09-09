@@ -1,5 +1,30 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.4 — 9 settembre 2026
+**L'app adesso può ospitare più di un gioco. Il primo ospite è Star Wars 5e, e arriva vuoto.**
+
+### Il pulsante
+Sotto il titolo, nella schermata iniziale, c'è **il sistema in cui sei** — e si tocca. In Opzioni c'è la stessa cosa, in cima a tutto. Si sceglie fra **D&D 5e** e **Star Wars 5e**, e la schermata dice quanti personaggi hai dall'altra parte prima ancora di andarci.
+
+### Due mondi separati davvero
+Cambiando sistema non c'è **niente** dell'altro: non filtrato, proprio assente. Personaggi, PNG, contenuti tuoi, diario, incontri, suppliche, incantesimi — e anche le tabelle: in Star Wars non ci sono le razze, le classi, i 319 incantesimi né le 81 creature dell'SRD.
+
+Come, senza riscrivere l'app: **ogni sistema ha il suo cassetto**. In locale un unico archivio con dentro un cassetto per sistema; su Firebase collezioni con un prefisso (`sw5e__characters`). In memoria c'è solo il cassetto aperto.
+
+Perché così e non con un campo «sistema» su ogni scheda: col campo, tutti i duecento punti dell'app che leggono una lista dovrebbero **ricordarsi di filtrare** — e basta dimenticarne uno per vedere un mago in mezzo ai Jedi. Col cassetto non c'è niente da ricordare: quello che non è caricato non si può mostrare.
+
+**I dati che hai già non si toccano.** D&D tiene i nomi di collezione di sempre, gli archivi scritti prima della 9.4 vengono letti come il cassetto di D&D, e le regole di sicurezza di Firebase restano quelle pubblicate — il jolly che hanno dentro copre già le collezioni nuove.
+
+Anche il **tavolo** è per sistema: il gruppo che gioca a D&D e quello che gioca a Star Wars non condividono niente, nemmeno il codice d'invito.
+
+### Star Wars 5e parte vuoto, e c'è un motivo
+Star Wars 5e è un lavoro fatto da fan sopra l'SRD. Sopra l'SRD però ci sono i nomi e il mondo di Lucasfilm e la scrittura di chi l'ha fatto: **non è roba che possiamo mettere dentro un'app pubblicata**. È la stessa linea che teniamo dalla v2 con i manuali D&D che possiedi.
+
+Quindi l'app dà la **macchina**, il materiale lo porti tu — col lettore dei manuali, da un file, o scrivendolo a mano. Resta nel tuo account. Dove prima un elenco vuoto diceva «Nessuna voce con questo nome», adesso dice che il sistema parte vuoto e ti mette sotto i tasti per riempirlo.
+
+### Cosa ho verificato
+31 controlli nuovi (`test-v94`) e le 57 serie di prima. Fra i nuovi, i tre che contano di più: un archivio scritto **prima** di questa versione si ritrova intero; salvare da un sistema **non** cancella l'altro; e passando a Star Wars **nessuna** delle otto collezioni ha ancora qualcosa dentro.
+
 ## v9.3 — 8 settembre 2026
 **Il lettore dei manuali leggeva a righe. I manuali però sono scritti a paragrafi.**
 

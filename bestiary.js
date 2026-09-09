@@ -28,7 +28,7 @@ function openMonsterBrowser(opts){
   openModal({ render: monsterBrowserHTML });
 }
 function filteredMonsters(){
-  let list = SRD_MONSTERS.slice();
+  let list = mostriBase().slice();
   if (mbFilter.onlyBeasts) list = list.filter(m => m.t === 'bestia');
   if (mbFilter.onlyFam) list = list.filter(m => m.fam || (mbFilter.famExtra || []).includes(m.id));
   if (mbFilter.maxCr != null) list = list.filter(m => crValue(m.cr) <= mbFilter.maxCr);

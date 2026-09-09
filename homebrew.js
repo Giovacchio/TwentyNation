@@ -41,7 +41,7 @@ function lingueDiRazza(v){
 }
 /* Elenchi completi = contenuti di serie + i tuoi */
 function allRaces(){
-  return RACES.concat(homebrewOf('race').map(h => ({
+  return razzeBase().concat(homebrewOf('race').map(h => ({
     id: h.id, name: h.name, speed: h.speed || 9, size: h.size || 'Media',
     bonus: h.bonus || {}, languages: lingueDiRazza(h.languages),
     traits: (Array.isArray(h.traits) ? h.traits : []).map(t => Array.isArray(t)
@@ -53,7 +53,7 @@ function allRaces(){
 }
 function raceById(id){ return allRaces().find(r => r.id === id); }
 function allBackgrounds(){
-  return BACKGROUNDS_FULL.concat(homebrewOf('background').map(h => ({
+  return backgroundBase().concat(homebrewOf('background').map(h => ({
     id: h.id, name: h.name, skills: h.skills || [], languages: h.langCount || 0,
     tools: h.tools || '—', feature: h.feature || '', desc: h.desc || '',
     equipment: h.equipment || '', homebrew: true, source: h.source || '',
@@ -252,7 +252,7 @@ function homebrewEditorHTML(){
       <div class="field"><label>Fonte (facoltativa)</label><input value="${attr(d.source)}" placeholder="Es. Xanathar's, homebrew" oninput="hbDraft.source=this.value"></div>
       ${d.kind==='subclass' ? `<div class="field"><label>Classe</label>
         <select onchange="hbSet('classId', this.value)">
-          ${CLASSES_FULL.map(c=>`<option value="${c.id}" ${d.classId===c.id?'selected':''}>${c.name}</option>`).join('')}
+          ${classiBase().map(c=>`<option value="${c.id}" ${d.classId===c.id?'selected':''}>${c.name}</option>`).join('')}
         </select></div>` : ''}
     </div>
 
@@ -710,7 +710,7 @@ function trovaSottoclasse(testo, classId){
   if (!q) return null;
   const candidate = classId
     ? subclassesFor(classId).map(s => ({ s, classId }))
-    : (typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : [])
+    : classiBase()
         .flatMap(cl => subclassesFor(cl.id).map(s => ({ s, classId: cl.id })));
   let best = null;
   candidate.forEach(({ s, classId: cid }) => {
@@ -733,7 +733,7 @@ function trovaSottoclasse(testo, classId){
    della creazione le mostra. Qui si raccolgono per poterle offrire
    lo stesso, con un tocco per legarle alla classe che stai creando. */
 function sottoclassiSenzaCasa(){
-  const noti = new Set((typeof CLASSES_FULL !== 'undefined' ? CLASSES_FULL : []).map(c => c.id));
+  const noti = new Set(classiBase().map(c => c.id));
   return homebrewOf('subclass').filter(h => !h.classId || !noti.has(h.classId));
 }
 function adottaSottoclasse(idSottoclasse, classId){

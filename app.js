@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '9.3';
+const APP_VERSION = '9.4';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -481,6 +481,9 @@ const state = {
   characters: [], npcs: [], customSpells: [], spellTags: [], homebrew: [], journal: [], incontri: [],
   campaign: null, sharedSpells: [], sharedHomebrew: [], sharedParty: [], sharedSuppliche: [],
   suppliche: [], suppQ: '',
+  sistema: (typeof sistemaValido === 'function'
+    ? sistemaValido(localStorage.getItem('grimorio-sistema'))
+    : 'dnd5e'),
   spellLang: localStorage.getItem('grimorio-spell-lang') || 'it',
   partyVista: localStorage.getItem('grimorio-party-vista') || 'carte',
   haptics: localStorage.getItem('grimorio-haptics') !== '0',
@@ -537,21 +540,52 @@ function updateSaveStatusEl(){
   el.textContent = ({ saving: '⏳ Salvataggio…', saved: '✓ Sincronizzato', offline: '📴 Solo locale' })[__saveStatus] || '';
 }
 
+/* L'archivio locale, dalla 9.4, tiene un cassetto per sistema di gioco:
+   { diChi, sistemi: { dnd5e: {…}, sw5e: {…} } }. Quelli scritti prima
+   hanno le collezioni in cima, senza cassetti: valgono come il cassetto
+   di D&D, che è l'unico sistema che esisteva. */
+function leggiArchivio(raw){
+  let d = null;
+  try { d = JSON.parse(raw !== undefined ? raw : (localStorage.getItem(LS_KEY) || 'null')); } catch(e){}
+  const firmato = !!(d && typeof d === 'object' && Object.prototype.hasOwnProperty.call(d, 'diChi'));
+  if (!d || typeof d !== 'object') return { firmato:false, diChi:null, sistemi:{} };
+  if (d.sistemi && typeof d.sistemi === 'object' && !Array.isArray(d.sistemi)){
+    return { firmato, diChi: d.diChi || null, sistemi: d.sistemi };
+  }
+  const vecchio = {};
+  COLLEZIONI.forEach(k => { vecchio[k] = Array.isArray(d[k]) ? d[k] : []; });
+  const sistemi = {}; sistemi[SISTEMA_BASE] = vecchio;
+  return { firmato, diChi: d.diChi || null, sistemi };
+}
+/* I cassetti, in memoria. `state` guarda dentro quello aperto: le due
+   cose condividono gli stessi array, così una scheda aggiunta con un
+   push finisce anche nell'archivio senza che nessuno se ne ricordi. */
+let __archivioSistemi = {};
+function apriCassetto(id){
+  if (!__archivioSistemi[id]) __archivioSistemi[id] = cassettoVuoto();
+  const c = __archivioSistemi[id];
+  COLLEZIONI.forEach(k => { if (!Array.isArray(c[k])) c[k] = []; state[k] = c[k]; });
+}
 function loadLocal(){
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
-    const data = JSON.parse(raw);
+    const a = leggiArchivio(raw);
     /* si riprende anche di chi è questa roba, così un salvataggio
        successivo non le cancella la firma */
-    __proprietarioLocale = Object.prototype.hasOwnProperty.call(data, 'diChi')
-      ? (data.diChi || null)
+    __proprietarioLocale = a.firmato
+      ? (a.diChi || null)
       : (function(){ try { return localStorage.getItem(LS_UID) || null; } catch(e){ return null; } })();
-    state.characters = (data.characters || []).map(safeMigrate).filter(Boolean);
-    state.npcs = data.npcs || [];
+    __archivioSistemi = {};
+    Object.keys(a.sistemi).forEach(id => {
+      const src = a.sistemi[id] || {};
+      const c = cassettoVuoto();
+      COLLEZIONI.forEach(k => { c[k] = Array.isArray(src[k]) ? src[k] : []; });
+      c.characters = c.characters.map(safeMigrate).filter(Boolean);
+      __archivioSistemi[id] = c;
+    });
+    apriCassetto(state.sistema);
     bestiarioScorda();
-    COLLEZIONI.filter(k => k !== 'characters' && k !== 'npcs')
-      .forEach(k => { state[k] = data[k] || []; });
   } catch(e){ console.warn('Cache locale non leggibile', e); }
 }
 /* Salvataggio locale «a raffica». Aggiungendo 3000 mostri il vecchio
@@ -571,9 +605,12 @@ let __ultimoPesoLocale = 0;
    lo prendeva tutto e se lo caricava pure sul proprio spazio nel cloud.
    Il nome dentro l'archivio non puo' separarsi dall'archivio. */
 function pacchettoLocale(){
-  const p = { diChi: __proprietarioLocale || null };
-  COLLEZIONI.forEach(k => { p[k] = state[k]; });
-  return JSON.stringify(p);
+  /* Il cassetto aperto si riallinea prima di scrivere: la sincronia
+     sostituisce gli array interi invece di modificarli, e senza questo
+     passaggio l'archivio resterebbe indietro di un giro. */
+  if (!__archivioSistemi[state.sistema]) __archivioSistemi[state.sistema] = cassettoVuoto();
+  COLLEZIONI.forEach(k => { __archivioSistemi[state.sistema][k] = state[k]; });
+  return JSON.stringify({ diChi: __proprietarioLocale || null, sistemi: __archivioSistemi });
 }
 let __proprietarioLocale = null;
 /* Di chi e' la roba che c'e' adesso in localStorage. Si legge dall'archivio;
@@ -583,8 +620,8 @@ function proprietarioArchivio(){
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw){
-      const d = JSON.parse(raw);
-      if (Object.prototype.hasOwnProperty.call(d, 'diChi')) return d.diChi || null;
+      const a = leggiArchivio(raw);
+      if (a.firmato) return a.diChi || null;
       /* archivio vecchio, senza firma: ci si fida della chiave separata */
       return localStorage.getItem(LS_UID) || null;
     }
@@ -758,11 +795,12 @@ function attachFirestore(uidUser){
      l'aggiornamento va comunque fuso (li' non si scherza), ma si
      ridisegna e si risalva SOLO se e' cambiato davvero qualcosa. */
   const wire = (name, mapper) => {
-    unsubscribers.push(base.collection(name).onSnapshot(snap => {
+    const col = colDi(name);   // «characters» per D&D, «sw5e__characters» per Star Wars
+    unsubscribers.push(base.collection(col).onSnapshot(snap => {
       const remote = snap.docs.map(d => ({...daNuvola(d.data()), id: d.id}));
       const completo = !(snap.metadata && snap.metadata.fromCache);
       const prima = firmaCollezione(state[name]);
-      state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, name, completo);
+      state[name] = mergeCollection(state[name], mapper ? remote.map(mapper) : remote, col, completo);
       const cambiato = firmaCollezione(state[name]) !== prima;
       if (cambiato){
         if (name === 'npcs') bestiarioScorda();
@@ -824,7 +862,10 @@ async function uploadUnsynced(name, remote){
 }
 function detachFirestore(){ unsubscribers.forEach(u => { try{ u(); }catch(e){} }); unsubscribers = []; }
 
-function userCol(collection){ return db.collection('users').doc(currentUser.uid).collection(collection); }
+/* Unico passaggio per TUTTE le scritture: qui il nome della collezione
+   prende il prefisso del sistema attivo. Il sistema di partenza tiene i
+   nomi di sempre, così gli archivi che esistono già restano dove sono. */
+function userCol(collection){ return db.collection('users').doc(currentUser.uid).collection(colDi(collection)); }
 
 /* ─── Confezionamento per Firestore ───
    Firestore NON accetta un array dentro un altro array. I privilegi di
@@ -1083,7 +1124,7 @@ function cambiaCassetto(uid){
       const attuale = localStorage.getItem(LS_KEY);
       if (attuale) localStorage.setItem(cassettoDi('sconosciuto-' + Date.now()), attuale);
     } catch(e){ console.warn('Non riesco a mettere da parte i dati orfani', e); }
-    COLLEZIONI.forEach(k => { state[k] = []; });
+    __archivioSistemi = {}; apriCassetto(state.sistema);
     bestiarioScorda();
     __proprietarioLocale = uid;
     saveLocalOra();
@@ -1103,20 +1144,26 @@ function cambiaCassetto(uid){
     // riprendi il cassetto di chi sta entrando, se ne ha uno
     let suo = null;
     try { suo = localStorage.getItem(cassettoDi(uid)); } catch(e){}
-    COLLEZIONI.forEach(k => { state[k] = []; });
+    __archivioSistemi = {}; apriCassetto(state.sistema);
     bestiarioScorda();
     if (suo){
       try {
-        const d = JSON.parse(suo);
-        COLLEZIONI.forEach(k => { if (Array.isArray(d[k])) state[k] = d[k]; });
+        const a = leggiArchivio(suo);
+        Object.keys(a.sistemi).forEach(id => {
+          const src = a.sistemi[id] || {}; const c = cassettoVuoto();
+          COLLEZIONI.forEach(k => { c[k] = Array.isArray(src[k]) ? src[k] : []; });
+          __archivioSistemi[id] = c;
+        });
+        apriCassetto(state.sistema);
         bestiarioScorda();
         localStorage.removeItem(cassettoDi(uid));
       } catch(e){ console.warn('Cassetto illeggibile', e); }
     }
     scordaTestoLocale();
-    try { localStorage.setItem(LS_KEY, JSON.stringify({
-      characters: state.characters, npcs: state.npcs, customSpells: state.customSpells,
-      spellTags: state.spellTags, homebrew: state.homebrew, journal: state.journal })); } catch(e){}
+    /* Si riscrive subito, con tutti i cassetti: saveLocalOra() qui sotto
+       farebbe lo stesso, ma il momento fra i due è quello in cui una
+       ricarica ti farebbe trovare la roba di chi è appena uscito. */
+    try { localStorage.setItem(LS_KEY, pacchettoLocale()); } catch(e){}
     setTimeout(() => toast('👤 Account cambiato: rivedi le tue cose fra un istante'), 600);
   }
   // niente proprietario e archivio firmato «senza account» (o vuoto):
@@ -1132,9 +1179,9 @@ function archivioNonVuoto(){
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return false;
-    const d = JSON.parse(raw);
-    return COLLEZIONI.filter(k => k !== 'spellTags')
-      .some(k => Array.isArray(d[k]) && d[k].length);
+    const sistemi = leggiArchivio(raw).sistemi || {};
+    return Object.keys(sistemi).some(id => COLLEZIONI.filter(k => k !== 'spellTags')
+      .some(k => Array.isArray(sistemi[id][k]) && sistemi[id][k].length));
   } catch(e){ return false; }
 }
 /* Un archivio scritto da questa versione mentre si lavorava senza
@@ -2027,6 +2074,7 @@ function renderParty(){
       <h1>TwentyNation</h1>
       <div class="rule">❖</div>
       <div class="sub">La tua compagnia</div>
+      ${sistemaChip()}
     </div>
     ${/* Le carte grandi sono bellissime con due personaggi e diventano
          un rullo con sei. La densità la sceglie chi gioca, e la scelta
@@ -2051,6 +2099,14 @@ function renderParty(){
     ${campaignCardHTML()}
     ${(typeof compagniCampagnaHTML === 'function') ? compagniCampagnaHTML() : ''}
   `;
+}
+/* Dove sei, e come andare altrove. Sta sotto il titolo perché il
+   sistema di gioco decide TUTTO quello che vedi sotto: senza un segno
+   visibile, due mondi identici nella forma si confondono. */
+function sistemaChip(){
+  const s = sistemaAttivo();
+  return `<button class="sistema-chip" onclick="apriSistemi()" aria-label="Cambia sistema di gioco"
+    title="Sistema di gioco">${ic(s.icona)} ${escapeHtml(s.nome)} <span class="cambia">cambia</span></button>`;
 }
 /* Il tavolo si raggiunge dalla prima schermata: è la cosa che si apre
    più spesso quando si gioca in gruppo. */
@@ -3568,7 +3624,7 @@ function spellByRef(ref){
   if (!ref) return null;
   if (ref.source === 'custom') return state.customSpells.find(s=>s.id===ref.id);
   if (ref.source === 'shared') return (state.sharedSpells||[]).find(s=>s.id===ref.id);
-  return (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).find(s=>s.id===ref.id)
+  return incantesimiBase().find(s=>s.id===ref.id)
       || (state.sharedSpells||[]).find(s=>s.id===ref.id);
 }
 /* ─── Multiclasse ────────────────────────────────────────────────
@@ -4171,7 +4227,7 @@ function allSpells(){
   const condivisi = (state.sharedSpells||[])
     .filter(s => !miei.has(norm(s.name)))
     .map(s=>({...s, source:'shared'}));
-  const srd = (typeof SRD_SPELLS !== 'undefined' ? SRD_SPELLS : []).map(s=>({...s, source:'srd'}));
+  const srd = incantesimiBase().map(s=>({...s, source:'srd'}));
   return custom.concat(condivisi, srd);
 }
 function renderGrimoire(){
@@ -4753,7 +4809,7 @@ function renderBestiary(){
   return `
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openGear()">${ic('zaino')} Armi, armature ed equipaggiamento</button>
     <button class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="openMagicItems()">${ic('anello')} Oggetti magici SRD (${typeof SRD_MAGIC_ITEMS!=='undefined'?SRD_MAGIC_ITEMS.length:0})</button>
-    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">${ic('zampa')} Sfoglia il bestiario SRD (${typeof SRD_MONSTERS!=='undefined'?SRD_MONSTERS.length:0} creature)</button>
+    <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openMonsterBrowser()">${ic('zampa')} Sfoglia il bestiario SRD (${mostriBase().length} creature)</button>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:10px" onclick="openMostriPdf()">${ic('grimorio')} Leggi i mostri dal tuo manuale</button>
     <button class="btn btn-gold btn-block" style="margin-bottom:10px" onclick="openIncontri()">⚔ Costruisci un incontro</button>
     ${(state.npcs||[]).length ? `<button class="btn btn-ghost btn-block btn-sm" style="margin-bottom:14px" onclick="openTraduzione()">🇮🇹 Traduci i nomi in italiano</button>` : ''}
@@ -5272,6 +5328,18 @@ function renderSettings(){
       <div class="sub">Account, aspetto e backup</div>
     </div>
 
+    ${/* Il sistema di gioco sta in cima: è la cosa che cambia tutto il
+         resto di quello che vedi. */''}
+    <div class="divider"><span class="flourish">❧</span><span>Sistema di gioco</span></div>
+    <button class="card" style="width:100%; text-align:left; display:flex; align-items:center; gap:12px" onclick="apriSistemi()">
+      <span class="seal" style="width:44px;height:44px;flex-shrink:0">${ic(sistemaAttivo().icona)}</span>
+      <span style="flex:1; min-width:0">
+        <span style="font-weight:700; display:block">${escapeHtml(sistemaAttivo().nome)}</span>
+        <span class="muted" style="font-size:.76rem; display:block">Tocca per cambiare · ogni sistema ha le sue cose</span>
+      </span>
+      <span class="char-card-chevron">›</span>
+    </button>
+
     <div class="divider"><span class="flourish">❧</span><span>Account</span></div>
     ${currentUser ? `
       <div class="card" style="display:flex; align-items:center; gap:12px;">
@@ -5332,7 +5400,7 @@ function renderSettings(){
       <div style="flex:1; text-align:left; font-weight:700; font-family:var(--font-ui)">Nomi ${state.spellLang==='it'?'in italiano 🇮🇹':'in inglese 🇬🇧'}</div>
     </button>
     <div class="card" style="margin-top:10px">
-      <p class="muted" style="margin-bottom:12px">Nel compendio ci sono ${(typeof SRD_SPELLS!=='undefined'?SRD_SPELLS.length:0)} incantesimi SRD e ${state.customSpells.length} tuoi. Puoi aggiungerne quanti vuoi da un file JSON.</p>
+      <p class="muted" style="margin-bottom:12px">Nel compendio ci sono ${incantesimiBase().length} incantesimi SRD e ${state.customSpells.length} tuoi. Puoi aggiungerne quanti vuoi da un file JSON.</p>
       <div class="btn-row">
         <button class="btn btn-gold" onclick="openSpellImport()">${ic('carica')} Importa</button>
         <button class="btn btn-ghost" onclick="exportCustomSpells()">${ic('scarica')} Esporta i tuoi</button>
@@ -5853,7 +5921,7 @@ function analyzeSpellImport(text){
   catch(e){ toast('⚠ Il testo non è JSON valido'); return; }
   const all = normalizeImportedSpells(data);
   if (!all.length){ toast('⚠ Nessun incantesimo riconosciuto nel file'); return; }
-  const srdNames = new Set((typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).map(s=>norm(s.name)));
+  const srdNames = new Set(incantesimiBase().map(s=>norm(s.name)));
   const customNames = new Set(state.customSpells.map(s=>norm(s.name)));
   pendingImport = {
     all,
@@ -5874,7 +5942,7 @@ function toggleImportShare(){
 }
 function recomputeImport(){
   const p = pendingImport;
-  const srdNames = new Set((typeof SRD_SPELLS!=='undefined'?SRD_SPELLS:[]).map(s=>norm(s.name)));
+  const srdNames = new Set(incantesimiBase().map(s=>norm(s.name)));
   p.toImport = p.skipSrd ? p.all.filter(s=>!srdNames.has(norm(s.name))) : p.all.slice();
 }
 function toggleImportSkipSrd(){ pendingImport.skipSrd = !pendingImport.skipSrd; recomputeImport(); renderModalRoot(); }
@@ -6191,7 +6259,7 @@ function globalSearchResults(q){
       `closeModal(); viewSpellDetail('${jsStr(sp.id)}','${sp.source}')`);
   });
 
-  if (typeof SRD_MONSTERS !== 'undefined') SRD_MONSTERS.forEach(m => {
+  mostriBase().forEach(m => {
     if (norm(monsterName(m)).includes(n) || norm(m.n).includes(n))
       push('Bestiario SRD', '🐉', monsterName(m), `${m.sz} · ${m.t} · GS ${m.cr}`, `closeModal(); viewMonster('${m.id}')`);
   });

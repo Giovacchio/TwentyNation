@@ -179,7 +179,7 @@ function matchSpellText(text){
      l'SRD — quindi a parità di nome vince la tua versione. */
   const spells = (typeof allSpells === 'function')
     ? allSpells()
-    : ((typeof SRD_SPELLS !== 'undefined') ? SRD_SPELLS : []);
+    : incantesimiBase();
   let best = null;
 
   for (const sp of spells){
