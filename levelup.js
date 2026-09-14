@@ -122,10 +122,14 @@ function levelUpGains(){
 
   const conMod = mod(getPath(c, 'abilities.con', 10));
   const hitDie = c.hitDie || cl.hitDie;
-  const avgGain = Math.max(1, Math.floor(hitDie / 2) + 1 + conMod);
-  const rollGain = lvup.hpRoll != null ? Math.max(1, lvup.hpRoll + conMod) : null;
+  /* I PF in più per livello (Nano delle colline e chiunque altro lo
+     dichiari) il creatore li dava e la salita di livello no: stessa
+     regola, due risposte diverse. */
+  const pfExtra = (typeof pfPerLivelloDiPg === 'function') ? pfPerLivelloDiPg(c) : 0;
+  const avgGain = Math.max(1, Math.floor(hitDie / 2) + 1 + conMod) + pfExtra;
+  const rollGain = lvup.hpRoll != null ? Math.max(1, lvup.hpRoll + conMod) + pfExtra : null;
 
-  return { c, cl, sc, lv, feats, before, after, conMod, hitDie, avgGain, rollGain,
+  return { c, cl, sc, lv, feats, before, after, conMod, hitDie, avgGain, rollGain, pfExtra,
     needsSubclass: !lvup.subclassId && lv >= cl.subclassLevel && subclassesFor(cl.id).length > 0,
     isAsi: cl.asi.includes(lv) };
 }
@@ -150,7 +154,7 @@ function levelUpHTML(){
     ${lvup.hpMode === 'roll' ? `<div style="text-align:center; margin-bottom:12px">
       <button class="btn btn-ghost" onclick="lvRollHp()">${ic('dado')} ${g.rollGain != null ? 'Ritira' : 'Tira'} d${g.hitDie}</button>
       ${g.rollGain != null ? `<div style="margin-top:8px; font-family:var(--font-head); font-size:1.3rem; color:var(--gold)">+${g.rollGain} PF <span class="muted" style="font-size:.8rem">(${lvup.hpRoll} ${g.conMod>=0?'+':''}${g.conMod} COS)</span></div>` : ''}
-    </div>` : `<div class="muted" style="text-align:center; margin-bottom:12px">${Math.floor(g.hitDie/2)+1} fissi ${g.conMod>=0?'+':''}${g.conMod} di Costituzione. Il dado vita in più lo hai anche per i riposi brevi.</div>`}
+    </div>` : `<div class="muted" style="text-align:center; margin-bottom:12px">${Math.floor(g.hitDie/2)+1} fissi ${g.conMod>=0?'+':''}${g.conMod} di Costituzione${g.pfExtra?' +'+g.pfExtra+' della razza':''}. Il dado vita in più lo hai anche per i riposi brevi.</div>`}
 
     ${g.needsSubclass ? `
       <div class="divider"><span class="flourish">❧</span><span>${escapeHtml(g.cl.subclassLabel)}</span></div>

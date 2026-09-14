@@ -1,5 +1,34 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.6 — 14 settembre 2026
+**Cinque cose che c'erano ma funzionavano a metà. Tutte della stessa famiglia: la regola scritta bene per l'SRD e mai collegata al resto.**
+
+### 💾 Il backup lasciava indietro mezza app
+Con la 9.4 i dati hanno smesso di stare in un posto solo. Il backup però no: esportava **solo il sistema in cui eri**, e si scriveva le collezioni a mano invece di leggerle dall'elenco che esiste apposta. Un backup fatto in D&D non conteneva niente di Star Wars — e non lo diceva. È la peggiore specie di perdita: quella che sembra andata bene.
+
+Adesso il file porta via **tutti i cassetti**, e prima di importarlo la conferma dice cosa c'è dentro e **dove andrà a finire** — un backup vecchio, senza cassetti, finisce nel sistema in cui sei, ed è giusto saperlo prima. In cima al file restano anche le collezioni del sistema attivo in chiaro, così un backup della 9.6 lo sa leggere anche una versione vecchia dell'app.
+
+### 🎭 Delle varianti si perdevano competenze e velocità
+Dalla 9.5 le razze che carichi tu possono avere varianti. Il creatore però leggeva le competenze concesse **solo dalla razza**, e la velocità pure: «Pellebestia: competenza in Atletica» non arrivava, «Passolieve: velocità 10,5 m» nemmeno. Adesso arrivano, e non solo dal creatore — anche dal lettore di schede PDF, che aveva lo stesso identico difetto tre file più in là.
+
+### ✦ «Conosci un trucchetto a tua scelta» era una frase e basta
+Le razze dell'SRD hanno un campo apposta che apre la casella per sceglierlo. Le razze tue no: la stessa identica frase, scritta fra i tratti, non faceva succedere niente — e il trucchetto in scheda dovevi aggiungertelo a mano.
+
+Adesso la frase si **legge**, come l'app fa da tempo con le lingue in più. Capisce anche da quale lista pescare (*«dalla lista del bardo»* → trucchetti da bardo) e con quale caratteristica (*«con Carisma»*); se il testo non lo dice, si sceglie fra tutti. Il trucchetto scelto finisce fra gli incantesimi conosciuti, non fra le note.
+
+### ❤️ Il «+1 PF per livello» valeva per un nano solo
+Nel creatore c'era scritto, in lettere: *se sei un Nano delle colline, aggiungi un punto ferita per livello*. Una regola vera, cablata su un caso unico. Due conseguenze: una variante importata che diceva la stessa cosa non prendeva niente, e — peggio — **salendo di livello quel punto non arrivava nemmeno al nano**, perché la salita di livello quel pezzo di codice non ce l'aveva. Stessa regola, due risposte diverse.
+
+Ora la frase si riconosce comunque sia girata (in italiano si dice sia «punti ferita massimi» sia «massimo di punti ferita», in inglese sta in due pezzi), vale per chiunque la dichiari, e **la salita di livello la applica**, scrivendolo accanto al conto dei PF.
+
+### ⚙️ Gli effetti sul gioco si potevano dare solo alle sottoclassi
+Una razza che concede un'azione in più, o una variante con un morso come azione bonus, non avevano dove dirlo. Adesso il tasto ⚙️ c'è anche sulle razze, e **su ogni singola variante**: l'azione bonus ce l'ha Zannalunga, non tutti i Mutaforma.
+
+Le tre dichiarazioni — sottoclasse, razza, variante — si **sommano**: gli elenchi si mettono in fila invece di cancellarsi, e sui campi in comune vince la sottoclasse, che è la più specifica. Un druido con una sottoclasse che ha la forma selvatica non perde niente per il fatto di essere anche Mutaforma.
+
+### Cosa ho verificato
+28 controlli nuovi (`test-v96`) e le 59 serie di prima. Tre di quelli nuovi guardano apposta il punto dove le cose si rompono: che il Nano delle colline prenda il suo punto ferita **una volta sola** e non due, che una variante non si prenda gli effetti di quella accanto, e che importando un backup a due sistemi ognuno finisca al suo posto.
+
 ## v9.5 — 10 settembre 2026
 **Le razze che si dividono in varianti adesso te le fanno scegliere — e i bonus arrivano da soli.**
 

@@ -557,14 +557,16 @@ function analyzeSheet(fields){
      è il tuo personaggio, non il manuale, ad avere l'ultima parola. */
   if (__razzaLetta){
     const r = __razzaLetta.razza, sr = __razzaLetta.sotto;
-    if (!c.speed || c.speed === 9) c.speed = r.speed || c.speed;
+    if (!c.speed || c.speed === 9) c.speed = (sr && sr.speed) || r.speed || c.speed;
     if (!c.languages && (r.languages||[]).length) c.languages = r.languages.join(', ');
     if (!String(c.notesRace||'').trim()){
       const tr = (r.traits||[]).concat((sr && sr.traits) || []);
       if (tr.length) c.notesRace = tr.map(t => t.name + ': ' + t.desc).join('\n');
     }
-    // le competenze concesse dalla razza, se la scheda non le aveva spuntate
-    (r.grantSkills || []).forEach(k => { if (!c.skillProf.includes(k) && !c.skillExpert.includes(k)) c.skillProf.push(k); });
+    // le competenze concesse dalla razza E dalla variante, se la scheda
+    // non le aveva spuntate
+    (r.grantSkills || []).concat((sr && sr.grantSkills) || [])
+      .forEach(k => { if (!c.skillProf.includes(k) && !c.skillExpert.includes(k)) c.skillProf.push(k); });
   }
   if (__bgLetto){
     const b = __bgLetto;

@@ -19,10 +19,54 @@ function sottoclasseDi(c){
   const cl = classeDi(c); if (!cl) return null;
   return (subclassesFor(cl.id) || []).find(s => s.id === c.subclassId) || null;
 }
-/* Gli effetti dichiarati dalla sottoclasse, se ce ne sono. */
+/* Due dichiarazioni di effetti, messe insieme. Gli elenchi si sommano
+   (le azioni di una razza NON cancellano quelle della sottoclasse); per
+   il resto vince chi è arrivato prima, cioè la sottoclasse: è la più
+   specifica delle tre. */
+function fondiMeccaniche(a, b){
+  if (!b || !Object.keys(b).length) return a || null;
+  if (!a || !Object.keys(a).length) return JSON.parse(JSON.stringify(b));
+  const out = JSON.parse(JSON.stringify(a));
+  Object.keys(b).forEach(k => {
+    const v = b[k];
+    if (Array.isArray(v)){
+      out[k] = (Array.isArray(out[k]) ? out[k] : []).concat(JSON.parse(JSON.stringify(v)));
+    } else if (v && typeof v === 'object'){
+      const mio = (out[k] && typeof out[k] === 'object') ? out[k] : {};
+      const unito = Object.assign({}, JSON.parse(JSON.stringify(v)), mio);
+      // dentro gli oggetti, gli elenchi si sommano lo stesso
+      Object.keys(v).forEach(kk => {
+        if (Array.isArray(v[kk])) unito[kk] = [...new Set((Array.isArray(mio[kk])?mio[kk]:[]).concat(v[kk]))];
+      });
+      out[k] = unito;
+    } else if (out[k] == null){
+      out[k] = v;
+    }
+  });
+  return out;
+}
+/* La variante scelta dal personaggio. La razza la trova già
+   `razzaDi()` in homebrew.js — riscriverla qui voleva dire due funzioni
+   con lo stesso nome e una che spegne l'altra a seconda dell'ordine di
+   caricamento. Il controllo statico l'ha beccata subito. */
+function varianteDi(c, r){
+  const razza = r || ((typeof razzaDi === 'function') ? razzaDi(c) : null);
+  if (!razza) return null;
+  return (razza.subraces||[]).find(s => norm(s.name) === norm((c && c.race) || '')) || null;
+}
+/* Gli effetti dichiarati: dalla sottoclasse, dalla razza e dalla
+   variante. Prima li poteva dichiarare solo una sottoclasse — una razza
+   che concede un'azione in più non aveva dove dirlo. */
 function meccanicheDi(c){
   const sc = sottoclasseDi(c);
-  return (sc && sc.meccaniche) ? sc.meccaniche : null;
+  let m = (sc && sc.meccaniche) ? sc.meccaniche : null;
+  const r = (typeof razzaDi === 'function') ? razzaDi(c) : null;
+  if (r){
+    m = fondiMeccaniche(m, r.meccaniche);
+    const sr = varianteDi(c, r);
+    m = fondiMeccaniche(m, sr && sr.meccaniche);
+  }
+  return (m && Object.keys(m).length) ? m : null;
 }
 
 
@@ -189,11 +233,24 @@ function proponiMeccaniche(voce){
 /* ─── L'editor ─── */
 let meccDraft = null, meccHbId = null;
 
-function openMeccaniche(hbId){
+/* `variante` è l'indice di una variante della razza: gli effetti si
+   scrivono su quella, non sulla razza intera. Serve per le razze che si
+   dividono — l'azione bonus ce l'ha Zannalunga, non tutti i Mutaforma. */
+let meccVariante = null;
+function meccBersaglio(){
+  const h = (state.homebrew || []).find(x => x.id === meccHbId);
+  if (!h) return null;
+  if (meccVariante == null) return h;
+  return (h.subraces || [])[meccVariante] || null;
+}
+function openMeccaniche(hbId, variante){
   const h = (state.homebrew || []).find(x => x.id === hbId);
   if (!h){ toast('Non trovo questa voce'); return; }
   meccHbId = hbId;
-  meccDraft = JSON.parse(JSON.stringify(h.meccaniche || {}));
+  meccVariante = (variante == null) ? null : variante;
+  const b = meccBersaglio();
+  if (!b){ toast('Non trovo questa variante'); return; }
+  meccDraft = JSON.parse(JSON.stringify(b.meccaniche || {}));
   openModal({ render: meccanicheHTML });
 }
 /* `ridisegna` sta a false quando la modifica arriva da un campo di testo:
@@ -333,12 +390,32 @@ function meccanicheHTML(){
       <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
       <button class="btn btn-primary" onclick="salvaMeccaniche()">Salva</button>
     </div>
-    <div class="spell-source-note">Questi effetti valgono per i personaggi che hanno questa sottoclasse. Il testo dei privilegi resta quello che hai importato tu.</div>`;
-  return modalShell('⚙ Effetti sul gioco', inner);
+    <div class="spell-source-note">${meccDoveVale()} Il testo dei privilegi resta quello che hai importato tu.</div>`;
+  return modalShell('⚙ Effetti sul gioco' + meccTitoloCoda(), inner);
+}
+/* Dire a cosa si stanno attaccando questi effetti: la stessa schermata
+   serve per una sottoclasse, per una razza intera o per una sua variante. */
+function meccTitoloCoda(){
+  const h = (state.homebrew || []).find(x => x.id === meccHbId);
+  if (!h) return '';
+  const b = meccBersaglio();
+  if (meccVariante != null) return ' · ' + escapeHtml(h.name) + ' (' + escapeHtml((b && b.name) || 'variante') + ')';
+  return ' · ' + escapeHtml(h.name);
+}
+function meccDoveVale(){
+  const h = (state.homebrew || []).find(x => x.id === meccHbId);
+  if (!h) return '';
+  if (meccVariante != null){
+    const b = meccBersaglio();
+    return 'Valgono solo per chi sceglie la variante «' + escapeHtml((b && b.name) || '') + '».';
+  }
+  if (h.kind === 'race') return 'Valgono per tutti i personaggi di questa razza, qualunque variante scelgano.';
+  return 'Questi effetti valgono per i personaggi che hanno questa sottoclasse.';
 }
 function salvaMeccaniche(){
   const h = (state.homebrew || []).find(x => x.id === meccHbId);
-  if (!h){ closeModal(); return; }
+  const bersaglio = meccBersaglio();
+  if (!h || !bersaglio){ closeModal(); return; }
   const pulito = JSON.parse(JSON.stringify(meccDraft || {}));
   if (pulito.forma && !Object.keys(pulito.forma).length) delete pulito.forma;
   if (pulito.famigli && !Object.keys(pulito.famigli).length) delete pulito.famigli;
@@ -346,11 +423,11 @@ function salvaMeccaniche(){
     pulito.azioni = pulito.azioni.filter(a => a && String(a.nome||'').trim());
     if (!pulito.azioni.length) delete pulito.azioni;
   }
-  if (Object.keys(pulito).length) h.meccaniche = pulito; else delete h.meccaniche;
+  if (Object.keys(pulito).length) bersaglio.meccaniche = pulito; else delete bersaglio.meccaniche;
   h.updatedAt = Date.now();
   saveLocal();
   if (typeof fsSet === 'function') fsSet('homebrew', h);
-  meccDraft = null; meccHbId = null;
+  meccDraft = null; meccHbId = null; meccVariante = null;
   closeModal(); render();
   toast('⚙ Effetti salvati');
 }

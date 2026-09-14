@@ -144,11 +144,21 @@ function sceltaTrucchettoRazza(){
   const race = raceById(bld.raceId);
   if (!race) return null;
   const sub = race.subraces && race.subraces.find(s => s.id === bld.subraceId);
-  return (sub && sub.cantripChoice) || race.cantripChoice || null;
+  const dichiarata = (sub && sub.cantripChoice) || race.cantripChoice || null;
+  if (dichiarata) return dichiarata;
+  /* Le razze dell'SRD hanno il campo; quelle che carichi tu hanno solo
+     la frase scritta fra i tratti. La si legge, come si fa già con le
+     lingue in più: se no la casella non compare e in scheda non arriva
+     niente — che era il difetto di cui si lamentava chi importa. */
+  if (typeof trucchettoDaTratti !== 'function') return null;
+  const s = trucchettoDaTratti(sub && sub.traits) || trucchettoDaTratti(race.traits);
+  // niente casella se non c'è niente da scegliere (un sistema senza incantesimi)
+  return (s && trucchettiScegliibili(s).length) ? s : null;
 }
 function trucchettiScegliibili(scelta){
   if (typeof allSpells !== 'function') return [];
-  return allSpells().filter(sp => sp.level === 0 && (spellClasses(sp)||[]).includes(scelta.classe))
+  return allSpells()
+    .filter(sp => sp.level === 0 && (!scelta.classe || (spellClasses(sp)||[]).includes(scelta.classe)))
     .sort((a,b)=>spellName(a).localeCompare(spellName(b),'it'));
 }
 function bldTrucchettoRazza(id){
@@ -695,7 +705,11 @@ function buildCharacterFromBuilder(){
   // PF: massimo al 1° livello, media arrotondata per eccesso agli altri
   const avg = Math.floor(c.hitDie/2) + 1;
   let hpMax = c.hitDie + conMod + (bld.level - 1) * (avg + conMod);
-  if (bld.subraceId === 'hill-dwarf') hpMax += bld.level;
+  /* Prima qui c'era scritto «se sei un Nano delle colline»: una regola
+     vera, cablata su un caso solo. Adesso vale per qualunque razza o
+     variante che lo dica — comprese quelle che carichi tu. */
+  const pfExtra = (typeof pfPerLivelloDi === 'function') ? pfPerLivelloDi(race, sub) : 0;
+  if (pfExtra) hpMax += bld.level * pfExtra;
   hpMax = Math.max(1, hpMax);
 
   const ch = newCharacter();
@@ -746,10 +760,15 @@ function buildCharacterFromBuilder(){
     }
   }
   ch.initiative = mod(ab.dex);
-  ch.speed = race ? race.speed : 9;
+  // la variante può camminare più veloce della razza: vale la sua
+  ch.speed = (sub && sub.speed) ? sub.speed : (race ? race.speed : 9);
   ch.saveProf = c.saves.slice();
 
-  const skills = new Set([...(race && race.grantSkills || []), ...bld.raceSkills, ...bld.classSkills, ...(bg ? bg.skills : [])]);
+  /* Anche le competenze della VARIANTE: «Pellebestia: competenza in
+     Atletica» prima non arrivava in scheda, perché qui si guardava
+     soltanto la razza. */
+  const skills = new Set([...(race && race.grantSkills || []), ...(sub && sub.grantSkills || []),
+    ...bld.raceSkills, ...bld.classSkills, ...(bg ? bg.skills : [])]);
   ch.skillProf = [...skills];
 
   ch.casterType = c.caster;

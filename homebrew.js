@@ -65,14 +65,91 @@ function sottorazzeDi(h){
       speed: sr.speed || 0,
       traits: tratti(sr.traits),
       grantSkills: sr.grantSkills || [],
+      pfPerLivello: Number(sr.pfPerLivello) || 0,
+      cantripChoice: sr.cantripChoice || null,
+      meccaniche: sr.meccaniche || null,
     }));
 }
+/* ─── Quello che una razza DICE ma non dichiarava ───
+   Le razze dell'SRD hanno dei campi apposta: `cantripChoice` apre la
+   casella per scegliere il trucchetto, e il «+1 PF per livello» del Nano
+   delle colline era scritto a mano nel creatore. Le razze che carichi tu
+   quei campi non ce li hanno: la stessa frase, nel testo di un tratto,
+   non faceva succedere niente. Qui la frase si legge, come l'app fa già
+   da tempo con le lingue in più. */
+
+/* «+1 punto ferita massimo per ogni livello», comunque sia girata la
+   frase: in italiano si scrive sia «punti ferita massimi» sia «massimo
+   di punti ferita», e in inglese la regola sta in due pezzi. Invece di
+   inseguire ogni forma, si cerca la FRASE che parla di massimo dei punti
+   ferita e che tira in ballo il livello, e lì dentro il numero. */
+function pfPerLivelloDaTratti(tr){
+  for (const t of tratti(tr)){
+    const testo = (t.name||'') + '. ' + (t.desc||'');
+    for (const frase of testo.split(/[.;]/)){
+      const f = frase.toLowerCase();
+      if (!/(punt[oi] ferita|hit point)/.test(f)) continue;
+      if (!/(massim|maximum)/.test(f)) continue;
+      if (!/(per (ogni )?livello|per level|for each .{0,12}level|ogni volta che (sali|guadagni|ottieni) .{0,12}livello|whenever you gain a level)/.test(f)) continue;
+      const m = /(\d+)/.exec(f);
+      if (m){ const n = parseInt(m[1], 10); if (n > 0 && n <= 5) return n; }
+    }
+  }
+  return 0;
+}
+/* Quanti punti ferita in più per livello danno razza e variante insieme. */
+function pfPerLivelloDi(race, sub){
+  if (!race) return 0;
+  if (sub && Number(sub.pfPerLivello) > 0) return Number(sub.pfPerLivello);
+  if (Number(race.pfPerLivello) > 0) return Number(race.pfPerLivello);
+  return pfPerLivelloDaTratti(sub && sub.traits) || pfPerLivelloDaTratti(race.traits);
+}
+/* Lo stesso, partendo da un personaggio già fatto. */
+function pfPerLivelloDiPg(c){
+  if (!c || !c.raceId) return 0;
+  const r = (typeof raceById === 'function') ? raceById(c.raceId) : null;
+  if (!r) return 0;
+  const sr = (r.subraces||[]).find(s => norm(s.name) === norm(c.race||''));
+  return pfPerLivelloDi(r, sr);
+}
+
+/* «Conosci un trucchetto a tua scelta»: da quale lista, e con quale
+   caratteristica. Se il testo non lo dice, si sceglie fra tutti. */
+const CLASSI_NEL_TESTO = [
+  [/\bmago\b|\bwizard\b/i, 'Wizard'], [/\bchierico\b|\bcleric\b/i, 'Cleric'],
+  [/\bdruido\b|\bdruid\b/i, 'Druid'], [/\bstregone\b|\bsorcerer\b/i, 'Sorcerer'],
+  [/\bbardo\b|\bbard\b/i, 'Bard'], [/\bwarlock\b/i, 'Warlock'],
+];
+const ABILITA_NEL_TESTO = [
+  [/intelligenza|intelligence/i, 'int'], [/saggezza|wisdom/i, 'wis'], [/carisma|charisma/i, 'cha'],
+];
+function trucchettoDaTratti(tr){
+  for (const t of tratti(tr)){
+    const testo = (t.name||'') + '. ' + (t.desc||'');
+    const parlaDiTrucchetti = /trucchett|cantrip/i.test(testo);
+    const eUnaScelta = /a (tua )?scelta|scegli|of your choice|one of the following/i.test(testo);
+    if (!parlaDiTrucchetti || !eUnaScelta) continue;
+    const cl = CLASSI_NEL_TESTO.find(([rx]) => rx.test(testo));
+    const ab = ABILITA_NEL_TESTO.find(([rx]) => rx.test(testo));
+    return {
+      classe: cl ? cl[1] : '',
+      ability: ab ? ab[1] : '',
+      label: 'Trucchetto' + (cl ? ' da ' + (CLASSES_IT[cl[1]] || cl[1]).toLowerCase() : ' a tua scelta')
+             + (ab ? ' (' + (ABILITIES.find(a=>a.key===ab[1])||{}).label + ')' : ''),
+      dalTesto: true,
+    };
+  }
+  return null;
+}
+
 function allRaces(){
   return razzeBase().concat(homebrewOf('race').map(h => ({
     id: h.id, name: h.name, speed: h.speed || 9, size: h.size || 'Media',
     bonus: h.bonus || {}, languages: lingueDiRazza(h.languages),
     traits: tratti(h.traits),
     grantSkills: h.grantSkills || [], subraces: sottorazzeDi(h), homebrew: true, source: h.source || '',
+    pfPerLivello: Number(h.pfPerLivello) || 0, cantripChoice: h.cantripChoice || null,
+    meccaniche: h.meccaniche || null,
     fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
@@ -204,7 +281,7 @@ function hbRigaHTML(h){
       <div class="attack-name">${HB_KINDS[h.kind]?HB_KINDS[h.kind].icon:''} ${escapeHtml(h.name)}</div>
       <div class="muted" style="font-size:.72rem">${HB_KINDS[h.kind]?HB_KINDS[h.kind].label:h.kind}${h.classId?' · '+escapeHtml((CLASS_BY_ID[h.classId]||{}).name||''):''}${h.source?' · '+escapeHtml(h.source):''}${(typeof riassuntoMeccaniche==='function' && riassuntoMeccaniche(h))?' · ' + ic('opzioni') + ' '+escapeHtml(riassuntoMeccaniche(h)):''}</div>
     </button>
-    ${h.kind==='subclass' ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙</button>` : ''}
+    ${(h.kind==='subclass' || h.kind==='race') ? `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" title="Effetti sul gioco" onclick="openMeccaniche('${jsStr(h.id)}')">⚙</button>` : ''}
     ${(typeof campaignReady === 'function' && campaignReady()) ? (()=>{
       const giaSu = (state.sharedHomebrew||[]).some(x => x.id === h.id);
       return `<button class="btn-icon" style="width:36px;height:36px;font-size:.8rem;${giaSu?'border-color:var(--gold); color:var(--gold)':''}"
@@ -334,6 +411,8 @@ function varianteEditor(d){
         <div class="row-between" style="align-items:center; gap:8px">
           <input value="${attr(sr.name||'')}" placeholder="Nome della variante"
             style="flex:1; min-width:0" oninput="hbVarianteSet(${i},'name',this.value)">
+          <button class="btn-icon" style="width:36px;height:36px;font-size:.8rem" onclick="hbVarianteEffetti(${i})"
+            aria-label="Effetti sul gioco di questa variante" title="Effetti sul gioco">⚙${sr.meccaniche?'<span class="pallino"></span>':''}</button>
           <button class="btn-icon" onclick="hbVarianteVia(${i})" aria-label="Togli questa variante" title="Togli">${ic('cestino')}</button>
         </div>
         <div class="form-row-3" style="margin-top:10px">
@@ -354,6 +433,15 @@ function varianteEditor(d){
 }
 function variantiTestoTratti(sr){
   return tratti(sr && sr.traits).map(t => t.name ? (t.name + ': ' + t.desc) : t.desc).join('\n');
+}
+/* Gli effetti ⚙ di una variante: prima si salva la razza (se no la
+   variante che stai scrivendo non esiste ancora da nessuna parte). */
+function hbVarianteEffetti(i){
+  const sr = hbVarianti()[i];
+  if (!sr || !String(sr.name||'').trim()){ toast('Prima dai un nome alla variante'); return; }
+  if (!String(hbDraft.name||'').trim()){ toast('Prima dai un nome alla razza'); return; }
+  saveHomebrew(hbDraft);
+  openMeccaniche(hbDraft.id, i);
 }
 function hbVarianti(){ if (!Array.isArray(hbDraft.subraces)) hbDraft.subraces = []; return hbDraft.subraces; }
 function hbVarianteAggiungi(){

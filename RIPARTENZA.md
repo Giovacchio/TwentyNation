@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.5** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.6** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -209,6 +209,32 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    lettore di schede: prima la parentesi si buttava.
    **Domanda di controllo, già risposta in `test-v95`:** creatore e PDF
    scrivono tutti e due la VARIANTE in `c.race` e tengono `raceId` sulla razza.
+
+0%. **Quello che una razza DICE deve diventare qualcosa che SUCCEDE (v9.6).**
+   Le razze SRD hanno campi dedicati (`cantripChoice`, e il «+1 PF» del Nano delle
+   colline era perfino cablato con un `if` sull'id); quelle caricate hanno solo la
+   frase dentro un tratto. Adesso la frase si legge, in `homebrew.js`:
+   `trucchettoDaTratti()` e `pfPerLivelloDaTratti()`/`pfPerLivelloDi()`/`pfPerLivelloDiPg()`.
+   **Regola generale da qui in avanti:** quando si aggiunge un campo dichiarativo a
+   una razza o a una classe, chiedersi *«e chi lo importa da un manuale, come lo
+   dichiara?»* — se la risposta è «scrivendolo in un tratto», serve il lettore.
+   **E chiedersi sempre chi altro deve applicarla:** il «+1 PF per livello» stava nel
+   creatore e NON nella salita di livello. Le regole che toccano i PF vanno messe
+   sia in `buildCharacterFromBuilder()` sia in `levelUpGains()`.
+   Competenze e velocità: si leggono da razza **e** variante, in `builder.js` e in
+   `pdf-import.js` (due file, stesso difetto — cercarlo sempre in tutti e due).
+
+0€. **Gli effetti ⚙ possono venire da sottoclasse, razza e variante (v9.6).**
+   `meccanicheDi(c)` le fonde con `fondiMeccaniche()`: gli **elenchi si sommano**,
+   sui campi in comune vince chi è arrivato prima (la sottoclasse). `openMeccaniche(hbId, i)`
+   con `i` = indice della variante scrive su `h.subraces[i].meccaniche`.
+
+0¢. **Il backup porta via TUTTI i cassetti (v9.6).**
+   `pacchettoBackup()` esporta `{sistemi:{…}}` più le collezioni del sistema attivo in
+   cima (per le versioni vecchie); `doImport()` sa leggere le due forme e scrive nei
+   cassetti degli altri sistemi **senza passare da `state`**, che è sempre e solo
+   quello aperto. Quelle degli altri sistemi salgono sul server quando ci vai
+   (`uploadUnsynced` le trova senza `syncedAt`).
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**

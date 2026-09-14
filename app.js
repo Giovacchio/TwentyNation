@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '9.5';
+const APP_VERSION = '9.6';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -5522,16 +5522,50 @@ function controllaBackup(){
     ? '💾 Non hai mai esportato un backup: bastano due tocchi in Opzioni'
     : '💾 L\'ultimo backup risale a ' + g + ' giorni fa'), 2600);
 }
+/* Il backup porta via TUTTO: ogni sistema di gioco, non solo quello in
+   cui sei. Con la 9.4 i dati hanno smesso di stare in un posto solo, e
+   un backup fatto in D&D lasciava indietro Star Wars senza dirlo — la
+   peggiore specie di perdita, quella che sembra andata bene.
+   Le collezioni si leggono da COLLEZIONI, non si riscrivono a mano: è
+   l'unico modo per non dimenticarsene una la prossima volta. */
+function pacchettoBackup(){
+  // il cassetto aperto va riallineato, come nel salvataggio locale
+  if (!__archivioSistemi[state.sistema]) __archivioSistemi[state.sistema] = cassettoVuoto();
+  COLLEZIONI.forEach(k => { __archivioSistemi[state.sistema][k] = state[k]; });
+  const sistemi = {};
+  Object.keys(__archivioSistemi).forEach(id => {
+    const c = __archivioSistemi[id], dentro = {};
+    let qualcosa = false;
+    COLLEZIONI.forEach(k => {
+      dentro[k] = Array.isArray(c[k]) ? c[k] : [];
+      if (dentro[k].length) qualcosa = true;
+    });
+    if (qualcosa) sistemi[id] = dentro;
+  });
+  const p = { app:'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(), sistemi };
+  /* In cima restano anche le collezioni del sistema attivo, in chiaro:
+     così un backup della 9.6 lo sa leggere anche una versione vecchia
+     dell'app, invece di dirle che non è un backup di TwentyNation. */
+  COLLEZIONI.forEach(k => { p[k] = state[k]; });
+  return p;
+}
+function quantiNelBackup(d){
+  const s = (d && d.sistemi && typeof d.sistemi === 'object') ? d.sistemi : null;
+  if (!s){
+    const n = {}; COLLEZIONI.forEach(k => { n[k] = (d && Array.isArray(d[k])) ? d[k].length : 0; });
+    return [{ id: state.sistema, conta: n, vecchio: true }];
+  }
+  return Object.keys(s).map(id => {
+    const n = {}; COLLEZIONI.forEach(k => { n[k] = Array.isArray(s[id][k]) ? s[id][k].length : 0; });
+    return { id, conta: n, vecchio: false };
+  });
+}
 function exportData(){
   try {
-    downloadJSON({
-      app: 'grimorio', version: APP_VERSION, exportedAt: new Date().toISOString(),
-      characters: state.characters, npcs: state.npcs,
-      customSpells: state.customSpells, spellTags: state.spellTags, homebrew: state.homebrew,
-      journal: state.journal, suppliche: state.suppliche, incontri: state.incontri
-    }, 'grimorio-backup');
+    downloadJSON(pacchettoBackup(), 'grimorio-backup');
     segnaBackupFatto();
-    toast('⤓ Backup esportato');
+    const n = Object.keys(pacchettoBackup().sistemi).length;
+    toast('⤓ Backup esportato' + (n > 1 ? ' (' + n + ' sistemi)' : ''));
   } catch(e){ console.error(e); toast('⚠ Esportazione non riuscita'); }
 }
 function exportCustomSpells(){
@@ -5565,12 +5599,26 @@ function handleImportFile(input){
     if (data && data.type === 'spells' && Array.isArray(data.spells)){
       openSpellImport(); analyzeSpellImport(JSON.stringify(data)); return;
     }
-    if (!data || (!Array.isArray(data.characters) && !Array.isArray(data.npcs) && !Array.isArray(data.customSpells))){
+    const haCassetti = !!(data && data.sistemi && typeof data.sistemi === 'object');
+    if (!data || (!haCassetti && !Array.isArray(data.characters) && !Array.isArray(data.npcs) && !Array.isArray(data.customSpells))){
       toast('⚠ Questo file non è un backup di TwentyNation'); return;
     }
-    const nc = (data.characters||[]).length, nn = (data.npcs||[]).length, ns = (data.customSpells||[]).length;
+    /* Dire che cosa c'è dentro E dove andrà a finire: un backup di D&D
+       importato mentre sei su Star Wars finisce su Star Wars, ed è giusto
+       che lo si sappia prima e non dopo. */
+    const dentro = quantiNelBackup(data);
+    const riga = (x) => {
+      const n = x.conta;
+      const pezzi = [n.characters + ' ' + pluralize(n.characters,'personaggio','personaggi')];
+      if (n.npcs) pezzi.push(n.npcs + ' PNG');
+      if (n.customSpells) pezzi.push(n.customSpells + ' ' + pluralize(n.customSpells,'incantesimo','incantesimi'));
+      if (n.homebrew) pezzi.push(n.homebrew + ' ' + pluralize(n.homebrew,'contenuto tuo','contenuti tuoi'));
+      const dove = x.vecchio ? sistemaDi(state.sistema).nome + ' (dove sei adesso)' : sistemaDi(x.id).nome;
+      return '· ' + dove + ': ' + pezzi.join(', ');
+    };
     confirmDialog('Importare il backup?',
-      `Contiene ${nc} ${pluralize(nc,'personaggio','personaggi')}, ${nn} PNG e ${ns} ${pluralize(ns,'incantesimo','incantesimi')} personalizzati. Le voci con lo stesso identificativo verranno aggiornate, il resto viene aggiunto.`,
+      dentro.map(riga).join('\n') +
+      '\n\nLe voci con lo stesso identificativo verranno aggiornate, il resto viene aggiunto.',
       () => doImport(data), 'Importa');
   };
   reader.onerror = () => toast('⚠ Impossibile leggere il file');
@@ -5605,30 +5653,39 @@ async function instradaPdf(file){
    megabyte). La via veloce esisteva gia' — la usavano l'importazione
    dei mostri e quella delle aggiunte in blocco — e qui non era arrivata. */
 async function doImport(data){
-  const raccolte = [
-    ['characters',   data.characters,                    migrateCharacter],
-    ['npcs',         data.npcs,                          null],
-    ['customSpells', data.customSpells || data.spells,   null],
-    ['spellTags',    data.spellTags,                     null],
-    ['homebrew',     data.homebrew,                      null],
-    ['journal',      data.journal,                       null],
-    ['suppliche',    data.suppliche,                     null],
-    ['incontri',     data.incontri,                      null],
-  ];
-  const conti = {};
+  const conti = {}; COLLEZIONI.forEach(k => { conti[k] = 0; });
   const daMandare = [];
-  raccolte.forEach(([key, arr, mapper]) => {
-    conti[key] = 0;
-    if (!Array.isArray(arr)) return;
-    const nuovi = [];
-    arr.forEach(item => {
-      if (!item || !item.id) return;
-      const obj = mapper ? mapper(item) : item;
-      const idx = state[key].findIndex(x => x.id === obj.id);
-      if (idx >= 0) state[key][idx] = obj; else state[key].push(obj);
-      nuovi.push(obj); conti[key]++;
+  /* Un backup nuovo ha un cassetto per sistema; uno vecchio ha le
+     collezioni in cima e va dove sei adesso. In tutti e due i casi: le
+     voci del sistema in cui NON sei si scrivono nel loro cassetto senza
+     passare da `state`, che è sempre e solo quello aperto. */
+  const cassetti = (data && data.sistemi && typeof data.sistemi === 'object')
+    ? data.sistemi
+    : (function(){ const o = {}; const c = {};
+        COLLEZIONI.forEach(k => { c[k] = data[k] || (k === 'customSpells' ? data.spells : null); });
+        o[state.sistema] = c; return o; })();
+
+  Object.keys(cassetti).forEach(sistema => {
+    const src = cassetti[sistema] || {};
+    const attivo = sistema === state.sistema;
+    if (!__archivioSistemi[sistema]) __archivioSistemi[sistema] = cassettoVuoto();
+    COLLEZIONI.forEach(key => {
+      const arr = src[key];
+      if (!Array.isArray(arr)) return;
+      // dove si scrive: lo stato se è il sistema aperto, il cassetto se no
+      const dentro = attivo ? state[key] : (__archivioSistemi[sistema][key] = __archivioSistemi[sistema][key] || []);
+      const nuovi = [];
+      arr.forEach(item => {
+        if (!item || !item.id) return;
+        const obj = (key === 'characters') ? migrateCharacter(item) : item;
+        const idx = dentro.findIndex(x => x.id === obj.id);
+        if (idx >= 0) dentro[idx] = obj; else dentro.push(obj);
+        nuovi.push(obj); if (attivo) conti[key]++;
+      });
+      // sul server sale solo quello del sistema aperto: le collezioni
+      // degli altri hanno un altro nome e si sincronizzano quando ci vai
+      if (nuovi.length && attivo) daMandare.push([key, nuovi]);
     });
-    if (nuovi.length) daMandare.push([key, nuovi]);
   });
 
   /* Una sola scrittura locale per tutto, poi i blocchi verso il server. */
@@ -5645,7 +5702,13 @@ async function doImport(data){
   render();
   if (pieno){ toast('⚠ Memoria piena a metà importazione: controlla «Salute dei dati»'); return; }
   const a = conti.characters, b = conti.npcs, c = conti.customSpells, d = conti.journal;
+  /* Quanto è finito negli ALTRI sistemi: è lì e si sincronizzerà quando
+     ci andrai, ma va detto adesso — se no sembra sparito. */
+  const altrove = Object.keys(__archivioSistemi)
+    .filter(id => id !== state.sistema && (__archivioSistemi[id].characters||[]).length)
+    .map(id => sistemaDi(id).nome);
   toast(`Importati: ${a} personaggi, ${b} PNG, ${c} incantesimi${d?`, ${d} voci di diario`:''}`);
+  if (altrove.length) setTimeout(() => toast('Il resto è su ' + altrove.join(' e ') + ': lo vedi cambiando sistema'), 2400);
 }
 
 /* ─── 23. TIRA DADI ─── */
