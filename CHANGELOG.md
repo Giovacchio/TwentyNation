@@ -1,5 +1,29 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.7 — 14 settembre 2026
+**Tre cose che servono a chi rilegge i manuali da capo.**
+
+### 🗑 Togliere in blocco i contenuti tuoi
+Chi carica un manuale intero si ritrova centosedici voci. Toglierle voleva dire **centosedici conferme**, una per volta: nessuno lo fa, e chi ci prova si ferma a metà lasciando l'archivio in mezzo al guado. Adesso c'è un tasto che le toglie tutte — o solo quelle di un tipo, se hai un filtro acceso.
+
+Passano tutte dal **cestino a 30 giorni**, quindi si torna indietro. E se non hai mai esportato un backup, o l'ultimo è di più di una settimana fa, **la conferma te lo dice**: dopo non serve più a niente saperlo.
+
+### 👀 Prima di importare si vede cosa il lettore ha capito
+La riga di ogni voce trovata adesso dice anche **le varianti**, con i loro nomi: se il lettore non le ha viste, te ne accorgi **prima** di importare invece di scoprirlo dopo, dentro la creazione guidata. E sotto compare un avviso quando qualcosa non torna — una razza senza bonus, una sottoclasse senza privilegi, varianti a cui non è stato trovato l'aumento di caratteristica.
+
+Non è un errore: il manuale può davvero non dirlo. Ma è la differenza fra importare a scatola chiusa e sapere cosa stai importando.
+
+### ♻️ Rileggere lo stesso manuale non butta via il lavoro fatto
+Dalla v9.1 rileggere una voce che hai già la **aggiorna** invece di duplicarla, conservando gli effetti ⚙️ che avevi configurato a mano. Con le varianti (v9.5) quella protezione si fermava alla razza: gli effetti messi su **Zannalunga** sparivano alla rilettura, e la rilettura è proprio la cosa che si fa più spesso.
+
+Adesso ogni variante si ritrova per nome e si riprende i suoi effetti, le sue competenze e **il suo identificativo** — che è quello a cui sono attaccate le schede già fatte.
+
+### Una svista trovata dalla prova
+Scrivendo il controllo sul promemoria del backup è saltato fuori che `giorniDaBackup()` dà `null` se non l'hai **mai** fatto e `0` se l'hai fatto **oggi**: due cose diversissime che si scrivono quasi uguali. Confonderle voleva dire fare la predica a chi aveva appena salvato e tacere con chi non aveva mai salvato niente. Corretto prima che arrivasse a te.
+
+### Cosa ho verificato
+14 controlli nuovi (`test-v97`) e le 60 serie di prima.
+
 ## v9.6 — 14 settembre 2026
 **Cinque cose che c'erano ma funzionavano a metà. Tutte della stessa famiglia: la regola scritta bene per l'SRD e mai collegata al resto.**
 

@@ -283,7 +283,10 @@ function hbApreVarianti(testo){
 /* Una variante porta quasi sempre il suo aumento di caratteristica
    dentro al testo: «Your Constitution score increases by 1». */
 function hbVariante(nome, testo){
-  return { id: '', name: String(nome||'').trim(),
+  /* Un identificativo vero da subito: le schede ci si attaccano, e
+     rileggendo lo stesso manuale quello vecchio viene riusato. */
+  return { id: (typeof uid === 'function' ? uid() : 'var-' + Math.random().toString(36).slice(2)),
+           name: String(nome||'').trim(),
            bonus: parseAbilityBonus(String(testo||'')),
            traits: [[String(nome||'').trim(), String(testo||'').slice(0,500)]] };
 }
@@ -660,6 +663,25 @@ function hbGiaAlTavolo(voce){
   return (state.sharedHomebrew || []).find(x => x && x.kind === voce.kind && norm(x.name||'') === k) || null;
 }
 /* Come si presenta una voce già presente, e cosa succede se la scegli. */
+/* Quello che in una voce letta NON torna. Non è un errore — il manuale
+   può davvero non dirlo — ma vederlo prima di importare vale molto di
+   più che scoprirlo dopo, aprendo la scheda e trovandola vuota. */
+function hbCosaManca(x){
+  const p = [];
+  if (x.kind === 'race'){
+    if (!Object.keys(x.bonus||{}).length) p.push('nessun bonus di caratteristica');
+    if (!(x.traits||[]).length) p.push('nessun tratto');
+    const senzaBonus = (x.subraces||[]).filter(v => !Object.keys(v.bonus||{}).length).map(v=>v.name);
+    if (senzaBonus.length) p.push('varianti senza bonus: ' + senzaBonus.join(', '));
+  } else if (x.kind === 'subclass'){
+    // «classe da scegliere» lo dice già la riga sopra: non due volte
+    if (!Object.keys(x.features||{}).length) p.push('nessun privilegio');
+  } else if (x.kind === 'background'){
+    if (!(x.skills||[]).length) p.push('nessuna competenza');
+    if (!x.feature) p.push('nessun privilegio');
+  }
+  return p.join(' · ');
+}
 function hbStatoVoce(voce){
   const mia = hbGiaTua(voce);
   if (mia) return { stato:'mia', id: mia.id, nota:'ce l\'hai già · scegliendola la aggiorni' };
@@ -731,7 +753,14 @@ function hbBulkHTML(){
       ? (nomeClasse ? nomeClasse + ' · ' : '⚠︎ classe da scegliere · ')
         + Object.keys(x.features||{}).length + ' privilegi (liv. ' + Object.keys(x.features||{}).sort((a,c)=>a-c).join(', ') + ')'
       : x.kind === 'race'
-        ? [Object.entries(x.bonus||{}).map(([kk,v])=>ABILITY_BY_KEY[kk].abbr+' +'+v).join(' '), (x.traits||[]).length + ' tratti', x.speed+' m'].filter(Boolean).join(' · ')
+        ? [Object.entries(x.bonus||{}).map(([kk,v])=>ABILITY_BY_KEY[kk].abbr+' +'+v).join(' '),
+           (x.traits||[]).length + ' ' + pluralize((x.traits||[]).length,'tratto','tratti'),
+           x.speed+' m',
+           /* Le varianti sono la cosa che si vuole sapere PRIMA di
+              importare: se il lettore non le ha viste, si rilegge il PDF
+              invece di accorgersene dopo, dentro la creazione guidata. */
+           (x.subraces||[]).length ? (x.subraces.length + ' ' + pluralize(x.subraces.length,'variante','varianti') + ': ' + x.subraces.map(v=>v.name).join(', ')) : ''
+          ].filter(Boolean).join(' · ')
         : [(x.skills||[]).map(s=>(SKILLS.find(y=>y.key===s)||{}).label).filter(Boolean).join(', '), x.feature].filter(Boolean).join(' · ');
     const st = hbStatoVoce(x);
     return `<button class="attack-row" style="width:100%; text-align:left; ${on?'border-color:var(--gold)':(st.stato!=='nuova'?'border-color:var(--line)':'')}" onclick="hbBulkToggle('${x.id}')">
@@ -740,6 +769,7 @@ function hbBulkHTML(){
         <span class="attack-name" style="${st.stato!=='nuova'&&!on?'opacity:.72':''}">${k.icon||''} ${escapeHtml(x.name)}${
           st.stato==='mia' ? ' <span class="badge">già tua</span>' : st.stato==='tavolo' ? ' <span class="badge">dal tavolo</span>' : ''}</span>
         <span class="muted" style="font-size:.73rem; display:block">${escapeHtml([dettaglio||'—', st.nota].filter(Boolean).join(' · '))}</span>
+        ${(()=>{ const d = hbCosaManca(x); return d ? `<span style="font-size:.71rem; display:block; color:var(--warn)">${ic('avviso')} ${escapeHtml(d)}</span>` : ''; })()}
       </span>
     </button>`;
   };
@@ -1025,6 +1055,20 @@ async function hbBulkConfirm(){
       x.id = mia.id;
       if (!x.meccaniche && vecchiaMecc) x.meccaniche = vecchiaMecc;
       if (!x.classId && mia.classId) x.classId = mia.classId;   // il legame alla classe si conserva
+      /* Gli effetti ⚙ configurati su una VARIANTE: si ritrovano per nome
+         e si riattaccano. Senza questo, rileggere lo stesso manuale
+         buttava via il lavoro fatto a mano su ogni variante — e la
+         rilettura è proprio la cosa che si fa più spesso. */
+      if (Array.isArray(x.subraces) && Array.isArray(mia.subraces)){
+        x.subraces.forEach(nuova => {
+          const vecchia = mia.subraces.find(v => norm(v.name||'') === norm(nuova.name||''));
+          if (!vecchia) return;
+          if (!nuova.meccaniche && vecchia.meccaniche) nuova.meccaniche = vecchia.meccaniche;
+          if (vecchia.id) nuova.id = vecchia.id;   // le schede attaccate puntano a questo
+          if (!Object.keys(nuova.bonus||{}).length && Object.keys(vecchia.bonus||{}).length) nuova.bonus = vecchia.bonus;
+          if (!nuova.grantSkills && vecchia.grantSkills) nuova.grantSkills = vecchia.grantSkills;
+        });
+      }
       const i = state.homebrew.indexOf(mia);
       state.homebrew[i] = x;
       aggiornate++;

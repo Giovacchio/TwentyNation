@@ -249,6 +249,48 @@ function deleteHomebrew(id){
   saveLocal(); render();
 }
 
+/* ─── Cancellare in blocco ───
+   Chi carica un manuale intero si ritrova centosedici voci. Toglierle
+   una per una voleva dire centosedici conferme: nessuno lo fa, e chi ci
+   prova si ferma a metà lasciando l'archivio in mezzo al guado.
+   Tutto passa dal cestino a 30 giorni: se hai sbagliato, torna indietro. */
+function hbDaCancellare(kind){
+  const tutte = state.homebrew || [];
+  return kind ? tutte.filter(h => h.kind === kind) : tutte.slice();
+}
+function confirmSvuotaHomebrew(kind){
+  const lista = hbDaCancellare(kind);
+  if (!lista.length){ toast('Non c\'è niente da togliere'); return; }
+  const che = kind ? (HB_KINDS[kind] ? HB_KINDS[kind].label.toLowerCase() : kind) : 'contenuti tuoi';
+  /* `giorniDaBackup()` dà null se non l'hai MAI fatto e 0 se l'hai fatto
+     oggi: due cose diversissime che si scrivono quasi uguali. Confonderle
+     voleva dire fare la predica a chi aveva appena salvato e tacere con
+     chi non aveva mai salvato niente. */
+  const g = (typeof giorniDaBackup === 'function') ? giorniDaBackup() : null;
+  const avviso = (g === null)
+    ? '\n\n⚠ Non hai mai esportato un backup. Vanno nel cestino e si recuperano per 30 giorni, ma un backup è un\'altra cosa.'
+    : (g >= 7 ? '\n\n⚠ L\'ultimo backup risale a ' + g + ' giorni fa.' : '');
+  confirmDialog(
+    'Togliere ' + lista.length + ' ' + (lista.length === 1 ? che.replace(/i$/,'a') : che) + '?',
+    'Finiscono nel cestino e per 30 giorni puoi rimetterle a posto. I personaggi già creati non cambiano: perdono solo il collegamento alla voce.' + avviso,
+    () => svuotaHomebrew(kind), 'Togli tutte');
+}
+async function svuotaHomebrew(kind){
+  const lista = hbDaCancellare(kind);
+  if (!lista.length) return;
+  const ids = lista.map(h => h.id);
+  if (typeof nelCestino === 'function') lista.forEach(h => nelCestino('homebrew', h));
+  const tolti = new Set(ids);
+  state.homebrew = (state.homebrew || []).filter(h => !tolti.has(h.id));
+  saveLocalOra();
+  // a pacchetti, non una cancellazione per voce: con centinaia di voci
+  // la differenza fra un istante e mezzo minuto di app ferma
+  if (typeof fsDeleteMany === 'function') await fsDeleteMany('homebrew', ids);
+  render();
+  toast(ids.length + ' ' + pluralize(ids.length, 'voce tolta', 'voci tolte') + ' · sono nel cestino');
+  openHomebrew();
+}
+
 /* ─── Schermata di gestione ─── */
 function openHomebrew(){
   state.hbQ = ''; state.hbKind = '';
@@ -324,6 +366,9 @@ function homebrewListHTML(){
       <button class="btn btn-ghost btn-sm" onclick="exportHomebrew()">⤓ Esporta</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('hb-import-file').click()">⤒ Importa file</button>
     </div>` : `<button class="btn btn-ghost btn-block btn-sm" style="margin-top:10px" onclick="document.getElementById('hb-import-file').click()">⤒ Importa da file</button>`}
+    ${tutti.length ? `<button class="btn btn-danger btn-block btn-sm" style="margin-top:10px" onclick="confirmSvuotaHomebrew('${state.hbKind||''}')">${ic('cestino')} Togli ${
+      state.hbKind ? 'tutte le ' + (HB_KINDS[state.hbKind]?HB_KINDS[state.hbKind].label.toLowerCase():state.hbKind) + ' (' + (conta[state.hbKind]||0) + ')'
+                   : 'tutte le voci (' + tutti.length + ')'}</button>` : ''}
     <input type="file" id="hb-import-file" accept="application/json,.json,application/pdf,.pdf,.txt,text/plain,.md" style="display:none" onchange="importHomebrewFile(this)">
     <div class="spell-source-note">Il Grimorio non contiene materiale dei manuali: quello che scrivi qui resta tuo e non viene condiviso con nessuno.</div>`;
   return modalShell('📚 Contenuti tuoi', inner);

@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.6** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.7** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -209,6 +209,17 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    lettore di schede: prima la parentesi si buttava.
    **Domanda di controllo, già risposta in `test-v95`:** creatore e PDF
    scrivono tutti e due la VARIANTE in `c.race` e tengono `raceId` sulla razza.
+
+0£. **Rileggere un manuale deve conservare il lavoro fatto a mano (v9.1, esteso v9.7).**
+   `hbBulkConfirm()` aggiorna la voce che hai già invece di duplicarla e le riporta
+   addosso `meccaniche` e `classId`. Dalla 9.7 lo fa anche **variante per variante**
+   (ritrovate per nome): effetti ⚙, competenze e soprattutto l'**id**, che è quello a
+   cui sono attaccate le schede. Chi aggiunge un campo configurabile a mano deve
+   aggiungerlo anche a questa conservazione, o la prossima rilettura lo cancella.
+
+0¥. **`giorniDaBackup()` dà `null` per «mai» e `0` per «oggi».** Trattarli uguali
+   (`if (!g)`) è un errore che l'app ha già fatto una volta: fa la predica a chi ha
+   appena salvato e tace con chi non ha mai salvato.
 
 0%. **Quello che una razza DICE deve diventare qualcosa che SUCCEDE (v9.6).**
    Le razze SRD hanno campi dedicati (`cantripChoice`, e il «+1 PF» del Nano delle
