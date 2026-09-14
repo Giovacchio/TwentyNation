@@ -1,5 +1,24 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.5 — 10 settembre 2026
+**Le razze che si dividono in varianti adesso te le fanno scegliere — e i bonus arrivano da soli.**
+
+Caricavi lo Shifter da un manuale e l'app ti dava «Shifter» e basta. Ma uno Shifter *è* Pellebestia, o Zannalunga, o Passolieve, e da lì arrivano un aumento di caratteristica e dei tratti. Stessa cosa per l'Aasimar coi suoi Protettore / Flagello / Caduto. Quella scelta non c'era, e quei bonus non arrivavano in scheda: dovevi metterli a mano e ricordartene.
+
+Il motore per farlo c'era già dal primo giorno — le sottorazze dell'SRD (Nano delle colline, Alto elfo) funzionano così da sempre. Le razze che carichi tu partivano però **sempre con zero varianti**, scritto proprio così nel codice. Un caso da manuale di funzione scritta bene e mai chiamata.
+
+### Adesso
+- **Il lettore dei manuali le riconosce.** Quando incontra «Sottorazze», «Subraces», «Varianti», «Lignaggi» capisce che da lì in poi non sono più tratti: sono le varianti fra cui scegliere. E da ognuna tira fuori il suo aumento di caratteristica (*«Your Constitution score increases by 1»* → COS +1).
+- **La creazione guidata te le fa scegliere**, come fa con le sottorazze di serie, e **non ti lascia andare avanti** finché non ne hai scelta una. Il bonus della variante si somma a quello della razza: Mutaforma DES +1, Zannalunga FOR +1 → arrivi al passo delle caratteristiche con +1 e +1.
+- **Puoi scriverle a mano.** Nell'editor delle razze c'è una sezione **Varianti**: nome, i sei bonus, e i tratti uno per riga come «Nome: cosa fa». Una variante senza nome non si salva di nascosto — l'app te lo dice.
+- **In scheda si vedono i tratti giusti**: quelli della razza più quelli della *tua* variante, non di tutte.
+
+### E una che si perdeva per strada
+Il lettore di schede PDF, davanti a **«Mutaforma (Zannalunga)»**, riconosceva la razza e **buttava via la parentesi**. Adesso ci guarda dentro: se lì c'è una variante di quella razza, è quella. Vale anche per le razze di serie e per i nomi inglesi.
+
+### Cosa ho verificato
+28 controlli nuovi (`test-v95`), su una razza inventata da me con la forma di una che si divide. Fra questi, la domanda di controllo di sempre: **un personaggio fatto con la creazione guidata e uno importato da PDF arrivano alla stessa scheda?** Sì — tutti e due scrivono la variante nel campo razza, tengono il legame alla voce e mostrano gli stessi tratti.
+
 ## v9.4 — 9 settembre 2026
 **L'app adesso può ospitare più di un gioco. Il primo ospite è Star Wars 5e, e arriva vuoto.**
 

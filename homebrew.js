@@ -40,14 +40,39 @@ function lingueDiRazza(v){
   return String(v == null || v === '' ? 'Comune' : v).split(/\s*,\s*/).filter(Boolean);
 }
 /* Elenchi completi = contenuti di serie + i tuoi */
+/* I tratti si scrivono in due forme — coppie `['Nome','testo']` o
+   oggetti `{name,desc}` — a seconda di chi li ha creati. Qui si
+   riducono a una sola. */
+function tratti(lista){
+  return (Array.isArray(lista) ? lista : []).map(t => Array.isArray(t)
+    ? ({ name: t[0], desc: t[1] })
+    : ({ name: (t && t.name) || '', desc: (t && t.desc) || '' }))
+    .filter(t => t.name || t.desc);
+}
+/* Le VARIANTI di una razza: Shifter → Pellebestia, Zannalunga…;
+   Aasimar → Protettore, Flagello… Dalla 9.5 anche le razze che carichi
+   tu possono averle, e la creazione guidata te le fa scegliere come fa
+   con le sottorazze dell'SRD. Prima erano sempre e comunque zero: la
+   scelta non compariva e i bonus della variante non arrivavano mai in
+   scheda. */
+function sottorazzeDi(h){
+  return (Array.isArray(h && h.subraces) ? h.subraces : [])
+    .filter(sr => sr && (sr.name || '').trim())
+    .map((sr, i) => ({
+      id: sr.id || (h.id + '-var' + i),
+      name: String(sr.name).trim(),
+      bonus: sr.bonus || {},
+      speed: sr.speed || 0,
+      traits: tratti(sr.traits),
+      grantSkills: sr.grantSkills || [],
+    }));
+}
 function allRaces(){
   return razzeBase().concat(homebrewOf('race').map(h => ({
     id: h.id, name: h.name, speed: h.speed || 9, size: h.size || 'Media',
     bonus: h.bonus || {}, languages: lingueDiRazza(h.languages),
-    traits: (Array.isArray(h.traits) ? h.traits : []).map(t => Array.isArray(t)
-      ? ({ name: t[0], desc: t[1] })
-      : ({ name: (t && t.name) || '', desc: (t && t.desc) || '' })),
-    grantSkills: h.grantSkills || [], subraces: [], homebrew: true, source: h.source || '',
+    traits: tratti(h.traits),
+    grantSkills: h.grantSkills || [], subraces: sottorazzeDi(h), homebrew: true, source: h.source || '',
     fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
@@ -238,7 +263,7 @@ function editHomebrew(id, kind){
   hbDraft = ex ? JSON.parse(JSON.stringify(ex)) : {
     id: uid(), kind: kind || 'subclass', name: '', source: '', classId: 'fighter',
     features: {}, traits: [], bonus: {}, speed: 9, size: 'Media', languages: 'Comune',
-    skills: [], tools: '', langCount: 0, feature: '', desc: '', equipment: '', grantSkills: []
+    skills: [], tools: '', langCount: 0, feature: '', desc: '', equipment: '', grantSkills: [], subraces: []
   };
   openModal({ render: homebrewEditorHTML, after: () => { const el = document.getElementById('hb-name'); if (el && !id) el.focus(); } });
 }
@@ -290,7 +315,72 @@ function raceEditorFields(d){
     </div>
     <div class="field"><label>Competenze concesse</label>
       <div class="chip-row">${SKILLS.map(s=>`<button class="chip ${(d.grantSkills||[]).includes(s.key)?'active':''}" onclick="hbToggleGrant('${s.key}')">${s.label}</button>`).join('')}</div>
-    </div>`;
+    </div>
+    ${varianteEditor(d)}`;
+}
+/* ─── Le varianti (sottorazze) ───
+   Una razza come lo Shifter non si sceglie e basta: si sceglie anche
+   COSA sei dentro quella razza, e da lì arrivano altri bonus. */
+function varianteEditor(d){
+  const lista = Array.isArray(d.subraces) ? d.subraces : [];
+  return `
+    <div class="divider"><span class="flourish">❧</span><span>Varianti</span></div>
+    <p class="muted" style="font-size:.76rem; margin-bottom:10px">
+      Se questa razza si divide — Shifter in Pellebestia, Zannalunga… — mettile qui.
+      Nella creazione guidata dovrai sceglierne una, e i suoi bonus si sommano a quelli qui sopra.
+    </p>
+    ${lista.length ? lista.map((sr,i)=>`
+      <div class="card" style="margin-bottom:10px">
+        <div class="row-between" style="align-items:center; gap:8px">
+          <input value="${attr(sr.name||'')}" placeholder="Nome della variante"
+            style="flex:1; min-width:0" oninput="hbVarianteSet(${i},'name',this.value)">
+          <button class="btn-icon" onclick="hbVarianteVia(${i})" aria-label="Togli questa variante" title="Togli">${ic('cestino')}</button>
+        </div>
+        <div class="form-row-3" style="margin-top:10px">
+          ${ABILITIES.map(a=>`<div style="text-align:center">
+            <div class="muted" style="font-size:.62rem; font-weight:800; letter-spacing:.06em">${a.abbr}</div>
+            <input type="number" inputmode="numeric" min="0" max="4" value="${(sr.bonus||{})[a.key]||0}"
+              style="width:100%; text-align:center; padding:7px; border-radius:9px; border:1px solid var(--line); background:var(--bg-1); font-family:var(--font-ui); font-weight:700"
+              oninput="hbVarianteBonus(${i},'${a.key}',this.value)">
+          </div>`).join('')}
+        </div>
+        <div class="field" style="margin-top:10px"><label>Tratti della variante</label>
+          <textarea placeholder="Uno per riga, come «Nome: cosa fa»" style="min-height:80px"
+            oninput="hbVarianteTratti(${i}, this.value)">${escapeHtml(variantiTestoTratti(sr))}</textarea>
+          <div class="field-hint">Es. «Zanne: puoi mordere come azione bonus, 1d6 danni perforanti.»</div>
+        </div>
+      </div>`).join('') : `<p class="muted" style="font-size:.78rem; margin-bottom:10px">Nessuna variante: la razza si sceglie e basta.</p>`}
+    <button class="btn btn-ghost btn-block btn-sm" onclick="hbVarianteAggiungi()">${ic('piu')} Aggiungi una variante</button>`;
+}
+function variantiTestoTratti(sr){
+  return tratti(sr && sr.traits).map(t => t.name ? (t.name + ': ' + t.desc) : t.desc).join('\n');
+}
+function hbVarianti(){ if (!Array.isArray(hbDraft.subraces)) hbDraft.subraces = []; return hbDraft.subraces; }
+function hbVarianteAggiungi(){
+  hbVarianti().push({ id: uid(), name: '', bonus: {}, traits: [] });
+  renderModalRoot();
+}
+function hbVarianteVia(i){
+  hbVarianti().splice(i,1);
+  renderModalRoot();
+}
+/* Il nome si scrive lettera per lettera: qui NON si ridisegna, o il
+   cursore salta all'inizio a ogni tasto. */
+function hbVarianteSet(i, campo, v){
+  const sr = hbVarianti()[i]; if (!sr) return;
+  sr[campo] = v;
+}
+function hbVarianteBonus(i, key, v){
+  const sr = hbVarianti()[i]; if (!sr) return;
+  sr.bonus = sr.bonus || {};
+  sr.bonus[key] = clamp(parseInt(v)||0, 0, 4);
+}
+function hbVarianteTratti(i, testo){
+  const sr = hbVarianti()[i]; if (!sr) return;
+  sr.traits = String(testo||'').split('\n').map(r => r.trim()).filter(Boolean).map(r => {
+    const m = /^(.{2,48}?)\s*[.:]\s+(.+)$/.exec(r);
+    return m ? [m[1].trim(), m[2].trim()] : ['', r];
+  });
 }
 function hbToggleGrant(key){
   hbDraft.grantSkills = hbDraft.grantSkills || [];
@@ -372,6 +462,11 @@ function hbRemoveFeature(i){
 function saveHomebrewDraft(){
   if (!hbDraft.name.trim()){ toast('Dai un nome'); return; }
   if (hbDraft.kind === 'background' && (hbDraft.skills||[]).length !== 2){ toast('Scegli due competenze di abilità'); return; }
+  /* Una variante senza nome sparirebbe senza dire niente: meglio
+     fermarsi adesso che farla svanire al salvataggio. */
+  if (hbDraft.kind === 'race' && (hbDraft.subraces||[]).some(sr => !String(sr.name||'').trim())){
+    toast('Dai un nome a ogni variante, o toglila'); return;
+  }
   saveHomebrew(hbDraft);
   const name = hbDraft.name;
   const appenaCreato = hbDraft.id;
@@ -664,6 +759,18 @@ const RAZZE_EN = {
   gnome:'gnome', 'half-elf':'half elf', 'half-orc':'half orc', tiefling:'tiefling',
   'human-variant':'variant human'
 };
+/* Quello che sta fra parentesi, quando c'è: «Mutaforma (Zannalunga)».
+   Prima si buttava via — si riconosceva la razza e la variante spariva,
+   e con lei i suoi bonus. */
+function sottoDentroParentesi(r, testo){
+  const m = /[(\[]\s*([^)\]]+)[)\]]/.exec(String(testo||''));
+  if (!m || !r) return null;
+  const q = norm(m[1]);
+  if (!q) return null;
+  return (r.subraces||[]).find(s => norm(s.name) === q)
+      || (r.subraces||[]).find(s => norm(s.name).length >= 3 && q.includes(norm(s.name)))
+      || null;
+}
 function trovaRazza(testo){
   const q = norm(String(testo||'').trim());
   if (!q) return null;
@@ -673,7 +780,10 @@ function trovaRazza(testo){
 
   for (const v of varianti){
     let r = lista.find(x => norm(x.name) === v);
-    if (r) return { razza: r, sotto: null, come: 'esatto' };
+    if (r){
+      const sr = sottoDentroParentesi(r, testo);
+      return { razza: r, sotto: sr, come: sr ? 'sottorazza' : 'esatto' };
+    }
     // sottorazze: «Nano delle Colline» sta dentro Nano
     for (const x of lista){
       const sr = (x.subraces||[]).find(s => norm(s.name) === v);
@@ -682,7 +792,7 @@ function trovaRazza(testo){
     const enId = Object.keys(RAZZE_EN).find(k => norm(RAZZE_EN[k]) === v);
     if (enId){
       r = lista.find(x => x.id === enId);
-      if (r) return { razza: r, sotto: null, come: 'inglese' };
+      if (r) return { razza: r, sotto: sottoDentroParentesi(r, testo), come: 'inglese' };
     }
   }
   // «Alto Elfo di Neverwinter» → Alto Elfo: si tiene il nome più lungo

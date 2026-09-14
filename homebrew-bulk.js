@@ -270,6 +270,23 @@ function hbCampo(testo){
   if (!hbEtichettaValida(campo)) return null;
   return { campo, valore: m[2].trim() };
 }
+/* «Shifter Subraces», «Sottorazze», «Varianti»: da qui in poi le voci
+   non sono più tratti della razza, sono le VARIANTI fra cui scegliere.
+   Senza questo, Pellebestia e Zannalunga finivano fra i tratti e la
+   creazione guidata non ti faceva scegliere niente. */
+const HB_APRE_VARIANTI = /\b(sub-?races?|sub-?race|sottorazz[ae]|varianti|variante|lignagg(?:io|i)|lineages?|legac(?:y|ies))\b/i;
+function hbApreVarianti(testo){
+  const t = String(testo||'').trim();
+  if (!t || t.length > 70) return false;
+  return HB_APRE_VARIANTI.test(t);
+}
+/* Una variante porta quasi sempre il suo aumento di caratteristica
+   dentro al testo: «Your Constitution score increases by 1». */
+function hbVariante(nome, testo){
+  return { id: '', name: String(nome||'').trim(),
+           bonus: parseAbilityBonus(String(testo||'')),
+           traits: [[String(nome||'').trim(), String(testo||'').slice(0,500)]] };
+}
 const HB_CAMPI_RAZZA = /^(ability scores?|ability score increase|aumento dei punteggi(?: di caratteristica)?|punteggi di caratteristica|incremento dei punteggi(?: di caratteristica)?|age|et[àa]|size|taglia|speed|velocit[àa]|languages?|lingue|linguaggi|alignment|allineamento)$/i;
 
 /* Nomi di classe riconosciuti, in italiano e in inglese. Serve a capire
@@ -389,11 +406,17 @@ function hbScanGuida(raw){
     /* — razza: ha i campi tipici — */
     const campi = {};
     const tratti = [];
+    const varianti = [];
+    let inVarianti = false;
     corpo.forEach(v => {
+      if (hbApreVarianti(v.testo)){ inVarianti = true; }
       const c = hbCampo(v.testo);
       if (!c) return;
-      if (HB_CAMPI_RAZZA.test(c.campo)) campi[norm(c.campo)] = c.valore;
-      else if (c.valore.length > 10) tratti.push([c.campo, c.valore.slice(0,500)]);
+      if (HB_CAMPI_RAZZA.test(c.campo)){ campi[norm(c.campo)] = c.valore; return; }
+      if (hbApreVarianti(c.campo)){ inVarianti = true; return; }
+      if (c.valore.length <= 10) return;
+      if (inVarianti) varianti.push(hbVariante(c.campo, c.valore));
+      else tratti.push([c.campo, c.valore.slice(0,500)]);
     });
     const haPunteggi = Object.keys(campi).some(k => /punteggi|ability/.test(k));
     const haVelocita = Object.keys(campi).some(k => /speed|velocit/.test(k));
@@ -407,7 +430,7 @@ function hbScanGuida(raw){
         speed: kVel ? parseSpeedM(campi[kVel]) : 9,
         size: kTaglia ? parseSizeWord(campi[kTaglia]) : 'Media',
         languages: kLingue ? hbLingue(campi[kLingue]) : 'Comune',
-        traits: tratti.slice(0,10), grantSkills: [] });
+        traits: tratti.slice(0,10), grantSkills: [], subraces: varianti.slice(0,12) });
       continue;
     }
 
@@ -536,6 +559,8 @@ function hbScanText(raw){
     const rz = { kind:'race', name: nome, bonus: parseAbilityBonus(mAsi[2] + ' ' + (coda[1]||'')),
       speed: 9, size:'Media', languages:'Comune', traits: [], grantSkills: [] };
     let tratti = [];
+    const varianti = [];
+    let inVarianti = false;
     for (let j = 0; j < coda.length; j++){
       const l = coda[j]; if (!l) continue;
       let x;
@@ -543,12 +568,19 @@ function hbScanText(raw){
       if ((x = RX_RACE_SIZE.exec(l))){ rz.size = parseSizeWord(x[2] + ' ' + (coda[j+1]||'')); continue; }
       if ((x = RX_RACE_LANG.exec(l))){ rz.languages = hbLingue(x[2]); continue; }
       if (RX_RACE_AGE.test(l) || RX_RACE_ALIGN.test(l) || RX_RACE_ASI.test(l)) continue;
+      // «Sottorazze»: da qui in poi sono varianti, non tratti
+      if (hbApreVarianti(l)){ inVarianti = true; continue; }
       // un tratto: «Nome. testo»
       const t = /^([A-ZÀ-Ý][A-Za-zÀ-ý' \-]{2,34})\s*[.:]\s+(.{15,})$/.exec(l);
-      if (t) tratti.push([t[1].trim(), t[2].trim().slice(0,400)]);
-      if (tratti.length >= 8) break;
+      if (t){
+        if (inVarianti) varianti.push(hbVariante(t[1].trim(), t[2].trim()));
+        else tratti.push([t[1].trim(), t[2].trim().slice(0,400)]);
+      }
+      if (tratti.length >= 8 && !inVarianti) break;
+      if (varianti.length >= 12) break;
     }
     rz.traits = tratti;
+    rz.subraces = varianti;
     if (Object.keys(rz.bonus).length || tratti.length) trovati.push(rz);
   }
 

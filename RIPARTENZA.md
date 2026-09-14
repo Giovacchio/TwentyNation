@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.4** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.5** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -81,7 +81,10 @@ delle parole spezzate dai PDF a due colonne). Nel Grimorio resta fuori solo la f
 **livello**; classe e tratti stanno nel pannello **Filtri**, che porta addosso quanti ne
 hai accesi e li mostra scritti per esteso quando è chiuso.
 
-**Contenuti tuoi** — sottoclassi, razze e background presi dai manuali che possiedi:
+**Contenuti tuoi** — sottoclassi, razze e background presi dai manuali che possiedi.
+Le razze possono avere **varianti** (Shifter → Pellebestia/Zannalunga…): si leggono dai
+manuali, si scrivono a mano, e la creazione guidata le fa scegliere sommando i bonus.
+Presi dai manuali che possiedi:
 il lettore ne ha riconosciuti 116 e 48 da due guide reali. Traduzione automatica dei nomi.
 **⚙️ Effetti sul gioco**: una sottoclasse può cambiare le regole (forma selvatica per
 livello o per formula, famigli in più, azioni extra nel turno).
@@ -190,6 +193,22 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    `RACES`/`CLASSES_FULL`/`SRD_SPELLS`/`SRD_MONSTERS` diretti.
    **I sistemi diversi da D&D partono vuoti, per scelta**: vedi «Il vincolo
    sui contenuti» in fondo. Non ci si mette dentro materiale di altri.
+
+0@. **Le razze tue possono avere VARIANTI (v9.5).**
+   `h.subraces = [{id, name, bonus, traits, grantSkills}]`, normalizzate da
+   `sottorazzeDi()` in `homebrew.js` e servite da `allRaces()`. Il motore del
+   creatore non è cambiato: le sottorazze dell'SRD funzionavano da sempre, ma
+   le razze caricate ricevevano `subraces: []` **scritto a mano nel codice** —
+   la scelta non compariva e i bonus non arrivavano. È la famiglia «funzione
+   scritta bene e mai chiamata»: quando una cosa «non funziona» per i contenuti
+   tuoi ma funziona per l'SRD, guardare prima se il dato ci arriva.
+   Il lettore dei manuali apre l'elenco su `HB_APRE_VARIANTI`
+   (subrace/sottorazza/variante/lignaggio/lineage/legacy) e ricava il bonus di
+   ognuna con `parseAbilityBonus`.
+   `sottoDentroParentesi()` è quello che salva «Mutaforma (Zannalunga)» dal
+   lettore di schede: prima la parentesi si buttava.
+   **Domanda di controllo, già risposta in `test-v95`:** creatore e PDF
+   scrivono tutti e due la VARIANTE in `c.race` e tengono `raceId` sulla razza.
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**
