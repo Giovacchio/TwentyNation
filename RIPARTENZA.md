@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.7** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.8** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -20,6 +20,7 @@ in `localStorage` e funzionamento completo anche scollegati.
 | `index.html` | guscio dell'app e **tutto il CSS** |
 | **`icone.js`** | **le 75 icone disegnate (`ICONE`) e l'aiuto `ic(nome, extraClasse)` che le stampa** |
 | **`sistemi.js`** | **i sistemi di gioco: `SISTEMI`, `colDi()`, `setSistema()`, le tabelle di regole per sistema** |
+| **`materiale.js`** | **la porta unica per aggiungere e togliere: `apriCentroMateriale()`, `apriTogliMateriale()`, `svuotaSuppliche()`, `svuotaBestiario()`** |
 | `app.js` | il cuore: stato, schede, sincronizzazione, grimorio, iniziativa, opzioni |
 | `sw.js` | service worker: l'app parte offline e si aggiorna da sola |
 | `rules-data.js` | classi, razze, background, condizioni, abilità (SRD) |
@@ -246,6 +247,17 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    cassetti degli altri sistemi **senza passare da `state`**, che è sempre e solo
    quello aperto. Quelle degli altri sistemi salgono sul server quando ci vai
    (`uploadUnsynced` le trova senza `syncedAt`).
+
+0√. **Un materiale nuovo va aggiunto all'INDICE, non solo al suo lettore (v9.8).**
+   `VOCI_MATERIALE()` in `materiale.js` è l'elenco di tutto ciò che si può caricare:
+   icona, cosa accetta, quanti ne hai, e la funzione che apre il lettore. Chi aggiunge
+   un lettore nuovo aggiunge una voce **lì**, o resterà raggiungibile solo da chi sa
+   già dove cercarlo — che è esattamente il disordine da cui si veniva.
+   Lo stesso per `togliMaterialeHTML()`: **ogni cosa che si può aggiungere deve potersi
+   togliere.** Scrivendo quella schermata è venuto fuori che suppliche e bestiario non
+   avevano NESSUNA strada per essere svuotati.
+   `matVai()` chiude l'indice prima di aprire il lettore: se no chiudendo il lettore ti
+   ritrovi l'indice sotto, e sembra che non si chiuda niente.
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**

@@ -500,6 +500,20 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .sistema-card .sc-conta { display: block; font-family: var(--font-ui); font-size: .7rem;
   font-weight: 700; color: var(--ink-faint); margin-top: 3px; }
 .sistema-card .sc-coda { flex-shrink: 0; color: var(--gold); font-size: 1.1rem; display: flex; align-items: center; }
+
+/* Le righe del centro «Aggiungi / Togli materiale». */
+.mat-riga { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: var(--radius); background: var(--card);
+  border: 1px solid var(--line); }
+@media (hover: hover) { .mat-riga:hover { border-color: var(--gold-dim); } }
+.mat-riga:active { transform: scale(.99); }
+.mat-riga .seal { width: 42px; height: 42px; flex-shrink: 0; font-size: 1.1rem; }
+.mat-corpo { flex: 1; min-width: 0; }
+.mat-nome { display: block; font-family: var(--font-head); font-weight: 700; font-size: .98rem; color: var(--ink); }
+.mat-che { display: block; font-family: var(--font-ui); font-size: .73rem; font-weight: 600;
+  color: var(--ink-soft); line-height: 1.35; margin-top: 2px; }
+.mat-conta { display: block; font-family: var(--font-ui); font-size: .7rem; font-weight: 700;
+  color: var(--gold); margin-top: 4px; }
 /* Il puntino che dice «qui dentro c'è qualcosa di configurato». */
 .pallino { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--gold); margin-left: 3px; vertical-align: 3px; }
@@ -1131,6 +1145,7 @@ button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
 <script src="./spells-it.js"></script>
 <script src="./spells-desc-it.js"></script>
 <script defer src="./sistemi.js"></script>
+<script defer src="./materiale.js"></script>
 <script defer src="./app.js"></script>
 <script defer src="./icone.js"></script>
   <script defer src="./rules-data.js"></script>

@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '9.7';
+const APP_VERSION = '9.8';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2094,7 +2094,7 @@ function renderParty(){
     <button class="btn btn-primary btn-block" style="margin-top:${chars.length?'10px':'16px'}" onclick="openBuilder()">✦ Crea personaggio guidato</button>
     <div class="btn-row" style="margin-top:10px">
       <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">${ic('penna')} Scheda vuota</button>
-      <button class="btn btn-ghost btn-sm" onclick="openPdfImport()">${ic('carica')} Importa PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="apriCentroMateriale()">${ic('carica')} Aggiungi materiale</button>
     </div>
     ${campaignCardHTML()}
     ${(typeof compagniCampagnaHTML === 'function') ? compagniCampagnaHTML() : ''}
@@ -5340,6 +5340,19 @@ function renderSettings(){
       <span class="char-card-chevron">›</span>
     </button>
 
+    ${/* Una porta sola per mettere dentro e per togliere. Prima ogni tipo
+         di materiale aveva la sua, sparsa in un angolo diverso: chi
+         cercava «dove si carica una cosa» doveva già sapere che cos'era
+         e dove viveva. */''}
+    <div class="divider"><span class="flourish">❧</span><span>Materiale</span></div>
+    <div class="card">
+      <p class="muted" style="margin-bottom:12px">Schede, manuali, incantesimi, suppliche, creature, backup: da qui, divisi per tipo.</p>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="apriCentroMateriale()">${ic('piu')} Aggiungi</button>
+        <button class="btn btn-ghost" onclick="apriTogliMateriale()">${ic('cestino')} Togli</button>
+      </div>
+    </div>
+
     <div class="divider"><span class="flourish">❧</span><span>Account</span></div>
     ${currentUser ? `
       <div class="card" style="display:flex; align-items:center; gap:12px;">
@@ -5401,11 +5414,7 @@ function renderSettings(){
     </button>
     <div class="card" style="margin-top:10px">
       <p class="muted" style="margin-bottom:12px">Nel compendio ci sono ${incantesimiBase().length} incantesimi SRD e ${state.customSpells.length} tuoi. Puoi aggiungerne quanti vuoi da un file JSON.</p>
-      <div class="btn-row">
-        <button class="btn btn-gold" onclick="openSpellImport()">${ic('carica')} Importa</button>
-        <button class="btn btn-ghost" onclick="exportCustomSpells()">${ic('scarica')} Esporta i tuoi</button>
-      </div>
-      ${state.customSpells.some(s=>s.imported) ? `<button class="btn btn-danger btn-block btn-sm" style="margin-top:10px" onclick="confirmClearImported()">Rimuovi gli incantesimi importati</button>` : ''}
+      <button class="btn btn-ghost btn-block" onclick="exportCustomSpells()">${ic('scarica')} Esporta i tuoi</button>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Campagna</span></div>
@@ -5421,12 +5430,6 @@ function renderSettings(){
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Sottoclassi, razze e background che non sono nell'SRD: li aggiungi tu dai manuali che possiedi e compaiono nella creazione guidata.${(state.homebrew||[]).length ? ' Ne hai <b>'+state.homebrew.length+'</b>.' : ''}</p>
       <button class="btn btn-gold btn-block" onclick="openHomebrew()">${ic('libro')} Gestisci i tuoi contenuti</button>
-      ${/* Le suppliche si caricavano SOLO passando dalla scheda di un
-           warlock: senza un warlock in squadra non c'era nessuna strada
-           per metterle in archivio prima di crearne uno. */''}
-      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="apriImportSuppliche(null)">
-        ${ic('candela')} Carica suppliche occulte${(state.suppliche||[]).length ? ' · ne hai ' + state.suppliche.length : ''}
-      </button>
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>I tuoi dati</span></div>
@@ -5441,12 +5444,8 @@ function renderSettings(){
     <div class="divider"><span class="flourish">❧</span><span>Backup</span></div>
     <div class="card">
       <p class="muted" style="margin-bottom:12px">Salva una copia di tutto (personaggi, bestiario, incantesimi personalizzati) in un file sul dispositivo, da reimportare quando vuoi.</p>
-      <div class="btn-row">
-        <button class="btn btn-gold" onclick="exportData()">${ic('scarica')} Esporta</button>
-        <button class="btn btn-ghost" onclick="triggerImport()">${ic('carica')} Importa</button>
-      </div>
-      <p class="muted" style="font-size:.75rem; margin-top:10px">«Importa» accetta anche una <b>scheda PDF compilabile</b> e i <b>PDF o file di testo dei tuoi manuali</b>: capisco da solo di che file si tratta.</p>
-      <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="openPdfImport()">${ic('carica')} Importa una scheda PDF compilabile</button>
+      <button class="btn btn-gold btn-block" onclick="exportData()">${ic('scarica')} Esporta un backup</button>
+      <p class="muted" style="font-size:.75rem; margin-top:10px">Per rimetterlo dentro, e per qualunque altra cosa da caricare, c'è <b>Materiale → Aggiungi</b> qui sopra.</p>
       <input type="file" id="import-file" accept="application/json,.json,application/pdf,.pdf,.txt,text/plain,.md" style="display:none" onchange="handleImportFile(this)">
     </div>
 

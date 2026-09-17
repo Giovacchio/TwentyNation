@@ -1,5 +1,37 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.8 — 17 settembre 2026
+**Caricare una cosa vuol dire aprire un posto solo. E toglierla pure.**
+
+Prima ogni tipo di materiale aveva la sua porta, e stavano tutte in angoli diversi: gli **incantesimi** in Opzioni sotto «Incantesimi», le **suppliche** in fondo a «Contenuti tuoi», le **creature** nel Tavolo, le **schede PDF** sotto «Backup», i **manuali** dentro la gestione dei contenuti. Per sapere dove si carica una cosa bisognava già sapere che cos'era e in quale angolo viveva.
+
+### ＋ Aggiungi materiale
+Un elenco solo, diviso per **che cosa** stai aggiungendo:
+
+| | accetta |
+|---|---|
+| **Una scheda personaggio** | PDF compilabile — ne esce un personaggio intero |
+| **Razze, sottoclassi e background** | il PDF o il testo di un manuale tuo |
+| **Incantesimi** | PDF, JSON o testo incollato |
+| **Suppliche occulte** | quelle del warlock |
+| **Creature per il bestiario** | PDF, testo o JSON |
+| **Un backup di TwentyNation** | il .json esportato da qui |
+
+Ogni riga dice **cosa accetta** e **quanti ne hai già** — «ne hai 3 voci — 1 razza · 1 sottoclasse · 1 background» — e porta dritta al lettore giusto, togliendosi di mezzo: chiudendo torni da dove eri partito, non sull'indice.
+
+Le scorciatoie dove hanno senso restano: nel **Grimorio** importi incantesimi, dal **Party** aggiungi. Quelle sono scorciatoie; questo è l'indice.
+
+### 🗑 Togli materiale
+Stessa idea dall'altra parte. Un elenco con **quanti ne hai** per tipo — razze, sottoclassi, background, suppliche, incantesimi importati, creature — un tasto per togliere tutto in blocco, e il cestino a un tocco. Le righe a zero non compaiono: niente pulsanti che non fanno niente.
+
+Facendolo sono saltate fuori due cose che mancavano del tutto:
+
+- **Le suppliche non si potevano togliere.** Si caricavano e restavano lì per sempre — nessun tasto, da nessuna parte. Adesso sì, e passano dal cestino.
+- **Il bestiario non si poteva svuotare.** C'era la cancellazione a selezione: con trecento creature importate per sbaglio era una serata di lavoro. Adesso c'è «togli tutte», e **non tocca** quelle messe dagli altri al tavolo.
+
+### Cosa ho verificato
+22 controlli nuovi (`test-v98`) e le 61 serie di prima. Fra i nuovi: che ogni riga porti davvero al lettore giusto (non alla schermata sbagliata), che i conteggi siano scritti in italiano corretto, e che svuotando il bestiario le creature del tavolo restino dove sono.
+
 ## v9.7 — 14 settembre 2026
 **Tre cose che servono a chi rilegge i manuali da capo.**
 
