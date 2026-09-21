@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.8** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 9.9** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -258,6 +258,15 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
    avevano NESSUNA strada per essere svuotati.
    `matVai()` chiude l'indice prima di aprire il lettore: se no chiudendo il lettore ti
    ritrovi l'indice sotto, e sembra che non si chiuda niente.
+
+0∑. **Lo spazio locale si racconta per voci, non per totale (v9.9).**
+   `dettaglioSpazio()` in `cestino.js` apre l'archivio e pesa collezione per
+   collezione, piu' cestino / archivi di altri account (`LS_KEY + '--'`) / il resto.
+   I **ritratti** si contano separati dalle schede: sono data-URL dentro al testo e
+   da soli superano tutto il resto del personaggio. Chi aggiunge una collezione la
+   aggiunge a `SPAZIO_ETICHETTE` e, se si puo' liberare, a `spazioAzione()`.
+   **Un messaggio d'errore che non dice cosa fare e' mezzo messaggio**: «memoria
+   piena» senza «di cosa» ha fatto perdere una serata a indovinare.
 
 0-. **Le finestre sono una pila (v8.4).** `openModal` impila, `closeModal` scende di un
    gradino, `closeModalAll` svuota. Regola: se dopo la chiusura si **cambia schermata**

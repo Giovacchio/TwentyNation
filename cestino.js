@@ -167,6 +167,100 @@ function spazioLocale(){
   const perc = Math.min(100, Math.round(100 * usati / SPAZIO_STIMATO));
   return { usati, perc, mb: (usati / 1048576).toFixed(1) };
 }
+/* ─── Chi si mangia lo spazio ───
+   Il totale da solo non serve: «4,3 MB su 5» non dice cosa togliere.
+   Qui si guarda dentro, collezione per collezione e chiave per chiave,
+   e si mette in fila il piu' pesante per primo. Due sorprendono sempre:
+   il CESTINO (tiene 30 giorni tutto quello che hai cancellato) e gli
+   ARCHIVI DI ALTRI ACCOUNT, messi da parte a un cambio account e mai
+   piu' toccati da nessuno. */
+function pesoTesto(x){
+  try { return (typeof x === 'string' ? x : JSON.stringify(x) || '').length * 2; }
+  catch(e){ return 0; }
+}
+const SPAZIO_ETICHETTE = { characters:'Personaggi', npcs:'Bestiario', customSpells:'Incantesimi tuoi',
+  spellTags:'Etichette incantesimi', homebrew:'Contenuti tuoi', journal:'Diario',
+  suppliche:'Suppliche', incontri:'Incontri' };
+function dettaglioSpazio(){
+  const voci = [];
+  const agg = (etichetta, byte, nota, azione) => { if (byte > 0) voci.push({ etichetta, byte, nota: nota||'', azione: azione||'' }); };
+  let archivio = null;
+  try { archivio = (typeof leggiArchivio === 'function') ? leggiArchivio() : null; } catch(e){}
+  const sistemi = (archivio && archivio.sistemi) || {};
+  const piuDiUno = Object.keys(sistemi).length > 1;
+  Object.keys(sistemi).forEach(id => {
+    const c = sistemi[id] || {};
+    const suff = piuDiUno ? ' · ' + ((typeof sistemaDi === 'function') ? sistemaDi(id).nome : id) : '';
+    (typeof COLLEZIONI !== 'undefined' ? COLLEZIONI : Object.keys(c)).forEach(k => {
+      const arr = Array.isArray(c[k]) ? c[k] : [];
+      if (!arr.length) return;
+      const byte = pesoTesto(arr);
+      if (k === 'characters'){
+        /* I ritratti sono foto dentro al testo: contarli a parte, se no
+           «Personaggi: 1,2 MB» sembra assurdo e non si capisce perche'. */
+        const conFoto = arr.filter(x => x && x.portrait);
+        const ritratti = conFoto.reduce((a,x) => a + pesoTesto(x.portrait), 0);
+        agg('Personaggi' + suff, byte - ritratti, arr.length + ' ' + pluralize(arr.length,'scheda','schede'));
+        agg('Ritratti dei personaggi' + suff, ritratti, conFoto.length + ' foto', 'ritratti');
+      } else {
+        agg((SPAZIO_ETICHETTE[k] || k) + suff, byte, arr.length + ' ' + pluralize(arr.length,'voce','voci'),
+            k === 'npcs' ? 'bestiario' : (k === 'homebrew' ? 'contenuti' : ''));
+      }
+    });
+  });
+  let cest = 0, altri = 0, altriN = 0, resto = 0;
+  const KA = (typeof LS_KEY !== 'undefined') ? LS_KEY : 'grimorio-data-v1';
+  try {
+    for (let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      const peso = (k.length + (localStorage.getItem(k) || '').length) * 2;
+      if (k === CESTINO_KEY) cest += peso;
+      else if (k === KA) { /* gia' contato voce per voce qui sopra */ }
+      else if (k.indexOf(KA + '--') === 0){ altri += peso; altriN++; }
+      else resto += peso;
+    }
+  } catch(e){}
+  const nC = (typeof quantoNelCestino === 'function') ? quantoNelCestino() : 0;
+  agg('Cestino', cest, nC + ' ' + pluralize(nC,'cosa buttata','cose buttate') + ' · si tengono 30 giorni', 'cestino');
+  agg('Archivi di altri account', altri,
+      altriN + ' ' + pluralize(altriN,'archivio messo da parte','archivi messi da parte'), 'altriaccount');
+  agg('Impostazioni e cache', resto, '');
+  voci.sort((a,b) => b.byte - a.byte);
+  return voci;
+}
+function kbMb(byte){
+  return byte >= 1048576 ? (byte/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(byte/1024)) + ' KB';
+}
+function confirmViaAltriAccount(){
+  const KA = (typeof LS_KEY !== 'undefined') ? LS_KEY : 'grimorio-data-v1';
+  const chiavi = [];
+  try { for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i);
+    if (k.indexOf(KA + '--') === 0) chiavi.push(k); } } catch(e){}
+  if (!chiavi.length){ toast('Non ce ne sono'); return; }
+  confirmDialog('Togliere ' + chiavi.length + ' ' + pluralize(chiavi.length,'archivio','archivi') + ' di altri account?',
+    'Sono copie messe da parte quando su questo dispositivo si e\' cambiato account. Chi le ha create le ritrova sul proprio account: qui non servono, e da qui non si recuperano.',
+    () => { chiavi.forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+            render(); toast('Spazio liberato'); openSaluteDati(); }, 'Togli');
+}
+function confirmViaRitratti(){
+  const con = (state.characters || []).filter(c => c && c.portrait);
+  if (!con.length){ toast('Nessun ritratto da togliere'); return; }
+  confirmDialog('Togliere ' + con.length + ' ' + pluralize(con.length,'ritratto','ritratti') + '?',
+    'Le schede restano intere: sparisce solo la foto e torna il simbolo. Le foto originali le hai ancora tu.',
+    () => {
+      con.forEach(c => { c.portrait = ''; if (typeof scheduleSave === 'function') scheduleSave('characters', c); });
+      if (typeof saveLocalOra === 'function') saveLocalOra();
+      render(); toast(con.length + ' ' + pluralize(con.length,'ritratto tolto','ritratti tolti'));
+      openSaluteDati();
+    }, 'Togli le foto');
+}
+function spazioAzione(quale){
+  if (quale === 'cestino'){ closeModal(); svuotaCestino(); return; }
+  if (quale === 'altriaccount'){ confirmViaAltriAccount(); return; }
+  if (quale === 'ritratti'){ closeModal(); confirmViaRitratti(); return; }
+  if (quale === 'contenuti' && typeof confirmSvuotaHomebrew === 'function'){ closeModal(); confirmSvuotaHomebrew(''); return; }
+  if (quale === 'bestiario' && typeof confirmSvuotaBestiario === 'function'){ closeModal(); confirmSvuotaBestiario(); return; }
+}
 function spazioHTML(){
   const sp = spazioLocale();
   const colore = sp.perc >= 85 ? 'var(--danger, var(--warn))' : sp.perc >= 60 ? 'var(--warn)' : 'var(--gold)';
@@ -175,11 +269,22 @@ function spazioHTML(){
     <div class="barra" style="margin-top:10px"><div class="barra-piena" style="width:${Math.max(2,sp.perc)}%; background:${colore}"></div></div>
     <p class="muted" style="margin-top:8px; font-size:.76rem">
       ${sp.perc >= 85
-        ? 'Sei quasi al limite: le prossime aggiunte potrebbero non entrare. Svuota il cestino qui sotto, o togli dal bestiario le creature che non usi.'
+        ? 'Sei quasi al limite: le prossime aggiunte potrebbero non entrare. Qui sotto c\'è cosa occupa cosa, dal più pesante.'
         : sp.perc >= 60
-          ? 'Ancora spazio, ma non tantissimo. Il bestiario è quello che pesa di più: circa 0,9 KB a creatura.'
-          : 'Spazio in abbondanza. Il bestiario pesa circa 0,9 KB a creatura: ce ne stanno migliaia.'}
+          ? 'Ancora spazio, ma non tantissimo. Qui sotto c\'è cosa occupa cosa.'
+          : 'Spazio in abbondanza.'}
     </p>
+    ${(()=>{ const voci = dettaglioSpazio(); if (!voci.length) return '';
+      return `<div class="divider" style="margin:14px 0 10px"><span class="flourish">❧</span><span>Cosa occupa cosa</span></div>
+        <div class="list-gap">${voci.map(v => `
+          <div class="spazio-riga">
+            <span class="spazio-corpo">
+              <span class="spazio-nome">${escapeHtml(v.etichetta)}</span>
+              ${v.nota ? `<span class="spazio-nota">${escapeHtml(v.nota)}</span>` : ''}
+            </span>
+            <span class="spazio-peso">${kbMb(v.byte)}</span>
+            ${v.azione ? `<button class="btn-icon" style="width:34px;height:34px;font-size:.78rem" title="Libera questo spazio" onclick="spazioAzione('${v.azione}')">${ic('cestino')}</button>` : ''}
+          </div>`).join('')}</div>`; })()}
   </div>`;
 }
 function saluteHTML(){

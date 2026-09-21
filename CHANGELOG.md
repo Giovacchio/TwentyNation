@@ -1,5 +1,26 @@
 # TwentyNation — lista dei cambiamenti
 
+## v9.9 — 20 settembre 2026
+**«Memoria piena» adesso dice anche di cosa.**
+
+L'app rifiutava di salvare e diceva *«Memoria del dispositivo piena: libera spazio»*. Vero, ma inutile: lo spazio del browser è circa 5 MB per tutto il sito, e sapere che sono finiti non dice **cosa togliere**. La schermata «Salute dei dati» mostrava il totale — *4,3 MB su 5* — e un consiglio generico sul bestiario, che è un'ipotesi, non una risposta.
+
+### Cosa occupa cosa
+Sotto la barra dello spazio c'è l'elenco, **ordinato dal più pesante**, con quante voci e quanti KB: personaggi, ritratti, bestiario, contenuti tuoi, incantesimi, diario, suppliche, incontri, cestino, archivi di altri account, impostazioni. Ognuno con il suo tasto per liberarlo.
+
+Due cose non erano visibili da nessuna parte e sorprendono sempre:
+
+- **I ritratti** sono foto dentro al testo dell'archivio. Vengono rimpicciolite, ma restano la cosa più pesante per scheda — spesso più di tutto il resto del personaggio messo insieme. Ora sono una voce a parte, con «togli le foto» che lascia le schede intere.
+- **Gli archivi di altri account**: se su questo dispositivo è entrato un altro account, l'app mette da parte l'archivio precedente — e non lo tocca più nessuno. Chi li ha creati li ritrova sul proprio account; qui occupano e basta.
+
+Se ci sono due sistemi di gioco, ogni riga dice a quale appartiene.
+
+### E il cestino?
+Controllato, perché il sospetto era lì: **lo svuota davvero**. `svuotaCestino()` riscrive la chiave con una lista vuota, e lo spazio torna libero — c'è un controllo nuovo che lo misura prima e dopo. Se dopo averlo svuotato sei ancora al limite, è un'altra cosa, e adesso l'elenco dice quale.
+
+### Cosa ho verificato
+16 controlli nuovi (`test-v99`) e le 62 serie di prima. Fra i nuovi: che l'elenco sia ordinato davvero, che i ritratti siano contati separati dalle schede, che togliendoli le schede restino tutte, e che lo spazio misurato scenda dopo ogni pulizia.
+
 ## v9.8 — 17 settembre 2026
 **Caricare una cosa vuol dire aprire un posto solo. E toglierla pure.**
 

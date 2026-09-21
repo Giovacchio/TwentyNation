@@ -514,6 +514,14 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
   color: var(--ink-soft); line-height: 1.35; margin-top: 2px; }
 .mat-conta { display: block; font-family: var(--font-ui); font-size: .7rem; font-weight: 700;
   color: var(--gold); margin-top: 4px; }
+
+/* «Cosa occupa cosa», nella salute dei dati. */
+.spazio-riga { display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+  border-radius: var(--radius-sm); background: var(--bg-1); border: 1px solid var(--line-soft); }
+.spazio-corpo { flex: 1; min-width: 0; }
+.spazio-nome { display: block; font-family: var(--font-ui); font-size: .8rem; font-weight: 700; color: var(--ink); }
+.spazio-nota { display: block; font-family: var(--font-ui); font-size: .69rem; color: var(--ink-faint); margin-top: 1px; }
+.spazio-peso { flex-shrink: 0; font-family: var(--font-ui); font-size: .78rem; font-weight: 800; color: var(--gold); }
 /* Il puntino che dice «qui dentro c'è qualcosa di configurato». */
 .pallino { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--gold); margin-left: 3px; vertical-align: 3px; }
