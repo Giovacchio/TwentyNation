@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 9.9** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 10.0** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -465,8 +465,12 @@ in 16 ms, archivio 2,8 MB sui ~5 che i browser concedono. Ogni elenco lungo most
 4. ~~**Incontri salvati**~~ — **fatto nella v9.1**: `state.incontri`, ottava collezione
    personale. Si salva la lista (chi e quanti), non le creature; non vanno al tavolo e non
    passano dal cestino. Se un giorno servisse condividerli, si aggiungono a `COND_TIPI`.
-5. Rimasto in sospeso: due segnalazioni dell'audit mobile dove il dado copre un pulsante
-   da fermo — si liberano scorrendo, quindi non urgenti.
+5. ~~Segnalazioni dell'audit dove il dado copre un pulsante~~ — **chiuse nella v10.0**:
+   `fabScansa()` confronta il proprio rettangolo con il centro dei bersagli piccoli vicini
+   e prova dieci posizioni. Attenzione a due trappole che ci sono gia' costate un giro:
+   guardare **un punto solo** non basta (il tasto e' largo 52px), e la misura va presa a
+   **transizione spenta**, se no `getBoundingClientRect()` restituisce la posizione a meta'
+   scivolata. L'audit ora e' a zero su tutte e sei le voci: se torna a salire, e' qui.
 6. **Oltre le 4.000 creature** servirebbe uscire da `localStorage`: IndexedDB per il solo
    bestiario di consultazione, separato da `state.npcs`. Non serve finché il contatore in
    «Salute dei dati» resta sotto il 60% — guardalo prima di rimetterci mano.
@@ -570,7 +574,11 @@ funzionato al primo colpo.
 
 ## Il vincolo sui contenuti
 
-Nell'app va **solo materiale SRD 5.1 (licenza OGL 1.0a)**, riscritto in italiano.
+Nell'app va **solo materiale SRD 5.1**, riscritto in italiano. Dal 2023 il SRD 5.1 e'
+pubblicato anche sotto **Creative Commons Attribution 4.0** (piu' semplice dell'OGL: basta
+attribuire). L'attribuzione richiesta sta in `NOTA_SRD` dentro `app.js`, in `LICENZA-SRD.md`
+e in Opzioni: **va riportata parola per parola, in inglese** — e' la condizione d'uso, non
+una citazione. Chi la traduce o la accorcia rompe la licenza.
 Niente testo del Manuale del Giocatore, di Xanathar, di Tasha o copiato da wikidot —
 nemmeno parafrasato, nemmeno in una campagna privata, nemmeno se Giova possiede il libro
 (possederlo dà il diritto di usarlo, non di ripubblicarlo).

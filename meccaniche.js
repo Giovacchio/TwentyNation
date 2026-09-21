@@ -73,7 +73,7 @@ function meccanicheDi(c){
 /* ─── Dono del Patto ───
    È un privilegio del warlock al 3° livello, non una sottoclasse: sta
    sulla scheda. Il Patto della Catena allarga le forme del famiglio.
-   (SRD 5.1, licenza OGL 1.0a.) */
+   (SRD 5.1, Creative Commons Attribution 4.0.) */
 const DONI_PATTO = {
   chain: { nome:'Patto della Catena', desc:'Impari trova famiglio e lo lanci come rituale. Il famiglio può prendere anche forma di diavoletto, pseudodragone, quasit o folletto. Quando compi l\'azione di Attacco puoi rinunciare a un tuo attacco perché il famiglio ne faccia uno con la sua reazione.' },
   blade: { nome:'Patto della Lama', desc:'Evochi un\'arma da mischia con cui sei competente e che conta come magica.' },

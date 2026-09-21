@@ -1,7 +1,7 @@
 /* TwentyNation — Suppliche occulte e incantesimi da sottoclasse
    ═══════════════════════════════════════════════════════════════
    SOLO contenuto del System Reference Document 5.1 (Wizards of the
-   Coast, Open Gaming License 1.0a). Le suppliche che stanno solo sul
+   Coast, Creative Commons Attribution 4.0). Le suppliche che stanno solo sul
    Manuale del Giocatore NON sono qui e non ci finiranno: chi possiede
    il manuale se le carica nel proprio account con l'importazione, e
    restano sue. Possedere il libro dà il diritto di usarlo, non di

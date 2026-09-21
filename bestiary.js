@@ -118,7 +118,7 @@ function monsterSheetHTML(m, pickKind, companionRef){
         <button class="btn btn-gold" onclick="addMonsterToCombat('${m.id}')">All'iniziativa</button>
       </div>` : ''}
     </div>
-    <div class="spell-source-note">Statistiche dal System Reference Document 5.1 di Wizards of the Coast, licenza Open Gaming License 1.0a.</div>`;
+    <div class="spell-source-note">Statistiche dal System Reference Document 5.1 di Wizards of the Coast, licenza Creative Commons Attribution 4.0.</div>`;
   return modalShell(escapeHtml(monsterName(m)), inner);
 }
 function rollMonsterHp(id){

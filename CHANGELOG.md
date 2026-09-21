@@ -1,5 +1,35 @@
 # TwentyNation — lista dei cambiamenti
 
+## v10.0 — 21 settembre 2026
+**La versione definitiva. Tre cose da chiudere prima di chiamarla così, e una l'ho scoperta guardando.**
+
+### ⚖️ Il materiale di gioco non era attribuito come va attribuito
+L'app diceva, in nove punti diversi, che le regole di base vengono dal System Reference Document 5.1 **su licenza Open Game License 1.0a**. Era vero nel 2023. **Dal 2023 non è più l'unica strada**: Wizards of the Coast pubblica il SRD 5.1 anche sotto **Creative Commons Attribution 4.0**, che è più semplice e più chiara — basta attribuire, e non c'è l'obbligo di distribuire il testo della licenza insieme all'app (cosa che, sotto OGL, la Sezione 10 chiede e che qui **non veniva fatta**).
+
+Quindi: tutti i riferimenti passano alla CC-BY-4.0, e l'attribuzione che la licenza richiede compare ora **parola per parola, in inglese**, dove deve stare:
+
+> This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+In **Opzioni → Informazioni**, in fondo ai PDF che l'app genera, e nel file `LICENZA-SRD.md` nuovo di zecca. Non è una citazione decorativa: è la condizione a cui quel materiale si può usare, e per questo non è tradotta né accorciata.
+
+### 📄 Il repository non aveva una porta d'ingresso
+Nessun **README**. Per un progetto pubblico è la prima cosa che si vede, e non c'era niente: chi ci capitava trovava quaranta file JavaScript e doveva indovinare. Adesso c'è, e dice cosa fa l'app, dove sta il materiale di gioco e a quali condizioni, dove stanno i tuoi dati, e come farla girare in locale.
+
+Con una cosa scritta a chiare lettere, perché è la regola che tiene in piedi tutto il resto: **nell'app non entra materiale dei manuali commerciali.** L'app dà gli strumenti per metterci dentro il tuo, e il tuo resta tuo.
+
+### 🎲 Il tasto dei dadi copriva i pulsanti, da sei versioni
+L'audit lo segnalava da quando esiste: in tre schermate il tasto rotondo dei dadi stava esattamente sopra un pulsante — la ✕ di una riga dell'iniziativa, il danno di un attacco. Un pulsante che c'è ma non si può premere è un pulsante rotto, e lo si lasciava lì in fondo all'elenco delle cose da fare.
+
+Adesso **si scansa**: guarda cosa c'è sotto di sé e prova dieci posizioni finché ne trova una libera. Non basta «spostati in su di una riga» — in su c'è spesso un altro pulsante, e si finisce per coprire quello. Le carte grandi non contano: restano premibili tutt'intorno, spostarsi per loro sarebbe solo agitazione.
+
+Due errori sotto a questo, trovati rimisurando: guardava **un punto solo**, il suo centro, mentre il tasto è largo 52px e copriva bersagli appena di lato; e si misurava **mentre stava ancora scivolando**, quindi partiva da una posizione che non era la sua. Ora confronta il proprio rettangolo con il centro dei bersagli vicini — lo stesso criterio con cui l'audit dice «coperto» — e misura a transizione spenta. L'audit, per la prima volta, è **tutto a zero**: niente che sborda, niente tagliato, niente coperto, nessun tasto troppo piccolo, su tre larghezze di schermo.
+
+### 🔍 Un controllo nuovo che guarda lo sporco
+Venticinque schermate, aperte una per una, a cercare `undefined`, `NaN`, `[object Object]` e pezzi di codice rimasti visibili. Sono i difetti che nessun test trova perché non rompono niente: si vedono e basta. Oggi sono zero, e da adesso ci resteranno — è una prova, non un'occhiata.
+
+### Cosa ho verificato
+17 controlli nuovi (`test-v100`) e le 63 serie di prima. Fra i nuovi: che sotto al tasto dei dadi non ci sia niente di premibile in sei schermate diverse, che l'attribuzione sia identica al carattere a quella richiesta, e che ogni file caricato dalla pagina sia anche nella cache del service worker — se no il primo aggiornamento lascia l'app monca senza dire niente.
+
 ## v9.9 — 20 settembre 2026
 **«Memoria piena» adesso dice anche di cosa.**
 

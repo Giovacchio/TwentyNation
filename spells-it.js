@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════
    Grimorio — nomi italiani degli incantesimi SRD
    Servono per cercare e leggere in italiano: il testo delle
-   descrizioni resta in inglese (è quello ufficiale su licenza OGL).
+   descrizioni resta in inglese (è quello ufficiale del SRD).
    Traduzioni d'uso comune al tavolo, non traduzioni ufficiali.
    Puoi correggerne una qualsiasi: basta cambiare la stringa.
    ══════════════════════════════════════════════════════════════ */
@@ -345,3 +345,84 @@ const SPELLS_IT = {
   "weird": "Visione Terrificante",
   "wish": "Desiderio"
 };
+
+/* ══════════════════════════════════════════════════════════════
+   I CAMPI FISSI, IN ITALIANO E IN METRI
+   ──────────────────────────────────────────────────────────────
+   La scheda di un incantesimo diceva «1 action · 120 feet ·
+   Instantaneous»: metà in inglese, e per giunta in piedi, mentre
+   tutto il resto dell'app parla in metri (la scurovisione la scrive
+   «18 m», i pesi in kg). Al tavolo dovevi tradurre e convertire a
+   mente il numero che ti serviva subito.
+
+   Il vocabolario è piccolo e chiuso — nell'SRD ci sono in tutto 9
+   tempi di lancio, 17 gittate e 19 durate — quindi si traduce per
+   intero, senza indovinare. La conversione è quella del manuale
+   italiano: 5 piedi = 1,5 metri.
+   Se una stringa non è in tabella torna com'era: un incantesimo tuo,
+   scritto a mano, non viene toccato.
+   ══════════════════════════════════════════════════════════════ */
+const SPELL_CAST_IT = {
+  '1 action': '1 azione',
+  '1 bonus action': '1 azione bonus',
+  '1 reaction': '1 reazione',
+  '1 minute': '1 minuto',
+  '10 minutes': '10 minuti',
+  '1 hour': '1 ora',
+  '8 hours': '8 ore',
+  '12 hours': '12 ore',
+  '24 hours': '24 ore',
+};
+const SPELL_RANGE_IT = {
+  'Touch': 'Contatto',
+  'Self': 'Personale',
+  'Sight': 'A vista',
+  'Unlimited': 'Illimitata',
+  'Special': 'Speciale',
+  '5 feet': '1,5 metri',
+  '10 feet': '3 metri',
+  '30 feet': '9 metri',
+  '60 feet': '18 metri',
+  '90 feet': '27 metri',
+  '100 feet': '30 metri',
+  '120 feet': '36 metri',
+  '150 feet': '45 metri',
+  '300 feet': '90 metri',
+  '500 feet': '150 metri',
+  '1 mile': '1,5 chilometri',
+  '500 miles': '750 chilometri',
+};
+const SPELL_DUR_IT = {
+  'Instantaneous': 'Istantanea',
+  'Special': 'Speciale',
+  'Until dispelled': 'Finché non viene dissolta',
+  '1 round': '1 round',
+  '1 minute': '1 minuto',
+  '10 minutes': '10 minuti',
+  '1 hour': '1 ora',
+  '8 hours': '8 ore',
+  '24 hours': '24 ore',
+  '7 days': '7 giorni',
+  '10 days': '10 giorni',
+  '30 days': '30 giorni',
+  'Up to 1 round': 'Fino a 1 round',
+  'Up to 1 minute': 'Fino a 1 minuto',
+  'Up to 10 minutes': 'Fino a 10 minuti',
+  'Up to 1 hour': 'Fino a 1 ora',
+  'Up to 2 hours': 'Fino a 2 ore',
+  'Up to 8 hours': 'Fino a 8 ore',
+  'Up to 24 hours': 'Fino a 24 ore',
+};
+/* Il tipo di danno: minuscolo, perché in scheda si legge dopo i dadi
+   («1d10 fuoco»), non come titolo. */
+const DMG_TYPE_IT = {
+  'Acid': 'acido', 'Bludgeoning': 'contundente', 'Cold': 'freddo',
+  'Fire': 'fuoco', 'Force': 'forza', 'Lightning': 'fulmine',
+  'Necrotic': 'necrotico', 'Piercing': 'perforante', 'Poison': 'veleno',
+  'Psychic': 'psichico', 'Radiant': 'radiante', 'Slashing': 'tagliente',
+  'Thunder': 'tuono',
+};
+function spellCastIt(v){ return SPELL_CAST_IT[String(v||'').trim()] || v || ''; }
+function spellRangeIt(v){ return SPELL_RANGE_IT[String(v||'').trim()] || v || ''; }
+function spellDurIt(v){ return SPELL_DUR_IT[String(v||'').trim()] || v || ''; }
+function dmgTypeIt(v){ return DMG_TYPE_IT[String(v||'').trim()] || (v ? String(v).toLowerCase() : ''); }

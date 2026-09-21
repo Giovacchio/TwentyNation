@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════════
    Grimorio — armi, armature ed equipaggiamento dell'SRD 5.1
-   Contenuto sotto Open Gaming License 1.0a, in italiano.
+   Contenuto dal SRD 5.1 (Creative Commons Attribution 4.0), in italiano.
    I pesi sono in kg e i costi in monete d'oro (mo), come nel
    resto dell'app.
    ══════════════════════════════════════════════════════════════ */

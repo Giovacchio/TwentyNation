@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════════
    Grimorio — oggetti magici dell'SRD 5.1
-   Contenuto sotto Open Gaming License 1.0a, riscritto in italiano.
+   Contenuto dal SRD 5.1 (Creative Commons Attribution 4.0), riscritto in italiano.
    Schema compatto:
      id, n = nome inglese, it = nome italiano,
      t  = tipo: arma | armatura | scudo | anello | bacchetta | bastone

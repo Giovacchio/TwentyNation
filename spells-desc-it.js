@@ -19,7 +19,7 @@
    convince poco, il testo di partenza è lì sotto.
 
    Materiale di regole dal System Reference Document 5.1, su licenza
-   Open Gaming License 1.0a.
+   Creative Commons Attribution 4.0.
    ══════════════════════════════════════════════════════════════ */
 const SPELLS_DESC_IT = {
 

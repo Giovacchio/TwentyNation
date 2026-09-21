@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   Grimorio — creature dell'SRD 5.1 (OGL 1.0a)
+   Grimorio — creature dell'SRD 5.1 (Creative Commons Attribution 4.0)
    Selezione delle creature che servono davvero al tavolo: tutte le
    bestie usate da forma selvatica, famigli e compagni animali, più
    i mostri di uso comune ai livelli bassi e medi.

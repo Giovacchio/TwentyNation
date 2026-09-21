@@ -58,7 +58,7 @@ function gearHTML(){
       ${list.map(x => tab==='armi' ? weaponRowHTML(x, c) : (tab==='armature' ? armorRowHTML(x, c) : gearRowHTML(x, c))).join('')
         || emptyState(ic('cerca'),'Niente con questi filtri.')}
     </div>
-    <div class="spell-source-note">Tabelle dal System Reference Document 5.1 di Wizards of the Coast, licenza Open Gaming License 1.0a.</div>`;
+    <div class="spell-source-note">Tabelle dal System Reference Document 5.1 di Wizards of the Coast, licenza Creative Commons Attribution 4.0.</div>`;
   return modalShell('🎒 Equipaggiamento', inner);
 }
 function gearTab(t){ gearFilter.tab = t; gearFilter.k = 'all'; renderModalRoot({ toTop:true }); }
@@ -142,7 +142,7 @@ function viewGear(kind, id){
       ${kind==='arma' ? `<button class="btn btn-gold btn-block" onclick="weaponToAttack('${c.id}','${x.id}')">${ic('tavolo')} Aggiungi agli attacchi</button>` : ''}
       ${kind==='armatura' ? `<button class="btn btn-gold btn-block" onclick="wearArmor('${c.id}','${x.id}')">${ic('scudo')} Indossala e aggiorna la CA</button>` : ''}
     </div>` : ''}
-    <div class="spell-source-note">System Reference Document 5.1, Open Gaming License 1.0a.</div>`) });
+    <div class="spell-source-note">System Reference Document 5.1, licenza Creative Commons Attribution 4.0.</div>`) });
 }
 
 /* ─── Nello zaino ─── */

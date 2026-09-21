@@ -57,7 +57,7 @@ function magicItemsHTML(){
         <button class="spell-item-add" onclick="${picking ? `addMagicItemToChar('${miFilter.pickFor}','${m.id}')` : `pickCharForMagicItem('${m.id}')`}" aria-label="Metti nello zaino">✦</button>
       </div>`).join('') || emptyState(ic('cerca'),'Nessun oggetto con questi filtri.')}
     </div>
-    <div class="spell-source-note">Oggetti dal System Reference Document 5.1 di Wizards of the Coast, licenza Open Gaming License 1.0a.</div>`;
+    <div class="spell-source-note">Oggetti dal System Reference Document 5.1 di Wizards of the Coast, licenza Creative Commons Attribution 4.0.</div>`;
   return modalShell('💍 Oggetti magici', inner);
 }
 const miSearch = debounce((v)=>{ miFilter.q = v; renderModalRoot({ toTop:true }); }, 220);
@@ -86,7 +86,7 @@ function magicItemSheetHTML(m, charId){
       ${c ? `<button class="btn btn-primary btn-block" onclick="addMagicItemToChar('${c.id}','${m.id}')">✦ Nello zaino di ${escapeHtml(c.name||'questo personaggio')}</button>`
           : `<button class="btn btn-primary btn-block" onclick="pickCharForMagicItem('${m.id}')">✦ Mettilo nello zaino</button>`}
     </div>
-    <div class="spell-source-note">System Reference Document 5.1, Open Gaming License 1.0a.</div>`);
+    <div class="spell-source-note">System Reference Document 5.1, licenza Creative Commons Attribution 4.0.</div>`);
 }
 
 /* ─── Nello zaino ─── */

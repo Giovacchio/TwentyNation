@@ -429,6 +429,9 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 /* Scorrendo verso il basso il dado si toglie di mezzo: nelle liste
    lunghe stava fisso sopra la colonna dei tasti di destra. */
 .fab.tucked { transform: translateY(96px) scale(.85); opacity: 0; pointer-events: none; }
+/* Dove si sposta il tasto dei dadi quando coprirebbe qualcosa lo
+   decide `fabScansa()` in app.js, con uno stile in riga: le posizioni
+   da provare sono più d'una e si scelgono guardando cosa c'è sotto. */
 /* Su schermi stretti il dado si fa un po' più piccolo: dà meno fastidio
    a quello che ha sotto. */
 @media (max-width: 400px) { .fab { width: 52px; height: 52px; font-size: 1.3rem; } }

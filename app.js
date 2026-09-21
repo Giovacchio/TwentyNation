@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '9.9';
+const APP_VERSION = '10.0';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -34,7 +34,7 @@ function initFirebase(){
 /* ─── 2. DATI DI REGOLE ───────────────────────────────────────
    Nomi di caratteristiche/abilità e tabelle numeriche: regole generiche
    di sistema. Gli incantesimi (nomi + testo) sono in spells-data.js,
-   contenuto SRD 5.1 su licenza OGL 1.0a (lingua originale inglese).
+   contenuto SRD 5.1 (Creative Commons Attribution 4.0), in lingua originale.
 */
 const ABILITIES = [
   { key: "str", label: "Forza", abbr: "FOR" },
@@ -119,7 +119,7 @@ const SCHOOLS_ALIAS = { "convocazione":"Evocazione", "conjuration":"Evocazione",
 function schoolIt(en){ return SCHOOLS_IT[en] || en || ''; }
 
 /* Nomi in italiano (da spells-it.js). Il testo delle descrizioni resta
-   in inglese: è quello ufficiale su licenza OGL. */
+   in inglese: è quello ufficiale del SRD. */
 const HAS_SPELLS_IT = (typeof SPELLS_IT !== 'undefined');
 function spellItName(sp){ return (sp && sp.id && HAS_SPELLS_IT && SPELLS_IT[sp.id]) || ''; }
 function spellName(sp){
@@ -210,6 +210,12 @@ function backgroundNames(){
   if (typeof BACKGROUNDS_FULL !== 'undefined') return BACKGROUNDS_FULL.map(b => b.name);
   return [];
 }
+/* L'attribuzione che la licenza del SRD 5.1 chiede di riportare
+   PAROLA PER PAROLA, in inglese. Non va tradotta ne' accorciata:
+   e' la condizione a cui il materiale si puo' usare.
+   (Creative Commons Attribution 4.0 — dal 2023 il SRD 5.1 sta
+   li', non piu' solo sotto OGL: piu' semplice e piu' chiaro.) */
+const NOTA_SRD = 'This work includes material taken from the System Reference Document 5.1 (\'SRD 5.1\') by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.';
 const AVATAR_GLYPHS = ["⚔️","🛡️","🏹","🔮","🐉","🦉","🌙","⚜️","🕯️","🪄","🦇","🌿","👑","💀","🔥","❄️","🗡️","🎻","🐺","⚗️"];
 const DICE_TYPES = [4,6,8,10,12,20,100];
 const COINS = [
@@ -1368,7 +1374,9 @@ async function forceAppUpdate(){
 function installFabAutoHide(){
   let last = window.scrollY, ticking = false, idle = null;
   const fab = () => document.querySelector('.fab');
-  const set = (hide) => { const f = fab(); if (f) f.classList.toggle('tucked', hide); };
+  const set = (hide) => { const f = fab(); if (!f) return;
+    if (hide) f.style.transform = '';          // se no lo stile in riga vince sulla classe
+    f.classList.toggle('tucked', hide); };
   window.addEventListener('scroll', () => {
     if (ticking) return;
     ticking = true;
@@ -1379,12 +1387,93 @@ function installFabAutoHide(){
       else if (su) set(false);
       last = y;
       clearTimeout(idle);
-      idle = setTimeout(() => set(false), 900); // fermo il pollice, torna
+      idle = setTimeout(() => { set(false); fabScansaPresto(); }, 900); // fermo il pollice, torna
       ticking = false;
     });
   }, { passive: true });
 }
 
+/* ─── Il tasto dei dadi si scansa ───
+   È fisso in basso a destra, e in basso a destra ci sono anche i tasti
+   in fondo alle righe: la ✕ dell'iniziativa, il danno di un attacco.
+   Finivano sotto, e sotto vuol dire non premibili — l'audit lo
+   segnalava da sei versioni.
+   Si provano alcune posizioni in ordine e si prende la prima libera.
+   Non basta «spostati in su di una riga»: in su ci può essere un altro
+   pulsante, e si finisce per coprire quello. */
+const FAB_SPOSTAMENTI = [[0,0], [0,-58], [0,-116], [-66,0], [-66,-58], [0,-174], [-66,-116], [0,-232], [-66,-174], [-132,0]];
+let __fabScansaTimer = null;
+/* Non basta guardare il punto sotto al centro del tasto: il tasto e'
+   largo 52px e puo' coprire il centro di un bersaglio che sta appena
+   piu' in la'. Si raccolgono quindi i centri dei bersagli piccoli
+   vicini e si cerca una posizione il cui rettangolo non ne contiene
+   nessuno. E' lo stesso criterio con cui l'audit segnala «coperto». */
+function fabBersagli(f, r){
+  const W = window.innerWidth, H = window.innerHeight;
+  // solo la zona che il tasto puo' raggiungere con gli spostamenti
+  const zx1 = r.left - 140, zx2 = r.right + 8, zy1 = r.top - 240, zy2 = r.bottom + 8;
+  const punti = [];
+  const prima = f.style.pointerEvents;
+  f.style.pointerEvents = 'none';
+  document.querySelectorAll('button, a[href], input, select, textarea, [onclick]').forEach(el => {
+    if (el === f || f.contains(el) || el.contains(f)) return;
+    if (el.classList.contains('fab') || el.closest('.bottomnav')) return;
+    const b = el.getBoundingClientRect();
+    if (!b.width || !b.height) return;
+    const x = b.left + b.width / 2, y = b.top + b.height / 2;
+    if (x < 0 || y < 0 || x > W || y > H) return;
+    if (x < zx1 || x > zx2 || y < zy1 || y > zy2) return;
+    /* Le carte grandi non sono «coperte»: restano premibili ovunque
+       intorno. Coperto vuol dire un bersaglio piccolo che sparisce
+       sotto al tasto — la x di una riga, il danno di un attacco. */
+    if (b.width >= 140 && b.height >= 100) return;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) === 0) return;
+    // se e' gia' nascosto da altro (un pannello aperto sopra) non conta
+    let sotto = null;
+    try { sotto = document.elementFromPoint(x, y); } catch(e){}
+    if (sotto && sotto !== el && !el.contains(sotto) && !sotto.contains(el)) return;
+    punti.push([x, y]);
+  });
+  f.style.pointerEvents = prima;
+  return punti;
+}
+function fabLibero(r, dx, dy, punti){
+  const l = r.left + dx, t = r.top + dy, de = l + r.width, gi = t + r.height;
+  if (l < 4 || t < 4 || de > window.innerWidth - 4 || gi > window.innerHeight - 4) return false;
+  for (let i = 0; i < punti.length; i++){
+    const x = punti[i][0], y = punti[i][1];
+    if (x > l - 2 && x < de + 2 && y > t - 2 && y < gi + 2) return false;
+  }
+  return true;
+}
+function fabScansa(){
+  const f = document.querySelector('.fab');
+  if (!f || f.classList.contains('tucked')) return;
+  /* Si misura da fermo e senza transizione: con la transizione accesa
+     il rettangolo letto e' quello a meta' scivolata, e si sceglie una
+     posizione sbagliata. Era questo a lasciare il tasto sopra la x. */
+  const transizione = f.style.transition;
+  f.style.transition = 'none';
+  f.style.transform = '';
+  void f.offsetWidth;
+  const r = f.getBoundingClientRect();
+  if (!r.width){ f.style.transition = transizione; return; }
+  const punti = fabBersagli(f, r);
+  for (const [dx, dy] of FAB_SPOSTAMENTI){
+    if (fabLibero(r, dx, dy, punti)){
+      f.style.transform = (dx || dy) ? ('translate(' + dx + 'px,' + dy + 'px)') : '';
+      break;
+    }
+  }
+  // nessuna posizione libera: si resta dov'e', com'era prima
+  void f.offsetWidth;
+  requestAnimationFrame(() => { f.style.transition = transizione; });
+}
+function fabScansaPresto(){
+  clearTimeout(__fabScansaTimer);
+  __fabScansaTimer = setTimeout(fabScansa, 120);
+}
 function installWheelForwarding(){
   window.addEventListener('wheel', (e) => {
     const nav = e.target.closest && e.target.closest('.bottomnav');
@@ -1833,6 +1922,7 @@ function render(){
   fitAllTextareas();
   animaScorrimento();
   if (!changed) window.scrollTo(0, y);
+  fabScansaPresto();
 }
 
 /* ─── 10. MODALI ─── */
@@ -4515,7 +4605,7 @@ function spellDetailHTML(sp, source, charId){
         <summary class="muted" style="font-size:.76rem; cursor:pointer">Testo originale in inglese</summary>
         <div class="spell-detail-desc" style="margin-top:6px; opacity:.8">${String(sp.desc||'').split(/\n+/).filter(Boolean).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}</div>
       </details>` : ''}
-      ${source==='srd' ? `<div class="spell-source-note">Testo del System Reference Document 5.1 di Wizards of the Coast, su licenza Open Gaming License 1.0a.${tradotto?' Traduzione d\'uso al tavolo, non ufficiale.':' Lingua originale inglese.'}</div>` : ''}
+      ${source==='srd' ? `<div class="spell-source-note">Testo dal System Reference Document 5.1 di Wizards of the Coast, licenza Creative Commons Attribution 4.0.${tradotto?' Traduzione d\'uso al tavolo, non ufficiale.':' Lingua originale inglese.'}</div>` : ''}
       <div class="list-gap" style="margin-top:16px;">
         ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
         ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${jsStr(spellName(sp))}')">${ic('concentra')} Concentrati su questo</button>` : ''}
@@ -5455,7 +5545,12 @@ function renderSettings(){
       <div class="row-between" style="margin-bottom:6px"><span>Bestiario</span><b>${nNpcs}</b></div>
       <div class="row-between" style="margin-bottom:6px"><span>Incantesimi personalizzati</span><b>${nSpells}</b></div>
       <div class="row-between" style="margin-bottom:12px"><span>Versione</span><b>${APP_VERSION}</b></div>
-      Gli incantesimi base provengono dal System Reference Document 5.1 di Wizards of the Coast (licenza Open Gaming License 1.0a). Dalla versione 8.8 i testi sono tradotti in italiano; l'originale inglese resta consultabile in fondo alla scheda di ogni incantesimo.
+      Gli incantesimi, le creature e le tabelle di base vengono dal <b>System Reference Document 5.1</b>, che Wizards of the Coast pubblica con licenza <b>Creative Commons Attribution 4.0</b>. Dalla versione 8.8 i testi sono tradotti in italiano; l'originale inglese resta in fondo alla scheda di ogni incantesimo.
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft); font-size:.74rem; line-height:1.5">
+        ${/* La licenza chiede che questa frase compaia esattamente così,
+             in inglese: è l'attribuzione, non una traduzione. */''}
+        ${escapeHtml(NOTA_SRD)}
+      </div>
     </div>
   `;
 }
@@ -5916,7 +6011,7 @@ function spellImportHTML(){
       <div class="field-hint">Basta un elenco di oggetti con almeno <b>name</b>; tutto il resto è facoltativo.</div>
     </div>
     <button class="btn btn-primary btn-block" onclick="analyzeSpellImport()">Analizza</button>
-    <div class="spell-source-note">Carica solo materiale di cui hai i diritti: i tuoi appunti, il tuo homebrew o archivi con licenza aperta (SRD, OGL, Creative Commons).</div>`;
+    <div class="spell-source-note">Carica solo materiale di cui hai i diritti: i tuoi appunti, il tuo homebrew o archivi con licenza aperta (SRD, Creative Commons).</div>`;
   return modalShell('⤒ Importa incantesimi', inner);
 }
 function spellImportPreviewHTML(){

@@ -606,7 +606,7 @@ async function drawSheet(S, c, lib, doc, fonts){
 
   /* ── Nota di licenza, ancorata al fondo dell'ultima pagina:
         così non è mai lei ad aprire un foglio nuovo ── */
-  const note = 'Generata con Grimorio. Il materiale di regole proviene dal System Reference Document 5.1 (Open Gaming License 1.0a).';
+  const note = 'Generata con Grimorio. Il materiale di regole proviene dal System Reference Document 5.1 (Creative Commons Attribution 4.0).';
   S.page.drawLine({ start:{x:S.left,y:46}, end:{x:S.right,y:46}, thickness:0.6, color:rgb(...PDFX.gold), opacity:0.6 });
   S.page.drawText(wa(note), { x:S.left, y:38, size:6.4, font:fonts.obl, color:rgb(...PDFX.soft) });
 }
@@ -727,7 +727,7 @@ async function exportSpellBook(charId){
     /* La nota di licenza va anche qui: questo foglio E' testo SRD. */
     S.colonne = 0;
     S.space(40); S.gap(8);
-    S.text('Testi degli incantesimi: SRD 5.1, Wizards of the Coast, Open Gaming License 1.0a. Traduzione italiana a cura di TwentyNation.',
+    S.text('Testi degli incantesimi: SRD 5.1, Wizards of the Coast, Creative Commons Attribution 4.0. Traduzione italiana a cura di TwentyNation.',
       { size:6.8, color:PDFX.soft });
 
     const bytes = await doc.save();
