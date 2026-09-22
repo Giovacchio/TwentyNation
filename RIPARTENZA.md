@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 10.2** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 10.3** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -519,6 +519,11 @@ funzionato al primo colpo.
   lui, non esiste. Ha trovato in un colpo tre difetti che 65 serie di test non vedevano —
   un tasto morto fuori dalla sua schermata, un avviso che diceva il falso e una porta che
   si apriva da un lato solo. **Lancialo prima di ogni versione**: costa tre minuti.
+- **`test-giocatore2.mjs`** (il secondo giro): tutte e 12 le classi dalla creazione
+  guidata, una scheda da PDF, tre personaggi dal 1° al 5°, combattimento, backup andata
+  e ritorno, diario, Star Wars e ritorno, razza scritta a mano. La funzione `creaGuidato`
+  lì dentro legge la riga **«Per andare avanti manca»** quando si ferma: se un passo nuovo
+  si blocca senza quella riga, il difetto è nel passo, non nel test.
 - **`check-interazioni.mjs`** (statico, istantaneo): legge tutti i gestori inline del codice
   — `onclick`, `oninput`, `onchange`, `onkeydown` — e verifica che ogni funzione chiamata
   esista, che nessun `<button>` sia senza gestore, che nessuna funzione sia definita due

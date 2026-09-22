@@ -230,7 +230,14 @@ function levelUpHTML(){
         <div class="muted" style="font-size:.75rem; margin-top:6px">Dopo la salita ti porto nel grimorio per sceglierli.</div>
       </div>` : ''}
 
-    <button class="btn btn-block" style="margin-top:16px" ${lvup.hpMode==='roll' && g.rollGain==null ? 'disabled' : ''} onclick="confirmLevelUp()">
+    ${/* Salire senza aver messo i 2 punti si puo' (magari ci pensi
+         col master), ma farlo senza accorgersene no: i punti non messi
+         restano solo come promemoria nelle Note, da aggiungere a mano. */''}
+    ${(g.isAsi && !lvup.talento && lvAsiSpesi() < 2) ? `<div class="bld-manca">
+      ${lvAsiSpesi() === 0 ? 'Non hai messo i <b>2 punti</b> di caratteristica' : 'Ti resta <b>1 punto</b> di caratteristica da mettere'}.
+      Se sali ora non vanno persi: li trovi scritti nelle Note, da aggiungere a mano.
+    </div>` : ''}
+    <button class="btn btn-block" style="margin-top:${(g.isAsi && !lvup.talento && lvAsiSpesi() < 2) ? '8px' : '16px'}" ${lvup.hpMode==='roll' && g.rollGain==null ? 'disabled' : ''} onclick="confirmLevelUp()">
       ${g.needsSubclass && !lvup.subclassId ? 'Scegli prima la sottoclasse' : `Sali al ${lvup.to}° livello${hpGain!=null?` (+${hpGain} PF)`:''}`}
     </button>`;
   return modalShell('📈 Salita di livello', inner);
@@ -310,6 +317,9 @@ function confirmLevelUp(){
         setPath(c, 'abilities.'+a.key, clamp(ora + n, 1, 20));
       });
       asiScritto = messi.map(([a,n]) => a.label + ' +' + n).join(', ');
+      /* con un punto solo, l'altro spariva senza lasciare traccia */
+      const resto = 2 - messi.reduce((t, x) => t + x[1], 0);
+      if (resto > 0) asiScritto += ' (' + resto + ' punto ancora da mettere)';
     } else asiScritto = '2 punti ancora da mettere';
   }
 

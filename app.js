@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '10.2';
+const APP_VERSION = '10.3';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -303,7 +303,9 @@ function toast(msg){
   $$('.toast').forEach(t=>t.remove());
   const t = document.createElement('div');
   t.className = 'toast'; t.setAttribute('role','status');
-  t.textContent = msg;
+  const riga = document.createElement('span');
+  riga.textContent = msg;
+  t.appendChild(riga);
   document.body.appendChild(t);
   setTimeout(()=>t.remove(), 2600);
 }
@@ -5169,7 +5171,11 @@ function renderInitiativeTracker(){
         }
         return `${molti ? cercaLista('combat-cerca', q, 'combatCerca', 'Cerca fra le ' + state.npcs.length + ' creature del bestiario\u2026') : ''}
         <div class="chip-row" style="margin-bottom:12px;">
-          ${state.characters.map(c=>`<button class="chip" onclick="addToCombat('${c.id}','pc')">${c.avatar||ic('tavolo')} ${escapeHtml(c.name)}</button>`).join('')}
+          ${/* chi e' gia' in combattimento resta in vista ma spento, col
+               segno: premerlo di nuovo creava «Anna #1» e «Anna #2», due
+               righe con PF separati per lo stesso personaggio */''}
+          ${state.characters.map(c=>{ const gia = state.combat.list.some(x => x.kind==='pc' && x.refId===c.id);
+            return `<button class="chip ${gia?'active':''}" ${gia?'disabled aria-disabled="true" title="Già in combattimento"':''} onclick="addToCombat('${c.id}','pc')">${gia?'✓':(c.avatar||ic('tavolo'))} ${escapeHtml(c.name)}</button>`; }).join('')}
           ${mostri.slice(0,40).map(n=>`<button class="chip" onclick="addToCombat('${n.id}','npc')">${n.avatar||ic('zampa')} ${escapeHtml(n.name)}</button>`).join('')}
         </div>
         ${molti && q && !mostri.length ? `<div class="lista-vuota">Nessuna creatura con questo nome.</div>` : ''}
@@ -5375,6 +5381,12 @@ function addToCombat(refId, kind){
   const src = kind==='pc' ? charById(refId)
     : (state.npcs.find(n=>n.id===refId) || (state.sharedNpcs||[]).find(n=>n.id===refId));
   if (!src) return;
+  /* Un personaggio c'e' una volta sola: le creature si possono mettere
+     in tanti (tre goblin), un giocatore no. */
+  if (kind === 'pc' && state.combat.list.some(x => x.kind === 'pc' && x.refId === refId)){
+    toast(src.name + ' è già in combattimento');
+    return;
+  }
   /* La Destrezza di una creatura del TUO bestiario non veniva letta:
      l'iniziativa si tirava con +0, mentre la stessa creatura aggiunta
      dal bestiario SRD passava da `addMonsterToCombat` e usava la sua.
@@ -5393,7 +5405,7 @@ function addToCombat(refId, kind){
 }
 function addAllPartyToCombat(){
   state.characters.forEach(c => {
-    if (!state.combat.list.some(x => x.refId === c.id)) addToCombat(c.id, 'pc');
+    if (!state.combat.list.some(x => x.kind === 'pc' && x.refId === c.id)) addToCombat(c.id, 'pc');
   });
 }
 function addQuickCombatant(){

@@ -173,7 +173,7 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 @keyframes ringPulse { 0%{box-shadow:0 0 0 0 rgba(145,121,216,.5)} 100%{box-shadow:0 0 0 11px rgba(145,121,216,0)} }
 @keyframes sheetIn { from{opacity:0;transform:translateY(100%)} to{opacity:1;transform:none} }
 @keyframes popIn { from{opacity:0;transform:translateY(14px) scale(.96)} to{opacity:1;transform:none} }
-@keyframes toastIn { from{opacity:0;transform:translate(-50%,14px)} to{opacity:1;transform:translate(-50%,0)} }
+@keyframes toastIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
 @keyframes diceIn { 0%{transform:rotate(-180deg) scale(.3);opacity:0} 60%{transform:rotate(12deg) scale(1.12);opacity:1} 100%{transform:none;opacity:1} }
 @keyframes critGlow { 0%,100%{filter:drop-shadow(0 0 7px rgba(217,180,95,.65))} 50%{filter:drop-shadow(0 0 20px rgba(217,180,95,1))} }
 @media (prefers-reduced-motion: reduce) {
@@ -413,6 +413,10 @@ h1, h2, h3, .display { font-family: var(--font-head); font-weight: 700; letter-s
 .btn[disabled] { opacity: .4; pointer-events: none; }
 .btn-icon { width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 50%; background: var(--card); border: 1px solid var(--line); font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
 .btn-row { display: flex; gap: 10px; }
+/* Sopra un «Avanti» spento: cosa manca per accenderlo. */
+.bld-manca { margin-top: 16px; padding: 9px 12px; border-radius: 10px; font-size: .78rem; line-height: 1.4;
+  color: var(--ink); background: var(--card); border: 1px solid var(--gold-dim); }
+.bld-manca b { color: var(--gold); font-weight: 700; }
 /* Due tasti piccoli affiancati su uno schermo da 360px: con il rientro
    pieno l'etichetta va a capo a meta' parola. Stringe i fianchi, non il
    testo. */
@@ -926,15 +930,22 @@ button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
 .muted { color: var(--ink-soft); font-size: .82rem; line-height: 1.6; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* Con `left: 50%` il riquadro poteva essere largo al massimo META'
+   schermo: un messaggio di sei parole andava a capo quattro volte, e il
+   taglio a tre righe lasciava spuntare la quarta sotto i puntini
+   («…nello… zaino»). Ora si allarga fino a 420px e resta centrato; il
+   testo sta in un <span> interno, cosi' il taglio a tre righe non
+   invade il margine. */
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--nav-h) + 26px + var(--safe-bottom)); transform: translateX(-50%);
+  position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content;
+  bottom: calc(var(--nav-h) + 26px + var(--safe-bottom));
   background: var(--card); color: var(--ink); padding: 12px 18px; border-radius: 12px; font-size: .82rem; font-weight: 700;
-  box-shadow: var(--shadow-lg); z-index: 200; animation: toastIn .22s ease; max-width: 90vw; text-align: center;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  box-shadow: var(--shadow-lg); z-index: 200; animation: toastIn .22s ease; max-width: min(90vw, 420px); text-align: center;
   /* le parole lunghe vanno a capo invece di essere tagliate a metà */
   overflow-wrap: anywhere; word-break: normal; line-height: 1.35;
   font-family: var(--font-ui); border: 1px solid var(--gold-dim);
 }
+.toast > span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .save-status {
   position: fixed; top: calc(8px + var(--safe-top)); right: calc(12px + var(--safe-right)); z-index: 60;
   padding: 6px 14px; border-radius: 20px; font-size: .68rem; font-weight: 800; font-family: var(--font-ui);
@@ -990,7 +1001,7 @@ button.init-name { padding: 6px 0; margin: -6px 0 -1px; }
   .overlay { align-items: center; justify-content: center; padding: 24px; }
   .sheet-modal { border-radius: 20px; max-width: 660px; max-height: 88vh; border-bottom: 1px solid var(--line); animation: popIn .22s ease; padding-top: 18px; }
   .sheet-modal-handle { display: none; }
-  .toast { bottom: 30px; left: auto; right: 30px; transform: none; animation: popIn .22s ease; max-width: 380px; }
+  .toast { bottom: 30px; left: auto; right: 30px; margin: 0; transform: none; animation: popIn .22s ease; max-width: 380px; }
   /* Su schermo grande il dado sta nell'angolo, fuori dalla colonna del
      contenuto: prima finiva sopra i pulsanti delle tabelle larghe. */
   .fab { right: calc(26px + var(--safe-right)); bottom: calc(26px + var(--safe-bottom)); }

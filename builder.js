@@ -64,8 +64,15 @@ function builderHTML(){
   `;
   return modalShell('✦ Crea personaggio', inner);
 }
-function bldNav(canGo, label){
-  return `<div class="btn-row" style="margin-top:18px">
+/* Un «Avanti» spento senza spiegazione e' un muro: sulla razza
+   dell'elfo alto la lingua mostrava «1/1 scelte», tutto sembrava a
+   posto, e il tasto restava grigio perche' mancava il trucchetto —
+   scritto venti righe piu' su. Adesso sopra i tasti c'e' l'elenco di
+   quello che manca, con le stesse parole del passo. */
+function bldNav(canGo, label, manca){
+  const cosa = (!canGo && manca) ? manca.filter(Boolean) : [];
+  return `${cosa.length ? `<div class="bld-manca">Per andare avanti manca: <b>${cosa.map(escapeHtml).join(', ')}</b></div>` : ''}
+  <div class="btn-row" style="margin-top:${cosa.length ? '8px' : '18px'}">
     ${bld.step > 0 ? `<button class="btn btn-ghost" onclick="bldBack()">← Indietro</button>` : `<button class="btn btn-ghost" onclick="closeModal()">Annulla</button>`}
     <button class="btn btn-primary" id="bld-avanti" ${canGo?'':'disabled'} onclick="${bld.step === BUILDER_STEPS.length-1 ? 'finishBuilder()' : 'bldNext()'}">${label || 'Avanti →'}</button>
   </div>`;
@@ -133,7 +140,13 @@ function stepRace(){
     ` : `<p class="muted">Scegli una razza per vedere cosa comporta.</p>`}
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">${ic('libro')} Aggiungi una razza tua</button>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">${ic('grimorio')} Leggile tutte dal tuo manuale</button>
-    ${bldNav(!!race && !needSub && !needBonus && !needSkills && !needCantrip && !needLingue)}
+    ${bldNav(!!race && !needSub && !needBonus && !needSkills && !needCantrip && !needLingue, null, [
+        !race && 'la razza',
+        needSub && 'la sottorazza',
+        needBonus && 'i bonus alle caratteristiche',
+        needSkills && 'le abilità della razza',
+        needCantrip && 'il trucchetto',
+        needLingue && (quanteLingue > 1 ? 'le lingue' : 'la lingua')])}
   `;
 }
 /* ─── Le scelte che la razza porta con se' ───────────────────────
@@ -248,7 +261,7 @@ function stepClass(){
       </div>
       ${asiNote(c, bld.level)}
     ` : `<p class="muted">Scegli una classe.</p>`}
-    ${bldNav(!!c && !need)}
+    ${bldNav(!!c && !need, null, [!c && 'la classe', need && 'le abilità della classe'])}
   `;
 }
 function featuresUpTo(c, level){
@@ -362,7 +375,7 @@ function stepSubclass(){
       <div class="muted" style="font-size:.77rem; margin-top:4px">Vai avanti così: potrai sceglierlo quando sali di livello, oppure scriverlo a mano nella scheda.</div>
     </button>
 
-    ${bldNav(!!bld.subclassId)}
+    ${bldNav(!!bld.subclassId, null, ['la sottoclasse'])}
   `;
 }
 
@@ -388,7 +401,7 @@ function stepBackground(){
         <div class="muted" style="font-size:.78rem">${escapeHtml(bg.desc)}</div></div>
         <div class="muted" style="font-size:.76rem; margin-top:10px"><b>Equipaggiamento:</b> ${escapeHtml(bg.equipment)}</div>
       </div>` : `<p class="muted">Il background dà due competenze e un tratto narrativo.</p>`}
-    ${bldNav(!!bg)}
+    ${bldNav(!!bg, null, ['il background'])}
   `;
 }
 
@@ -486,7 +499,9 @@ function stepAbilities(){
         </div>`).join('')}
     </div>
     ${asiHTML()}
-    ${bldNav(daAssegnare() ? quanteAssegnate()===6 : (bld.method!=='pointbuy' || spent<=27))}
+    ${bldNav(daAssegnare() ? quanteAssegnate()===6 : (bld.method!=='pointbuy' || spent<=27), null, [
+        daAssegnare() ? (6 - quanteAssegnate()) + ' ' + (6 - quanteAssegnate() === 1 ? 'caratteristica da assegnare' : 'caratteristiche da assegnare')
+                      : 'rientrare nei 27 punti'])}
   `;
 }
 function abilityControl(key){
@@ -670,7 +685,9 @@ function stepSpells(){
       <div class="divider"><span class="flourish">❧</span><span>I tuoi, senza classe (${senzaClasse.length})</span></div>
       <p class="muted" style="font-size:.75rem; margin-bottom:8px">Li hai importati tu ma non dicono a quale classe appartengono, quindi non compaiono nella lista qui sopra. Se sono di ${escapeHtml(c.name)} prendili pure: con ${ic('etichetta')} nel grimorio puoi assegnarli una volta per tutte e non ricapita.</p>
       ${bloccoLista('bld-senza-classe', senzaClasse, (s)=>bldSpellRow(s, s.level===0), { modale:true, nome:'incantesimi' })}` : ''}
-    ${bldNav(bld.cantrips.length<=budget.cantrips && bld.spells.length<=budget.spells)}
+    ${bldNav(bld.cantrips.length<=budget.cantrips && bld.spells.length<=budget.spells, null, [
+        bld.cantrips.length > budget.cantrips && 'togliere ' + (bld.cantrips.length - budget.cantrips) + ' trucchetti',
+        bld.spells.length > budget.spells && 'togliere ' + (bld.spells.length - budget.spells) + ' incantesimi'])}
   `;
 }
 function bldSpellRow(s, isCantrip){
@@ -922,6 +939,16 @@ function stepSummary(){
       <div class="row-between" style="margin-top:10px"><span class="muted">Competenze</span><b>${preview.skillProf.length} abilità</b></div>
       <div class="muted" style="font-size:.76rem; margin-top:4px">${preview.skillProf.map(k=>SKILLS.find(s=>s.key===k).label).join(', ') || '—'}</div>
       ${budget ? `<div class="row-between" style="margin-top:10px"><span class="muted">Incantesimi</span><b>${bld.cantrips.length} trucchetti · ${bld.spells.length} ${budget.label}</b></div>` : ''}
+      ${/* Il passo degli incantesimi lascia passare anche a mani vuote
+           (si possono scegliere dopo): ma arrivare in fondo con un mago
+           senza un trucchetto, senza accorgersene, e' facile. Non
+           blocca: lo dice. */''}
+      ${(budget && (bld.cantrips.length < budget.cantrips || bld.spells.length < budget.spells)) ? `<div class="bld-manca">
+        Hai ancora da scegliere ${[
+          bld.cantrips.length < budget.cantrips ? (budget.cantrips - bld.cantrips.length) + ' ' + (budget.cantrips - bld.cantrips.length === 1 ? 'trucchetto' : 'trucchetti') : '',
+          bld.spells.length < budget.spells ? (budget.spells - bld.spells.length) + ' ' + (budget.spells - bld.spells.length === 1 ? 'incantesimo' : 'incantesimi') : ''
+        ].filter(Boolean).join(' e ')}. Puoi farlo anche dopo, dalla scheda: <b>Magie → Aggiungi dal Grimorio</b>.
+      </div>` : ''}
     </div>
     <div class="muted" style="font-size:.78rem; margin-bottom:6px">Privilegi, tratti razziali e competenze finiscono nella scheda <b>Note</b>. Potrai correggere tutto dopo.</div>
     ${bldNav(true, '✦ Crea il personaggio')}
@@ -1008,7 +1035,8 @@ function stepGear(){
           }).join('')}`;
       })()}
     ` : `<div class="muted" style="text-align:center; padding:22px 10px">Parti con lo zaino vuoto. Il tuo master ti dirà quanto oro hai.</div>`}
-    ${bldNav(!bld.gearOn || gearPlaceholders().every(p => pickedWeapon(p.key)))}`;
+    ${bldNav(!bld.gearOn || gearPlaceholders().every(p => pickedWeapon(p.key)), null, [
+        (() => { const n = gearPlaceholders().filter(p => !pickedWeapon(p.key)).length; return n ? (n === 1 ? 'l\'arma da scegliere' : n + ' armi da scegliere') : ''; })()])}`;
 }
 function bldToggleGear(){ bld.gearOn = !bld.gearOn; renderModalRoot(); }
 function bldPickGear(gi, oi){ bld.gear[gi] = oi; renderModalRoot(); }
@@ -1038,7 +1066,11 @@ function righeEquipaggiamento(){
   const fuori = [];
   let i = 0;
   rows.forEach(([nome, qty, peso]) => {
-    if (!/a scelta/i.test(nome)){ fuori.push({ nome, qty, peso, scelta: null }); return; }
+    /* Solo le ARMI a scelta diventano una scelta qui: il bardo parte
+       con «Strumento musicale a scelta», e l'app gli chiedeva di
+       sceglierlo fra clava, pugnale e randello — bloccando «Avanti»
+       finche' non prendeva un'arma come strumento. */
+    if (!/arm[ai]\b.*a scelta/i.test(nome)){ fuori.push({ nome, qty, peso, scelta: null }); return; }
     const quante = Math.max(1, Number(qty) || 1);
     for (let k = 0; k < quante; k++){
       fuori.push({ nome, qty: 1, peso, scelta: {

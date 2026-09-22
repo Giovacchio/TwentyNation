@@ -1,5 +1,39 @@
 # TwentyNation — lista dei cambiamenti
 
+## v10.3 — 22 settembre 2026
+**Secondo giro da giocatore: dove il primo non era arrivato. Cinque cose sistemate.**
+
+Il primo giro aveva fatto un personaggio solo. Questo li fa **tutti**: dodici, uno per classe, ognuno con una razza diversa, dalla procedura guidata fino alla scheda — più una scheda caricata da PDF, tre personaggi portati dal 1° al 5° livello, un combattimento, un backup esportato e rimesso dentro su un telefono «vuoto», una voce di diario scritta e cancellata, un giro in Star Wars e ritorno, una razza scritta a mano usata nella creazione. **35 controlli nuovi.**
+
+### 🎻 Il bardo doveva scegliere lo strumento musicale fra clava, pugnale e randello
+Nell'equipaggiamento del bardo c'è *«Strumento musicale a scelta»*. L'app leggeva ogni «a scelta» come un'arma da scegliere, quindi sotto il titolo **STRUMENTO MUSICALE A SCELTA** comparivano le armi semplici, e «Avanti» restava spento finché non ne prendevi una. Creare un bardo era possibile solo dandogli una clava come liuto. Adesso solo le **armi** a scelta diventano una scelta; lo strumento va nello zaino com'è.
+
+### ➡️ «Avanti» spento, senza dire perché
+Sull'elfo alto la lingua segnava *1/1 scelte*, tutto sembrava a posto, e il tasto restava grigio: mancava il trucchetto, scritto venti righe più su. Adesso sopra i tasti c'è una riga — *«Per andare avanti manca: il trucchetto, la lingua»* — in **ogni passo** della creazione: razza, classe, sottoclasse, background, caratteristiche, incantesimi, equipaggiamento.
+
+E nel riepilogo, se sei arrivato in fondo senza scegliere trucchetti o incantesimi (si può, e si possono aggiungere dopo), l'app **te lo dice** invece di lasciarti scoprire al tavolo che il tuo mago non sa lanciare niente.
+
+### 📈 Al 4° livello i punti di caratteristica si potevano saltare senza accorgersene
+Il tasto «Sali al 4° livello» era acceso anche con **0 punti su 2** messi. Salire senza si può — magari ne parli col master — ma ora l'app lo scrive sopra il tasto e ricorda che li trovi nelle Note. C'era anche un buco più piccolo: mettendo **un punto solo**, l'altro spariva senza lasciare traccia. Adesso nelle Note c'è scritto *«1 punto ancora da mettere»*.
+
+### ⚔️ Lo stesso personaggio entrava due volte nell'iniziativa
+«Aggiungi tutto il party» saltava chi c'era già, ma toccare il nome di un personaggio nell'elenco lo aggiungeva di nuovo: comparivano **«Anna #1» e «Anna #2»**, due righe con PF separati per la stessa persona — e l'originale veniva pure rinominato. Ora un personaggio c'è una volta sola: nell'elenco resta visibile col ✓ ma spento, e se ci provi te lo dice. Le creature invece si possono ancora mettere in tante (tre goblin sono tre goblin).
+
+### 💬 Gli avvisi andavano a capo quattro volte
+*«💍 Pozione di Guarigione Superiore nello zaino»* occupava quattro righe strette, con i puntini a metà frase e l'ultima parola che spuntava sotto (*«…nello… zaino»*). Il riquadro era centrato con un trucco che lo limitava a **metà schermo**, e il taglio a tre righe lasciava vedere la quarta nel margine. Adesso si allarga fino a 420px e resta centrato: quel messaggio sta su due righe.
+
+### Cosa ho verificato, e cosa ho trovato giusto
+**`test-giocatore2.mjs`, 35 controlli.** Tutto quello qui sotto funziona ed è ora sotto prova:
+- **Scheda da PDF**: nome, classe, livello, PF, caratteristiche, 7 incantesimi, zaino e attacchi arrivano; nessun `undefined` in nessuna linguetta.
+- **Tutte e 12 le classi** si creano fino in fondo; PF e CA tornano coi conti del manuale in tutti i casi (difesa senza armatura di barbaro e monaco compresa, e la robustezza del nano delle colline).
+- **Dal 1° al 5° livello** per guerriero, mago e chierico: PF giusti a ogni livello, sottoclasse chiesta al livello giusto, *Critico migliorato* e *Attacco extra* dove devono comparire.
+- **Combattimento**: il turno avanza, e i PF tolti nell'iniziativa **si vedono sulla scheda**.
+- **Backup**: 13 personaggi → telefono svuotato → backup rimesso dal centro del materiale → 13.
+- **Sistemi separati**: in Star Wars non si vede niente di D&D, un personaggio creato lì non torna indietro, e al ritorno D&D è intatto.
+- **Razza scritta a mano**: si crea dalla creazione guidata, si sceglie, e bonus e competenze arrivano sulla scheda. Le due porte portano allo stesso posto.
+
+Più le 66 serie di prima e l'audit su tre larghezze di schermo, a zero.
+
 ## v10.2 — 22 settembre 2026
 **Ho giocato l'app da capo, come chi la installa oggi, e ho trovato tre cose che dalla console non si vedono.**
 
