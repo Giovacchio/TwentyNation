@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '10.0';
+const APP_VERSION = '10.1';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2179,16 +2179,54 @@ function renderParty(){
     ${chars.length
       ? `<div class="stagger list-gap ${state.partyVista==='elenco'&&chars.length>1?'party-elenco':'party-grid'}">${
           chars.map(state.partyVista==='elenco'&&chars.length>1 ? charCardCompattaHTML : charCardHTML).join('')}</div>`
-      : emptyState(ic('party'),'Nessun personaggio ancora. Crea il tuo primo eroe e comincia l\'avventura.')}
-    ${chars.length ? `<button class="btn btn-gold btn-block" style="margin-top:14px" onclick="openTurno('${chars[0].id}')">⚔ Il tuo turno</button>` : ''}
-    <button class="btn btn-primary btn-block" style="margin-top:${chars.length?'10px':'16px'}" onclick="openBuilder()">✦ Crea personaggio guidato</button>
+      : emptyState(ic('party'),'Nessun personaggio ancora. Se ne hai gia\' uno su una scheda PDF, caricala qui sotto: entra intero. Altrimenti si crea da zero.')}
+    ${/* La porta grande e' «carica la scheda che hai gia'»: chi arriva
+         qui il personaggio ce l'ha quasi sempre, su un PDF compilato a
+         mano o dal sito. Crearne uno da zero e' l'eccezione, e «il tuo
+         turno» riguarda UN personaggio: nessuno dei due merita il posto
+         d'onore, e da quel posto il tasto piu' grosso diceva la cosa
+         piu' rara. */''}
+    <button class="btn btn-gold azione-madre" style="margin-top:14px" onclick="openPdfImport()">
+      <span class="am-seal">${ic('foglio')}</span>
+      <span class="am-testo">
+        <span class="am-titolo">Carica la tua scheda</span>
+        <span class="am-sotto">Un PDF compilabile: ne esce un personaggio intero, pronto da giocare</span>
+      </span>
+    </button>
     <div class="btn-row" style="margin-top:10px">
-      <button class="btn btn-ghost btn-sm" onclick="openCharacterForm()">${ic('penna')} Scheda vuota</button>
-      <button class="btn btn-ghost btn-sm" onclick="apriCentroMateriale()">${ic('carica')} Aggiungi materiale</button>
+      <button class="btn btn-ghost btn-sm btn-block" onclick="openBuilder()">✦ Crea guidato</button>
+      <button class="btn btn-ghost btn-sm btn-block" onclick="openCharacterForm()">${ic('penna')} Scheda vuota</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px">
+      ${chars.length ? `<button class="btn btn-ghost btn-sm btn-block" onclick="turnoDaParty()">⚔ Il tuo turno</button>` : ''}
+      <button class="btn btn-ghost btn-sm btn-block" onclick="apriCentroMateriale()">${ic('carica')} Materiale</button>
     </div>
     ${campaignCardHTML()}
     ${(typeof compagniCampagnaHTML === 'function') ? compagniCampagnaHTML() : ''}
   `;
+}
+/* «Il tuo turno» vale per UN personaggio alla volta. Con uno solo si
+   apre e basta; con piu' di uno la scelta e' di chi gioca — prima
+   partiva sempre il primo dell'elenco, che e' una risposta a caso. */
+function turnoDaParty(){
+  const chars = (state.characters || []).slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  if (!chars.length) return;
+  if (chars.length === 1) return openTurno(chars[0].id);
+  openModal({ render: () => {
+    const riga = (c) => `<button class="mat-riga" onclick="closeModal(); openTurno('${c.id}')">
+      <span class="seal">${c.portrait ? `<img src="${attr(c.portrait)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : escapeHtml(c.avatar || '⚔')}</span>
+      <span class="mat-corpo">
+        <span class="mat-nome">${escapeHtml(c.name || 'Senza nome')}</span>
+        <span class="mat-che">${escapeHtml((c.classField || 'Avventuriero') + ' · Lv ' + (c.level || 1) + (c.race ? ' · ' + c.race : ''))}</span>
+      </span>
+      <span class="char-card-chevron">›</span>
+    </button>`;
+    return modalShell('⚔ Di chi è il turno?', `
+      <div class="modal-body">
+        <p class="muted" style="font-size:.82rem; margin-bottom:14px">Le azioni, gli incantesimi e i movimenti sono quelli di un personaggio solo.</p>
+        <div class="list-gap">${chars.map(riga).join('')}</div>
+      </div>`);
+  } });
 }
 /* Dove sei, e come andare altrove. Sta sotto il titolo perché il
    sistema di gioco decide TUTTO quello che vedi sotto: senza un segno

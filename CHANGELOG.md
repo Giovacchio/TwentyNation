@@ -1,5 +1,23 @@
 # TwentyNation — lista dei cambiamenti
 
+## v10.1 — 22 settembre 2026
+**La schermata dei personaggi diceva per prima la cosa più rara.**
+
+Il tasto più grande del Party era **«Il tuo turno»**, e subito sotto, in rosso, **«Crea personaggio guidato»**. Caricare una scheda già fatta — cioè quello che fa quasi chiunque apra l'app, perché il personaggio ce l'ha già su un PDF — stava in fondo, piccolo, insieme a «Scheda vuota». L'ordine dei tasti è una frase: quella diceva *«per prima cosa gioca il turno di qualcuno, poi semmai inventane uno nuovo»*.
+
+### L'ordine nuovo
+- **«Carica la tua scheda»** è ora il tasto grande, dorato, in cima alle azioni: dice anche cosa accetta — *un PDF compilabile, ne esce un personaggio intero* — così non serve provare per capirlo.
+- **«Crea guidato»** e **«Scheda vuota»** scendono sotto, affiancati e piccoli: restano a un tocco, non sono più la prima proposta.
+- **«Il tuo turno»** scende con loro, e per un motivo in più del posto: **riguarda un personaggio solo**. Da tasto grande del Party apriva sempre il **primo dell'elenco**, che con tre personaggi è una risposta a caso.
+
+### E adesso chiede di chi è il turno
+Con più di un personaggio si apre un elenco con nome, classe e livello: scegli, e si apre il turno di quello. Con un personaggio solo non chiede niente — non c'è niente da scegliere.
+
+A schermo vuoto la frase cambia di conseguenza: *«Se ne hai già uno su una scheda PDF, caricala qui sotto: entra intero.»*
+
+### Cosa ho verificato
+8 controlli nuovi (`test-v101`), che guardano la **gerarchia** e non solo l'esistenza dei tasti: che il grande apra il lettore di PDF e non il creatore, che gli altri tre siano più bassi, più stretti e più in basso di lui, che con due personaggi il turno chieda e apra **quello scelto**, che con uno vada dritto, e che a vuoto «Il tuo turno» non compaia affatto. Più le 64 serie di prima: `test-creazione` e `test-v98` cercavano i vecchi testi dei tasti e sono state aggiornate. Audit di nuovo a zero su tutte le voci.
+
 ## v10.0 — 21 settembre 2026
 **La versione definitiva. Tre cose da chiudere prima di chiamarla così, e una l'ho scoperta guardando.**
 
