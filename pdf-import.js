@@ -431,6 +431,36 @@ function analyzeSheet(fields){
         const nomi = [s.nome, s.en].filter(Boolean).map(norm).filter(x => x.length > 5);
         if (nomi.some(x => testo.includes(x)) && !prese.includes(s.id)) prese.push(s.id);
       });
+      /* Le traduzioni girano diverse: «Deflagrazione agonizzante» e
+         «Raggio agonizzante» sono la stessa supplica. Sotto un titolo
+         «Suppliche» (o «Invocations»), le righe col trattino sono nomi:
+         li' si cerca anche per somiglianza, e per la parola che la
+         distingue. Fuori da quel titolo no, se no «Luce di cura» diventa
+         una supplica. */
+      const righe = String(dove).split(/\r?\n|\r/);
+      let dentro = false;
+      righe.forEach(r => {
+        const t = r.trim();
+        if (/^(suppliche|invocazioni|invocations|eldritch invocations)\b/i.test(t)){ dentro = true; return; }
+        if (!t){ return; }
+        if (dentro && !/^[-–•*]/.test(t) && /:\s*$/.test(t)){ dentro = false; return; }   // un altro titolo
+        if (!dentro || !/^[-–•*]/.test(t)) return;
+        // «della», «of the» fanno somigliare nomi che non c'entrano niente
+        const senzaVuote = (x) => x.split(/\s+/).filter(w => !/^(di|del|della|delle|dello|dei|degli|da|dal|dalla|il|lo|la|le|gli|i|un|una|e|of|the|a|an|and)$/.test(w)).join(' ');
+        const nome = senzaVuote(norm(t.replace(/^[-–•*\s]+/, '').split(':')[0].replace(/[+]+$/, '')));
+        if (nome.length < 4) return;
+        let meglio = null;
+        tutteLeSuppliche().forEach(s => {
+          [s.nome, s.en].filter(Boolean).forEach(n => {
+            const nn = senzaVuote(norm(n));
+            const sim = diceSimilarity(nome, nn);
+            const parolaUguale = nome.split(/\s+/).some(w => w.length >= 7 && nn.split(/\s+/).includes(w));
+            const punti = Math.max(sim, parolaUguale ? 0.7 : 0);
+            if (punti >= 0.6 && (!meglio || punti > meglio.punti)) meglio = { s, punti };
+          });
+        });
+        if (meglio && !prese.includes(meglio.s.id)) prese.push(meglio.s.id);
+      });
       if (prese.length){
         c.suppliche = prese;
         const mie = prese.map(id => tutteLeSuppliche().find(x => x.id === id)).filter(x => x && x.fonte !== 'srd');

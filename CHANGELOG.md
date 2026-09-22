@@ -1,5 +1,50 @@
 # TwentyNation — lista dei cambiamenti
 
+## v10.4 — 22 settembre 2026
+**I lettori leggono come si deve i file veri che hai caricato — e le scelte diventano opzioni.**
+
+Provati sui tuoi sei file (guida alle razze, guida alle classi, incantesimi, suppliche, mostri JSON, la scheda di Sanaki). Il contenuto resta tuo: **nell'app entra solo il lettore migliorato**, le prove usano file inventati con la stessa forma.
+
+### 📜 Incantesimi da PDF: da 382 a 459
+- **Sparivano tutti quelli di Evocazione (Conjuration)**: il PDF scrive «C onjuration», la scuola non si riconosceva e il testo finiva attaccato all'incantesimo prima. Ora ci sono tutti e 77.
+- La **prima pagina** (quella con «Spellcasting ability» larga quanto il foglio) si leggeva mescolando le due colonne. Ora si separano.
+- **Tempo «Special»**: la riga sotto («1 Reaction, which you take when…», «Reaction trigger: …») diventa il tempo di lancio vero, invece di finire nella descrizione.
+- **Materiale** che va a capo o sta fra parentesi dopo la durata: letto intero.
+- **Rituale** («Alarm (Ritual)») e **concentrazione**: segnati, e il «(Ritual)» esce dal nome.
+- **«At Higher Levels.»** a inizio o a metà riga: il resto va ai livelli superiori, non si perde.
+- Parole spezzate ricucite meglio («direc tion», «pierc ing», «siz ed», «S trength»), il piede «Generated and printed…» non entra più nei testi, componenti scritte storte («V,S,M», «V. S, M») sistemate, i segnaposto vuoti saltati.
+
+### 🧝 Razze: le scelte diventano opzioni nella creazione guidata
+- **Bonus a scelta**: «Intelligence or Charisma +1», «Your choice of Strength, Intelligence, or Wisdom +1», «Two other abilities +1» (escluse quelle che hanno già il bonus), l'umano «two by 2, other four by 1». **Malus** col segno (Coboldo: FOR −2).
+- «Strength, Constitution, and Charisma +1»: prima si leggeva solo il Carisma.
+- **Abilità**: «Proficient in Perception» te la dà; «one skill of your choice» / «two skills» ti fa scegliere; «two of the following skills: …» ti fa scegliere **solo fra quelle**. «If you are proficient in History» invece non dà niente (prima al nano arrivava Storia).
+- **Attrezzi**: «either smith's tools, brewer's supplies, or mason's tools» → tre chip; quello scelto finisce fra gli strumenti.
+- **Elenchi con la «o»**: se il testo dice di scegliere (Ascendenza draconica) diventano **opzioni**; se portano un bonus (le forme dello Shifter) diventano **varianti**; se sono solo esempi (i congegni dello gnomo) restano nel testo.
+- **Lingue**: tradotte (Common → Comune…) e le scelte contate («one extra of your choice», «your choice of two others»). Non si tagliano più a metà a fine colonna («Common, Dwarvish, and»).
+- Nella creazione ogni scelta mancante compare nella riga «Per andare avanti manca».
+
+### ⚔️ Classi: da 66 a 115 sottoclassi
+- Le colonne della guida sono a **un centimetro** l'una dall'altra e non venivano separate: titoli e testi di due sottoclassi si incollavano. Ora si separano, e i titoli che sporgono verso la colonna accanto restano al loro posto.
+- **Scelte dentro la sottoclasse** (Totem Spirit, Maneuvers «ne impari tre», Hunter's Prey, Fighting Style, Dragon Ancestor…): diventano **chip** nella creazione e nella **salita di livello**, al livello giusto. Facoltative — se le scegli finiscono scritte fra i privilegi.
+- Tolti i falsi («Subclasses», «Primal Rite», «Alchemical Formula options»). Le sottoclassi di classi che l'app non ha (Artificer, Mystic, Blood Hunter) ora stanno **nel gruppo della loro classe**, e si assegnano gruppo per gruppo.
+- ⚠ Le **classi base** nuove (Artificer, Mystic, Blood Hunter) non si importano come classi: l'app non ha un modello per una classe intera. Le loro sottoclassi sì, legandole a una classe esistente.
+
+### 🔮 Suppliche da foglio di calcolo
+Le celle sono centrate in verticale: la descrizione cominciava sopra al nome e **finiva attaccata alla supplica di prima** («…deals on a hit. You can cast Mage Armor…»). Ora ogni descrizione sta con il suo nome, anche su due pagine e con un paragrafo vuoto in mezzo; «PHB 110» e «Passive» non entrano più nel testo né nei requisiti.
+
+### 🐉 Mostri da JSON
+- Le **azioni** mostravano solo la prima parola («Melee»): il testo intero finiva nella casella dei danni. Ora bonus per colpire, danni e testo stanno al posto giusto.
+- Nelle note del PNG ora c'è **tutta la creatura**: caratteristiche, tiri salvezza, abilità, resistenze e immunità, azioni bonus, reazioni, azioni leggendarie, fonte. Testi non più tagliati a 400 caratteri; velocità a piedi per prima.
+- La stima dello spazio occupato ora è quella vera (tutti i 3207 insieme sono ~6 MB: meglio filtrarli per raccolta).
+
+### 🧾 Scheda PDF (Sanaki)
+- «Umana variante» ora è l'Umano variante (prima: razza sconosciuta).
+- Suppliche scritte con **un'altra traduzione** («Deflagrazione Agonizzante», «Occhi del lettore di rune») riconosciute; senza inventarne di false.
+- «Warlock Celestiale» trova il patrono se l'hai caricato dalla guida («Patron of the Celestial»).
+
+### Prove
+**`test-v104.mjs`, 51 controlli** su file inventati con la forma di quelli veri (`fai-v104.py`). Tutte le prove precedenti ripassate.
+
 ## v10.3 — 22 settembre 2026
 **Secondo giro da giocatore: dove il primo non era arrivato. Cinque cose sistemate.**
 

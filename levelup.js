@@ -129,7 +129,12 @@ function levelUpGains(){
   const avgGain = Math.max(1, Math.floor(hitDie / 2) + 1 + conMod) + pfExtra;
   const rollGain = lvup.hpRoll != null ? Math.max(1, lvup.hpRoll + conMod) + pfExtra : null;
 
-  return { c, cl, sc, lv, feats, before, after, conMod, hitDie, avgGain, rollGain, pfExtra,
+  /* le scelte della sottoclasse che arrivano adesso: quelle di questo
+     livello, e tutte quelle fino a qui se la sottoclasse la scegli ora */
+  const giaAveva = !!(c.builder && (lvup.quale === 2 ? c.builder.subclassId2 : c.builder.subclassId));
+  const scelteOra = sc ? (sc.scelte||[]).map((x, i) => ({ sc: x, i }))
+    .filter(x => giaAveva ? x.sc.livello === lv : x.sc.livello <= lv) : [];
+  return { c, cl, sc, lv, feats, before, after, conMod, hitDie, avgGain, rollGain, pfExtra, scelteOra,
     needsSubclass: !lvup.subclassId && lv >= cl.subclassLevel && subclassesFor(cl.id).length > 0,
     isAsi: cl.asi.includes(lv) };
 }
@@ -179,6 +184,7 @@ function levelUpHTML(){
         <div class="muted" style="font-size:.79rem; margin-top:3px">${escapeHtml(f[1])}</div>
       </div>`).join('')}</div>`
     : `<div class="muted" style="text-align:center; padding:6px 0">Nessun privilegio nuovo a questo livello${g.isAsi?'':' — solo PF e dado vita'}.</div>`}
+    ${g.scelteOra.length && typeof scelteSottoclasseHTML === 'function' ? `<div style="margin-top:10px">${scelteSottoclasseHTML(g.scelteOra, lvup.scelte, 'lvSceltaSott')}</div>` : ''}
 
     ${g.isAsi ? (() => {
       const c = g.c, spesi = lvAsiSpesi(), tal = !!lvup.talento;
@@ -283,7 +289,14 @@ function lvRollHp(){
   renderModalRoot();
 }
 function lvCercaSub(v){ lvup.subQ = v; listaAzzera('lv-sub'); renderModalRoot(); }
-function lvPickSubclass(id){ lvup.subclassId = (lvup.subclassId === id ? null : id); renderModalRoot(); }
+function lvPickSubclass(id){ lvup.subclassId = (lvup.subclassId === id ? null : id); lvup.scelte = {}; renderModalRoot(); }
+function lvSceltaSott(i, j){
+  const g = levelUpGains();
+  if (!g.sc) return;
+  lvup.scelte = lvup.scelte || {};
+  scegliOpzione(lvup.scelte, g.sc.scelte || [], i, j);
+  renderModalRoot();
+}
 
 function confirmLevelUp(){
   const g = levelUpGains();
@@ -324,6 +337,10 @@ function confirmLevelUp(){
   }
 
   const lines = g.feats.map(f => `${lvup.to}° ${f[2] !== g.cl.name ? '[' + f[2] + '] ' : ''}${f[0]}: ${f[1]}`);
+  if (g.sc && typeof righeScelte === 'function'){
+    const ora = new Set(g.scelteOra.map(x => x.i));
+    righeScelte(g.sc.name, g.sc.scelte, lvup.scelte, x => ora.has(g.sc.scelte.indexOf(x))).forEach(r => lines.push(r));
+  }
   if (g.isAsi) lines.push(`${lvup.to}° Aumento dei punteggi di caratteristica: ${asiScritto}`);
   if (lines.length) c.features = [c.features || '', lines.join('\n\n')].filter(Boolean).join('\n\n');
 

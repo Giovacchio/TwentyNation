@@ -35,6 +35,14 @@ function mpVelocita(v){
   }).replace(/\bfly\b/gi,'volare').replace(/\bswim\b/gi,'nuotare').replace(/\bclimb\b/gi,'scalare')
     .replace(/\bburrow\b/gi,'scavare').replace(/\bhover\b/gi,'fluttuare').trim();
 }
+const MP_DANNI = { acid:'acido', bludgeoning:'contundenti', cold:'freddo', fire:'fuoco', force:'forza',
+  lightning:'fulmine', necrotic:'necrotici', piercing:'perforanti', poison:'veleno', psychic:'psichici',
+  radiant:'radiosi', slashing:'taglienti', thunder:'tuono' };
+function mpAzione([nome, desc]){
+  const colpo = /([+-]\d+)\s*(?:to hit|al tiro per colpire|per colpire)/i.exec(desc);
+  const danno = /(?:Hit|Colpito):\s*\d+\s*\(([^)]+)\)\s*(?:danni\s+)?([a-zà-ù]+)(?:\s+damage)?/i.exec(desc);
+  return [nome, colpo ? colpo[1] : '', danno ? danno[1].replace(/\s+/g, '') + ' ' + (MP_DANNI[danno[2].toLowerCase()] || danno[2]) : '', desc];
+}
 function mpGradoSfida(v){
   const m = /(\d+\/\d+|\d+)/.exec(String(v||''));
   return m ? m[1] : '0';
@@ -145,7 +153,8 @@ function mpDaJson(testo){
     let sp = primoDi(m, ['speed','Speed']);
     if (sp && typeof sp === 'object'){
       const nomi = { walk:'', fly:'volare', swim:'nuotare', climb:'scalare', burrow:'scavare', hover:'fluttuare' };
-      sp = Object.keys(sp).filter(k => sp[k] && k !== 'hover')
+      // la velocita' a piedi per prima: e' quella che il bestiario legge come numero
+      sp = Object.keys(sp).filter(k => sp[k] && k !== 'hover').sort((a, b) => (a === 'walk' ? -1 : b === 'walk' ? 1 : 0))
         // alcune raccolte scrivono «30», altre «30 ft.»: senza unità sono piedi
         .map(k => (nomi[k] ? nomi[k] + ' ' : '') + (typeof sp[k] === 'number' ? sp[k] + ' ft.' : sp[k]))
         .join(', ');
@@ -164,7 +173,7 @@ function mpDaJson(testo){
     } else cr = mpGradoSfida(cr);
 
     const coppie = (v) => {
-      if (Array.isArray(v)) return v.filter(x=>x && (x.name||x.desc)).map(x => [String(x.name||'').trim(), String(x.desc||'').trim().slice(0,400)]);
+      if (Array.isArray(v)) return v.filter(x=>x && (x.name||x.desc)).map(x => [String(x.name||'').trim(), String(x.desc||'').trim().slice(0,1500)]);
       if (typeof v === 'string'){
         // Alcune raccolte tengono tratti e azioni in HTML: si toglie il
         // markup e ogni paragrafo diventa una riga.
@@ -176,13 +185,38 @@ function mpDaJson(testo){
           .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;|&rsquo;/g, "'");
         return piano.split(/\n+/).map(r => {
           const mm = /^\s*([^.]{2,48})\.\s+(.+)$/.exec(r.trim());
-          return mm ? [mm[1].trim(), mm[2].trim().slice(0,400)] : null;
+          return mm ? [mm[1].trim(), mm[2].trim().slice(0,1500)] : null;
         }).filter(Boolean);
       }
       return [];
     };
-    const tr  = coppie(primoDi(m, ['special_abilities','Traits','traits'])).slice(0,10);
-    const act = coppie(primoDi(m, ['actions','Actions'])).slice(0,10).map(x => [x[0], '', x[1], '']);
+    const tr  = coppie(primoDi(m, ['special_abilities','Traits','traits'])).slice(0,16);
+    /* Un'azione: nome, bonus per colpire, danni, testo. Prima il testo
+       intero finiva nella casella dei danni e sullo schermo se ne vedeva
+       solo la prima parola («Melee»): la descrizione non si leggeva. */
+    const azione = mpAzione;
+    const act = coppie(primoDi(m, ['actions','Actions'])).slice(0,16).map(azione);
+    const bon = coppie(primoDi(m, ['bonus_actions','Bonus Actions'])).slice(0,10).map(azione);
+    const rea = coppie(primoDi(m, ['reactions','Reactions'])).slice(0,10);
+    const leg = coppie(primoDi(m, ['legendary_actions','Legendary Actions'])).slice(0,10);
+    const legDesc = testoDi(primoDi(m, ['legendary_desc'])) || '';
+    // tiri salvezza e abilita' con bonus: campi numerici sparsi o un oggetto
+    const SIGLE = ['FOR','DES','COS','INT','SAG','CAR'];
+    const sv = ['strength','dexterity','constitution','intelligence','wisdom','charisma']
+      .map((k, i) => m[k + '_save'] != null && m[k + '_save'] !== '' ? SIGLE[i] + ' ' + (Number(m[k + '_save']) >= 0 ? '+' : '') + Number(m[k + '_save']) : '')
+      .filter(Boolean).join(', ');
+    let sk = null;
+    if (m.skills && typeof m.skills === 'object' && !Array.isArray(m.skills)){
+      const EN = { 'animal handling':'animalHandling', 'animal_handling':'animalHandling', 'sleight of hand':'sleightOfHand', 'sleight_of_hand':'sleightOfHand' };
+      Object.keys(m.skills).forEach(k => {
+        const key = EN[k.toLowerCase()] || k.toLowerCase().replace(/[_ ](\w)/g, (_, c) => c.toUpperCase());
+        const v = num(m.skills[k]); if (v == null) return;
+        (sk = sk || {})[key] = v;
+      });
+    }
+    const difese = [['Vulnerabilità','damage_vulnerabilities'],['Resistenze','damage_resistances'],
+      ['Immunità','damage_immunities'],['Immunità a condizioni','condition_immunities']]
+      .map(([et, k]) => m[k] ? et + ': ' + testoDi(m[k]) : '').filter(Boolean);
 
     if (ac == null && hp == null) return;    // non è un mostro
 
@@ -192,6 +226,9 @@ function mpDaJson(testo){
       sen: testoDi(primoDi(m,['senses','Senses'])) || '',
       lang: testoDi(primoDi(m,['languages','Languages'])) || '',
       cr, tr, act,
+      ...(bon.length ? { bon } : {}), ...(rea.length ? { rea } : {}),
+      ...(leg.length ? { leg, legDesc } : {}), ...(sv ? { sv } : {}), ...(sk ? { sk } : {}),
+      ...(difese.length ? { dif: difese } : {}),
       fonte: String(primoDi(m, ['document__title','source','book']) || ''),
       homebrew: true });
   });
@@ -256,7 +293,7 @@ function mpScan(testo){
       const fuori = [];
       righeBlocco.forEach(r => {
         const m = /^([A-ZÀ-Ý][^.]{2,48})\.\s+(.{10,})$/.exec(r);
-        if (m) fuori.push([m[1].trim(), m[2].trim().slice(0,400)]);
+        if (m) fuori.push([m[1].trim(), m[2].trim().slice(0,1500)]);
         else if (fuori.length && r && !/^(actions|azioni|reactions|reazioni)\s*$/i.test(r))
           fuori[fuori.length-1][1] = (fuori[fuori.length-1][1] + ' ' + r).slice(0,400);
       });
@@ -264,7 +301,7 @@ function mpScan(testo){
     };
     const dopoStat = corpo.findIndex(r => /^(?:challenge|grado di sfida|grado sfida)/i.test(r));
     const tr  = raccogli(corpo.slice(dopoStat >= 0 ? dopoStat+1 : 0, iAz >= 0 ? iAz : corpo.length));
-    const act = iAz >= 0 ? raccogli(corpo.slice(iAz+1)).map(x => [x[0], '', x[1], '']) : [];
+    const act = iAz >= 0 ? raccogli(corpo.slice(iAz+1)).map(mpAzione) : [];
 
     trovati.push({ id: uid(), n: nome, it: nome, sz: tipo.sz, t: tipo.t, ac, hp, hd, sp: sp || '9 m',
                    ab, sen, lang, cr, tr, act, homebrew: true });
@@ -435,7 +472,8 @@ function mpConferma(){
     return;
   }
   if (scelti.length > 300){
-    const kb = Math.ceil(scelti.length * 0.9);
+    // quanto pesano davvero: con i testi interi una creatura non sta in 1 KB
+    const kb = Math.ceil(JSON.stringify(scelti).length * 1.15 / 1024);
     const spazio = (typeof spazioLocale === 'function') ? spazioLocale() : null;
     confirmDialog('Aggiungo ' + scelti.length + ' creature?',
       'Ci vuole qualche secondo e occuperà circa ' +

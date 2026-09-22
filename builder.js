@@ -13,7 +13,7 @@ const STANDARD_ARRAY = [15,14,13,12,10,8];
 function openBuilder(){
   bld = {
     step: 0,
-    raceId: null, subraceId: null, raceBonusPick: [], raceSkills: [], raceCantrip: null, raceLingue: [],
+    raceId: null, subraceId: null, raceBonusPick: [], raceSkills: [], raceCantrip: null, raceLingue: [], raceScelte: {}, subScelte: {},
     suppliche: [], pactBoon: '', asi: {},
     classId: null, level: 1, subclassId: null, classSkills: [],
     bgId: null,
@@ -80,6 +80,7 @@ function bldNav(canGo, label, manca){
 
 /* ─── 1. RAZZA ─── */
 function stepRace(){
+  if (!bld.raceScelte) bld.raceScelte = {};   // una bozza di prima della 10.4 non ce l'ha
   const race = raceById(bld.raceId);
   const sub = race && race.subraces.find(s => s.id === bld.subraceId);
   const needSub = race && race.subraces.length && !sub;
@@ -89,6 +90,7 @@ function stepRace(){
   const needCantrip = !!scelte && !bld.raceCantrip;
   const quanteLingue = lingueDaScegliere();
   const needLingue = bld.raceLingue.length < quanteLingue;
+  const sceltePerse = sceltePendentiRazza(race);
   return `
     ${sceltaChip(allRaces(), bld.raceId, 'pickRace', 'raceQ', 'Cerca fra le ' + allRaces().length + ' razze\u2026',
         r => escapeHtml(r.name) + (r.notSrd?' *':'') + (r.fromCampaign?' ' + ic('tavolo'):(r.homebrew?' ✦':'')))}
@@ -114,13 +116,13 @@ function stepRace(){
       ` : ''}
       ${race.bonusChoice ? `
         <div class="field"><label>+${race.bonusChoice.amount} a ${race.bonusChoice.count} caratteristiche a scelta</label>
-          <div class="chip-row">${ABILITIES.filter(a=>!(race.bonusChoice.exclude||[]).includes(a.key)).map(a=>`
+          <div class="chip-row">${ABILITIES.filter(a=>!(race.bonusChoice.exclude||[]).includes(a.key) && (!race.bonusChoice.from || race.bonusChoice.from.includes(a.key))).map(a=>`
             <button class="chip ${bld.raceBonusPick.includes(a.key)?'active':''}" onclick="toggleRaceBonus('${a.key}')">${a.label}</button>`).join('')}</div>
           <div class="field-hint">${bld.raceBonusPick.length}/${race.bonusChoice.count} scelte</div>
         </div>` : ''}
       ${race.skillChoice ? `
         <div class="field"><label>Competenza in ${race.skillChoice} abilità a scelta</label>
-          <div class="chip-row">${SKILLS.map(sk=>`
+          <div class="chip-row">${SKILLS.filter(sk => !race.skillChoiceFrom || race.skillChoiceFrom.includes(sk.key)).map(sk=>`
             <button class="chip ${bld.raceSkills.includes(sk.key)?'active':''}" onclick="toggleRaceSkill('${sk.key}')">${sk.label}</button>`).join('')}</div>
           <div class="field-hint">${bld.raceSkills.length}/${race.skillChoice} scelte</div>
         </div>` : ''}
@@ -136,17 +138,24 @@ function stepRace(){
             <button class="chip ${bld.raceLingue.includes(l)?'active':''}" onclick="bldLinguaRazza('${jsStr(l)}')">${escapeHtml(l)}</button>`).join('')}</div>
           <div class="field-hint">${bld.raceLingue.length}/${quanteLingue} scelte</div>
         </div>` : ''}
+      ${(race.scelte||[]).map((sc, i) => `
+        <div class="field"><label>${escapeHtml(sc.nome)}: scegline una</label>
+          <div class="chip-row">${sc.opzioni.map((o, j) => `
+            <button class="chip ${bld.raceScelte[i] === j ? 'active' : ''}" title="${escapeHtml(o)}" onclick="bldSceltaRazza(${i},${j})">${escapeHtml(o.split(':')[0].slice(0,40))}</button>`).join('')}</div>
+          ${bld.raceScelte[i] != null && /:/.test(sc.opzioni[bld.raceScelte[i]] || '') ? `<div class="field-hint">${escapeHtml(sc.opzioni[bld.raceScelte[i]])}</div>` : ''}
+        </div>`).join('')}
       ${race.notSrd ? `<div class="spell-source-note">* Variante non compresa nell'SRD: le meccaniche sono riassunte, il talento va scritto a mano.</div>` : ''}
     ` : `<p class="muted">Scegli una razza per vedere cosa comporta.</p>`}
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px" onclick="hbFromBuilder('race')">${ic('libro')} Aggiungi una razza tua</button>
     <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px" onclick="openHomebrewBulk()">${ic('grimorio')} Leggile tutte dal tuo manuale</button>
-    ${bldNav(!!race && !needSub && !needBonus && !needSkills && !needCantrip && !needLingue, null, [
+    ${bldNav(!!race && !needSub && !needBonus && !needSkills && !needCantrip && !needLingue && !sceltePerse.length, null, [
         !race && 'la razza',
         needSub && 'la sottorazza',
         needBonus && 'i bonus alle caratteristiche',
         needSkills && 'le abilità della razza',
         needCantrip && 'il trucchetto',
-        needLingue && (quanteLingue > 1 ? 'le lingue' : 'la lingua')])}
+        needLingue && (quanteLingue > 1 ? 'le lingue' : 'la lingua'),
+        ...sceltePerse.map(n => n.toLowerCase())])}
   `;
 }
 /* ─── Le scelte che la razza porta con se' ───────────────────────
@@ -184,9 +193,12 @@ function lingueDaScegliere(){
   const race = raceById(bld.raceId);
   if (!race) return 0;
   const sub = race.subraces && race.subraces.find(s => s.id === bld.subraceId);
-  let n = (race.languages || []).filter(l => /a scelta/i.test(l)).length;
+  /* «Una a scelta», «Due a scelta»: il numero sta nella voce */
+  const QUANTE = { una:1, uno:1, un:1, due:2, tre:3 };
+  let n = (race.languages || []).filter(l => /a scelta/i.test(l))
+    .reduce((t, l) => { const m = /^(\d|una|uno|un|due|tre)\b/i.exec(l.trim()); return t + (m ? (parseInt(m[1]) || QUANTE[m[1].toLowerCase()] || 1) : 1); }, 0);
   const testi = [...(race.traits||[]), ...((sub && sub.traits) || [])].map(t => (t.name||'') + ' ' + (t.desc||''));
-  testi.forEach(t => { if (/lingua (in piu'|in più|aggiuntiva).{0,30}a (tua )?scelta|una lingua in più a tua scelta/i.test(t)) n += 1; });
+  testi.forEach(t => { if (/lingua (in piu'|in più|aggiuntiva).{0,30}a (tua )?scelta|una lingua in più a tua scelta|\b(learn|speak|know)\s+(one|an?)\s+(extra |additional |other )?language of your choice/i.test(t)) n += 1; });
   return Math.min(n, 3);
 }
 function bldLinguaRazza(l){
@@ -195,13 +207,24 @@ function bldLinguaRazza(l){
   else if (bld.raceLingue.length < lingueDaScegliere()) bld.raceLingue.push(l);
   renderModalRoot();
 }
+/* Le scelte che la razza porta scritte nel manuale («Draconic Ancestry»,
+   «Tool Proficiency: either…»): quali mancano ancora. */
+function sceltePendentiRazza(race){
+  if (!race) return [];
+  return (race.scelte||[]).filter((sc, i) => (bld.raceScelte||{})[i] == null).map(sc => sc.nome);
+}
+function bldSceltaRazza(i, j){
+  bld.raceScelte[i] = (bld.raceScelte[i] === j) ? null : j;
+  renderModalRoot();
+}
 function bonusLine(b){
-  const parts = ABILITIES.filter(a=>b && b[a.key]).map(a=>`${a.abbr} +${b[a.key]}`);
+  // «FOR −2»: un malus si scrive col suo segno, non «+-2»
+  const parts = ABILITIES.filter(a=>b && b[a.key]).map(a=>`${a.abbr} ${b[a.key] > 0 ? '+' : '−'}${Math.abs(b[a.key])}`);
   return parts.length ? `<div class="chip-row">${parts.map(p=>`<span class="badge gold">${p}</span>`).join('')}</div>` : '';
 }
 function pickBackground(id){ bldSet({ bgId: id }); }
 function pickRace(id){
-  bld.raceId = id; bld.subraceId = null; bld.raceBonusPick = []; bld.raceSkills = []; bld.raceCantrip = null; bld.raceLingue = [];
+  bld.raceId = id; bld.subraceId = null; bld.raceBonusPick = []; bld.raceSkills = []; bld.raceCantrip = null; bld.raceLingue = []; bld.raceScelte = {};
   const r = raceById(id);
   if (r && r.subraces.length === 1) bld.subraceId = r.subraces[0].id;
   renderModalRoot();
@@ -269,6 +292,46 @@ function featuresUpTo(c, level){
   for (let l = 1; l <= level; l++) (c.features[l]||[]).forEach(f => out.push([f[0], f[1], l]));
   return out;
 }
+/* ─── Le scelte dentro una sottoclasse ───
+   «Totem Spirit: scegli un animale», «Maneuvers: ne impari tre»,
+   «Hunter's Prey: una di queste». Lette dal manuale diventano chip da
+   toccare. Non bloccano niente — molti le decidono al tavolo — ma se le
+   scegli finiscono scritte fra i privilegi, invece di doverle ricopiare. */
+function scelteSottoclasseHTML(scelte, sel, fn){
+  if (!scelte || !scelte.length) return '';
+  return scelte.map(({ sc, i }) => {
+    const presi = (sel && sel[i]) || [];
+    const nomeOpz = (o) => String(o).split(':')[0].trim().slice(0, 40);
+    return `<div class="field"><label>${escapeHtml(sc.nome)} <span class="muted" style="font-weight:400">· ${sc.livello}° liv. · ${sc.quante > 1 ? 'scegline ' + sc.quante : 'scegline una'}</span></label>
+      <div class="chip-row">${sc.opzioni.map((o, j) => `
+        <button class="chip ${presi.includes(j) ? 'active' : ''}" title="${escapeHtml(o)}" onclick="${fn}(${i},${j})">${escapeHtml(nomeOpz(o))}</button>`).join('')}</div>
+      <div class="field-hint">${presi.length ? presi.map(j => escapeHtml(sc.opzioni[j])).join('<br>') : 'Facoltativo: puoi deciderlo anche al tavolo.'}</div>
+    </div>`;
+  }).join('');
+}
+function scegliOpzione(sel, scelte, i, j){
+  const sc = scelte[i]; if (!sc) return;
+  const presi = sel[i] = (sel[i] || []);
+  const k = presi.indexOf(j);
+  if (k >= 0) presi.splice(k, 1);
+  else { if (presi.length >= (sc.quante || 1)) presi.shift(); presi.push(j); }
+}
+function righeScelte(nomeSott, scelte, sel, vale){
+  const out = [];
+  (scelte||[]).forEach((sc, i) => {
+    if (vale && !vale(sc)) return;
+    const presi = (sel && sel[i]) || [];
+    if (presi.length) out.push(`${sc.livello}° [${nomeSott}] ${sc.nome} (scelta): ${presi.map(j => sc.opzioni[j]).join(' · ')}`);
+  });
+  return out;
+}
+function bldSceltaSott(i, j){
+  const sc = subclassesFor(bld.classId).find(s => s.id === bld.subclassId);
+  if (!sc) return;
+  bld.subScelte = bld.subScelte || {};
+  scegliOpzione(bld.subScelte, sc.scelte || [], i, j);
+  renderModalRoot();
+}
 function asiNote(c, level){
   const n = c.asi.filter(l => l <= level).length;
   if (!n) return '';
@@ -307,7 +370,7 @@ function stepSubclass(){
   const cardFor = (x) => {
     const on = bld.subclassId === x.id;
     const feats = featuresUpTo(x, bld.level);
-    return `<button class="card sub-card ${on?'on':''}" style="width:100%; text-align:left" onclick="bldSet({subclassId:'${x.id}'})">
+    return `<button class="card sub-card ${on?'on':''}" style="width:100%; text-align:left" onclick="bldSet({subclassId:'${x.id}', subScelte:{}})">
       <div class="row-between" style="align-items:center">
         <b style="font-family:var(--font-head); font-size:1rem; color:${on?'var(--gold)':'var(--ink)'}">${escapeHtml(x.name)}${x.fromCampaign?' ⚔':(x.homebrew?' ✦':'')}</b>
         <span class="badge">${on ? 'scelto' : 'scegli'}</span>
@@ -344,6 +407,10 @@ function stepSubclass(){
               : `<div class="lista-vuota">Nessun archetipo con questo nome.</div>`; })()}
         <div class="muted" style="font-size:.72rem; text-align:center">✦ tuoi · ⚔ condivisi nella campagna</div>` : ''}
     </div>
+
+    ${sc && (sc.scelte||[]).some(x => x.livello <= bld.level) ? `
+      <div class="divider"><span class="flourish">❧</span><span>Le scelte di ${escapeHtml(sc.name)}</span></div>
+      ${scelteSottoclasseHTML((sc.scelte||[]).map((x, i) => ({ sc: x, i })).filter(x => x.sc.livello <= bld.level), bld.subScelte, 'bldSceltaSott')}` : ''}
 
     ${(()=>{
       /* Le sottoclassi caricate per una classe che l'app non ha (Artefice,
@@ -800,6 +867,7 @@ function buildCharacterFromBuilder(){
   // privilegi, tratti e competenze in testo
   const feats = featuresUpTo(c, bld.level).map(f => `${f[2]}° ${f[0]}: ${f[1]}`);
   if (sc) featuresUpTo(sc, bld.level).forEach(f => feats.push(`${f[2]}° [${sc.name}] ${f[0]}: ${f[1]}`));
+  if (sc) righeScelte(sc.name, sc.scelte, bld.subScelte, x => x.livello <= bld.level).forEach(r => feats.push(r));
   const asiLevels = c.asi.filter(l => l <= bld.level);
   if (asiLevels.length) feats.push(`Aumenti dei punteggi di caratteristica ai livelli ${asiLevels.join(', ')} (${asiLevels.length*2} punti o talenti)`);
   ch.features = feats.join('\n\n');
@@ -807,6 +875,14 @@ function buildCharacterFromBuilder(){
   const traits = [];
   if (race) race.traits.forEach(t => traits.push(`${t.name}: ${t.desc}`));
   if (sub) (sub.traits||[]).forEach(t => traits.push(`${t.name}: ${t.desc}`));
+  // quello che hai scelto fra le opzioni della razza: scritto per esteso
+  const sceltiStrumenti = [];
+  if (race) (race.scelte||[]).forEach((sc, i) => {
+    const o = sc.opzioni[(bld.raceScelte||{})[i]];
+    if (o == null) return;
+    if (sc.strumento) sceltiStrumenti.push(o);
+    traits.push(`${sc.nome} (scelta): ${o}`);
+  });
   if (bg) traits.push(`${bg.feature} (${bg.name}): ${bg.desc}`);
   ch.notesRace = traits.join('\n');
   ch.notesExtra = [
@@ -818,7 +894,7 @@ function buildCharacterFromBuilder(){
     ? [...race.languages.filter(l => !/a scelta/i.test(l)), ...bld.raceLingue].join(', ')
       + (bg && bg.languages ? ` · +${bg.languages} dal background` : '')
     : bld.raceLingue.join(', ');
-  ch.tools = [c.tools !== '—' ? c.tools : '', bg && bg.tools !== '—' ? bg.tools : ''].filter(Boolean).join(' · ');
+  ch.tools = [c.tools !== '—' ? c.tools : '', bg && bg.tools !== '—' ? bg.tools : '', ...sceltiStrumenti].filter(Boolean).join(' · ');
   ch.profOther = [c.armor !== 'Nessuna' ? c.armor : '', c.weapons].filter(Boolean).join(' · ');
 
 

@@ -98,6 +98,12 @@ const SUPP_COLONNE = {
   req:     /^(requirements?|prerequisites?|prerequisit[oi]|richiede)$/i,
   testo:   /^(description|descrizione|effect|effetto|testo)$/i,
   breve:   /^(short descriptor|riassunto|sintesi)$/i,
+  /* colonne che non si usano, ma vanno RICONOSCIUTE: se no il loro testo
+     («Passive», «PHB 110») finisce nella colonna accanto, dentro ai
+     prerequisiti o in coda alla descrizione */
+  azione:  /^(action economy|action|azione|tipo)$/i,
+  ricarica:/^(recharge|ricarica|usi)$/i,
+  fonte:   /^(source|fonte|book|libro|manuale)$/i,
 };
 /* I pezzi di pdf.js raggruppati per riga, con la loro posizione. */
 function pezziPerRiga(tc){
@@ -126,39 +132,131 @@ function colonnaDi(x, confini){
   confini.forEach(c => { if (x >= c.x - 6 && (scelta === null || c.x > scelta.x)) scelta = c; });
   return scelta ? scelta.k : null;
 }
-/* Da una tabella alle voci. Torna [] se non è una tabella. */
-function suppDaTabella(righeTutte){
-  const intest = trovaIntestazione(righeTutte);
-  if (!intest) return [];
-  const confini = Object.keys(intest.mappa).map(k => ({ k, x: intest.mappa[k] })).sort((a,b) => a.x - b.x);
+/* Da una tabella alle voci. Torna [] se non è una tabella.
+   Accetta le righe di una pagina sola (il formato di prima) oppure un
+   elenco di PAGINE, ognuna coi suoi pezzi { t, x, y } alle coordinate
+   esatte. Le pagine vanno tenute separate: la y ricomincia da capo a
+   ogni pagina, e mescolandole la riga 400 di pagina 2 finiva accanto
+   alla riga 400 di pagina 1. */
+function suppDaTabella(ingresso){
+  if (!Array.isArray(ingresso) || !ingresso.length) return [];
+  const aPagine = Array.isArray(ingresso[0]);
+  const pagine = aPagine ? ingresso
+    : [ingresso.flatMap(r => r.celle.map(c => ({ t: c.t, x: c.x, y: r.y })))];
+  let intest = null;
   const voci = [];
-  let corrente = null;
-  righeTutte.forEach(r => {
-    if (r.y >= intest.y) return;                 // l'intestazione e quello che sta sopra
-    const per = {};
-    r.celle.forEach(c => {
-      const k = colonnaDi(c.x, confini); if (!k) return;
-      per[k] = (per[k] ? per[k] + ' ' : '') + c.t;
-    });
-    const nome = (per.nome || '').trim();
-    if (nome){
-      if (corrente) voci.push(corrente);
-      /* La colonna «Level» di una tabella contiene un numero nudo — «5» —
-         e letto così non è un prerequisito di livello per nessuno. Ma la
-         colonna DICE che è un livello: glielo si scrive accanto, se no
-         quell'informazione si perde per strada. */
-      const liv = String(per.livello || '').trim();
-      const livTesto = /^\d+$/.test(liv) ? liv + ' livello' : liv;
-      corrente = { nome, prereqGrezzo: [livTesto, per.req].filter(Boolean).join(', '), testo: (per.testo || per.breve || '') };
-      return;
-    }
-    /* riga di continuazione: la descrizione che va a capo */
-    if (corrente && (per.testo || per.breve))
-      corrente.testo += (corrente.testo ? ' ' : '') + (per.testo || per.breve);
+  pagine.forEach(pezzi => {
+    const righe = suppRighe(pezzi);
+    const qui = trovaIntestazione(righe);
+    if (qui) intest = qui;
+    if (!intest) return;
+    const sotto = qui ? qui.y : Infinity;
+    suppTabellaPagina(pezzi.filter(p => p.y < sotto - 2), intest).forEach(v => voci.push(v));
   });
-  if (corrente) voci.push(corrente);
   return voci.filter(v => v.nome && v.testo.trim().length > 15)
              .map(v => ({ ...v, testo: v.testo.replace(/\s+/g,' ').trim() }));
+}
+/* I pezzi raggruppati per riga (stessa y a meno di un paio di punti). */
+function suppRighe(pezzi){
+  const ord = pezzi.slice().sort((a,b) => (b.y - a.y) || (a.x - b.x));
+  const righe = [];
+  ord.forEach(p => {
+    const r = righe[righe.length-1];
+    if (r && Math.abs(r.y - p.y) <= 2) r.celle.push(p);
+    else righe.push({ y: p.y, celle: [p] });
+  });
+  righe.forEach(r => r.celle.sort((a,b) => a.x - b.x));
+  return righe;
+}
+/* Una pagina di tabella. Nei fogli di calcolo esportati in PDF il testo
+   di ogni cella sta CENTRATO in verticale nella sua riga: il nome e' una
+   riga sola a meta' altezza, la descrizione va a capo sopra e sotto.
+   Leggere riga per riga attaccava l'inizio di una descrizione alla voce
+   di sopra. Qui il nome fa da perno, e a ogni perno va il pezzo di
+   descrizione che gli sta centrato intorno. */
+function suppTabellaPagina(pezzi, intest){
+  const confini = Object.keys(intest.mappa).map(k => ({ k, x: intest.mappa[k] })).sort((a,b) => a.x - b.x);
+  const perCol = {};
+  pezzi.forEach(p => {
+    const k = colonnaDi(p.x, confini); if (!k) return;
+    (perCol[k] = perCol[k] || []).push(p);
+  });
+  const linee = (lista) => suppRighe(lista || []).map(r => ({ y: r.y, t: r.celle.map(c => c.t).join(' ').trim() })).filter(l => l.t);
+  const col = {};
+  Object.keys(perCol).forEach(k => { col[k] = linee(perCol[k]); });
+  if (!col.nome || !col.nome.length) return [];
+
+  // l'interlinea tipica, per capire dove finisce una cella e comincia l'altra
+  const salti = [];
+  Object.values(col).forEach(ls => { for (let i = 1; i < ls.length; i++) salti.push(ls[i-1].y - ls[i].y); });
+  const piccoli = salti.filter(g => g > 3 && g < 16).sort((a,b) => a - b);
+  const passo = piccoli.length ? piccoli[Math.floor(piccoli.length / 3)] : 9;
+  const soglia = passo * 1.18;
+  const blocchi = (ls) => {
+    const out = [];
+    ls.forEach(l => {
+      const b = out[out.length-1];
+      if (b && b.fondo - l.y <= soglia){ b.t += ' ' + l.t; b.fondo = l.y; }
+      else out.push({ cima: l.y, fondo: l.y, t: l.t });
+    });
+    out.forEach(b => { b.y = (b.cima + b.fondo) / 2; });
+    return out;
+  };
+  const perni = blocchi(col.nome);
+  const righe = perni.map(p => ({ perno: p.y, nome: p.t, per: {} }));
+  const vicino = (y) => { let m = null; righe.forEach(r => { if (!m || Math.abs(r.perno - y) < Math.abs(m.perno - y)) m = r; }); return m; };
+
+  /* La descrizione: si scorre dall'alto, e per ogni riga della tabella si
+     prendono le linee che la tengono centrata sul suo nome. Cosi' anche un
+     paragrafo vuoto DENTRO una cella non la spezza in due. */
+  const lunga = col.testo ? 'testo' : (col.breve ? 'breve' : null);
+  /* Non tutti i fogli centrano: se le celle della descrizione cominciano
+     all'altezza del nome, la tabella e' allineata in alto, e ogni blocco
+     va al nome che gli sta in cima. */
+  const blocchiLunghi = lunga ? blocchi(col[lunga]) : [];
+  const inCima = blocchiLunghi.filter(b => righe.some(r => Math.abs(r.perno - b.cima) <= 2.5)).length;
+  const allineaAlto = blocchiLunghi.length > 0 && inCima >= blocchiLunghi.length * 0.6;
+  const vicinoA = (y) => allineaAlto
+    ? righe.filter(r => r.perno >= y - 2.5).sort((a, b) => a.perno - b.perno)[0] || vicino(y)
+    : vicino(y);
+  /* allineata in alto: una riga della tabella va dal suo nome fino al nome
+     dopo, quindi ogni LINEA sta con il nome che ha sopra (anche quando
+     l'interlinea e' la stessa dentro e fra le celle) */
+  if (lunga && allineaAlto){
+    col[lunga].forEach(l => { const r = vicinoA(l.y); if (r) r.per[lunga] = (r.per[lunga] ? r.per[lunga] + ' ' : '') + l.t; });
+  } else if (lunga){
+    const ls = col[lunga];
+    let p = 0;
+    righe.forEach((r, i) => {
+      if (p >= ls.length) return;
+      const restanti = righe.length - i - 1;
+      if (!restanti){ r.per[lunga] = ls.slice(p).map(l => l.t).join(' '); p = ls.length; return; }
+      let meglio = null;
+      for (let k = 1; p + k <= ls.length - restanti && k <= 40; k++){
+        const centro = (ls[p].y + ls[p+k-1].y) / 2;
+        const dopo = ls[p+k] ? ls[p+k-1].y - ls[p+k].y : 99;
+        const costo = Math.abs(centro - r.perno) + (dopo <= soglia ? 4 : 0);
+        if (!meglio || costo < meglio.costo) meglio = { k, costo };
+        if (centro < r.perno - 40) break;
+      }
+      if (!meglio) return;
+      // una cella vuota: la prima linea libera e' molto piu' in basso del perno
+      if (ls[p].y < r.perno - passo * 3 && Math.abs(ls[p].y - r.perno) > Math.abs(ls[p].y - righe[i+1].perno)) return;
+      r.per[lunga] = ls.slice(p, p + meglio.k).map(l => l.t).join(' ');
+      p += meglio.k;
+    });
+  }
+  // le colonne corte (livello, requisiti, riassunto, fonte): ogni blocco al nome piu' vicino
+  Object.keys(col).forEach(k => {
+    if (k === 'nome' || k === lunga) return;
+    blocchi(col[k]).forEach(b => { const r = allineaAlto ? vicinoA(b.cima) : vicino(b.y); if (r) r.per[k] = (r.per[k] ? r.per[k] + ' ' : '') + b.t; });
+  });
+  return righe.map(r => {
+    const liv = String(r.per.livello || '').trim();
+    const livTesto = /^\d+$/.test(liv) ? liv + ' livello' : liv;
+    return { nome: r.nome.trim(), prereqGrezzo: [livTesto, r.per.req].filter(Boolean).join(', '),
+             testo: r.per.testo || r.per.breve || '' };
+  });
 }
 
 /* ─── Leggere ─────────────────────────────────────────────────────
@@ -357,13 +455,13 @@ async function suppUsaFile(input){
          sinistra e di destra si incollano fra loro. */
       const lib = await loadPdfJs();
       const pdf = await lib.getDocument({ data: new Uint8Array(bufferCopia(buf)) }).promise;
-      let griglia = [];
+      const pagine = [];
       for (let i = 1; i <= pdf.numPages; i++){
         const tc = await (await pdf.getPage(i)).getTextContent();
-        griglia = griglia.concat(pezziPerRiga(tc));
+        pagine.push(tc.items.map(it => ({ t: String(it.str||'').trim(), x: it.transform[4], y: it.transform[5] })).filter(it => it.t));
       }
       try { pdf.destroy(); } catch(e){}
-      const daTab = suppDaTabella(griglia);
+      const daTab = suppDaTabella(pagine);
       if (daTab.length){ suppApplica(daTab, 'tabella'); return; }
 
       const { righe } = await pdfRighe(buf);

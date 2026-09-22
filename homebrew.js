@@ -150,6 +150,12 @@ function allRaces(){
     grantSkills: h.grantSkills || [], subraces: sottorazzeDi(h), homebrew: true, source: h.source || '',
     pfPerLivello: Number(h.pfPerLivello) || 0, cantripChoice: h.cantripChoice || null,
     meccaniche: h.meccaniche || null,
+    /* le scelte lette dal manuale: senza passarle qui la creazione
+       guidata non le vedeva, e «+1 a due caratteristiche a scelta» o
+       «una abilita' a scelta» non chiedevano niente */
+    bonusChoice: h.bonusChoice || null, skillChoice: Number(h.skillChoice) || 0,
+    skillChoiceFrom: Array.isArray(h.skillChoiceFrom) && h.skillChoiceFrom.length ? h.skillChoiceFrom : null,
+    scelte: Array.isArray(h.scelte) ? h.scelte.filter(x => x && x.nome && Array.isArray(x.opzioni) && x.opzioni.length >= 2) : [],
     fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
@@ -167,6 +173,7 @@ function subclassesFor(classId){
   return base.concat(homebrewOf('subclass').filter(h => h.classId === classId).map(h => ({
     id: h.id, name: h.name, features: h.features || {}, homebrew: true, source: h.source || '',
     meccaniche: h.meccaniche || null,
+    scelte: Array.isArray(h.scelte) ? h.scelte.filter(x => x && x.nome && Array.isArray(x.opzioni) && x.opzioni.length) : [],
     fromCampaign: !!h.fromCampaign, sharedByName: h.sharedByName || ''
   })));
 }
@@ -928,6 +935,16 @@ function trovaRazza(testo){
       if (r) return { razza: r, sotto: sottoDentroParentesi(r, testo), come: 'inglese' };
     }
   }
+  /* «Umana variante» e «Umano variante», «Elfa alta» e «Elfo alto»: sulla
+     scheda la razza si scrive al femminile quanto al maschile. Si
+     confrontano le parole senza la vocale finale. */
+  const radice = (t) => norm(t).split(/\s+/).map(w => w.length >= 4 ? w.replace(/[aeio]$/, '') : w).join(' ');
+  const rq = radice(String(testo).replace(/[(\[].*$/, ''));
+  for (const x of lista){
+    if (radice(x.name) === rq) return { razza: x, sotto: sottoDentroParentesi(x, testo), come: 'genere' };
+    const sr = (x.subraces||[]).find(s => radice(s.name) === rq);
+    if (sr) return { razza: x, sotto: sr, come: 'genere' };
+  }
   // «Alto Elfo di Neverwinter» → Alto Elfo: si tiene il nome più lungo
   // che compare per intero, così una variante non viene scambiata per
   // la razza base solo perché è più corta.
@@ -967,7 +984,18 @@ function trovaSottoclasse(testo, classId){
       best = { sotto: s, classId: cid, come: 'contenuto', len: n.length };
     }
   });
-  return best;
+  if (best || !classId) return best;
+  /* Ultimo tentativo, solo dentro la classe gia' nota: la parola che
+     distingue la sottoclasse, anche in un'altra lingua. «Warlock
+     Celestiale» e «Patron of the Celestial» hanno in comune «celestia»;
+     «Patron of the», «Path of», «Domain» non contano. Vale solo se c'e'
+     UNA candidata sola: due possibili sono un'incertezza, non una risposta. */
+  const GENERICHE = /^(patron|patrono|path|cammino|college|collegio|circle|circolo|oath|giuramento|school|scuola|domain|dominio|bloodline|discendenza|sorcery|stregoneria|order|ordine|tradition|tradizione|the|della|delle|degli|dello|dei|del)$/;
+  const parole = q.split(/\s+/);
+  const uniche = candidate.filter(({ s }) => norm(s.name).split(/\s+/)
+    .filter(w => w.length >= 5 && !GENERICHE.test(w))
+    .some(w => { const rad = w.slice(0, Math.max(5, w.length - 1)); return parole.some(p => p.startsWith(rad)); }));
+  return uniche.length === 1 ? { sotto: uniche[0].s, classId: uniche[0].classId, come: 'parola', len: 0 } : null;
 }
 
 /* Le sottoclassi che hai caricato per una classe che l'app non ha

@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 10.3** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 10.4** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -524,6 +524,15 @@ funzionato al primo colpo.
   e ritorno, diario, Star Wars e ritorno, razza scritta a mano. La funzione `creaGuidato`
   lì dentro legge la riga **«Per andare avanti manca»** quando si ferma: se un passo nuovo
   si blocca senza quella riga, il difetto è nel passo, non nel test.
+- **`test-v104.mjs`** (i lettori sui file veri): incantesimi, razze, classi, suppliche,
+  mostri JSON e scheda, con file **inventati** che hanno la stessa forma di quelli che la
+  gente carica — li genera `fai-v104.py` (reportlab + DejaVu, per avere «▪»). Per provare
+  un lettore su un file vero dell'utente si usa `/tmp/sonda/` e **non si salva niente**:
+  né il file, né il testo estratto, né i risultati finiscono nel progetto o nei test.
+  Regole imparate: il corridoio fra le colonne puo' essere di 10 punti (taglio tollerante
+  vicino al centro); un pezzo si assegna alla colonna dalla sua META', non dall'inizio;
+  nelle guide «tutte a pallini» una riga senza pallino continua sempre la voce sopra;
+  nei fogli di calcolo le celle sono centrate (perno = il nome) oppure in alto.
 - **`check-interazioni.mjs`** (statico, istantaneo): legge tutti i gestori inline del codice
   — `onclick`, `oninput`, `onchange`, `onkeydown` — e verifica che ogni funzione chiamata
   esista, che nessun `<button>` sia senza gestore, che nessuna funzione sia definita due

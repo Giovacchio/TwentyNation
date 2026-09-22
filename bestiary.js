@@ -140,10 +140,35 @@ function rollMonsterDamage(id, i){
   saveSession();
   toast('🎲 ' + res.total + ' danni — ' + res.parts.join(' '));
 }
+/* Il PNG del bestiario e' una scheda di testo: tutto quello che la
+   creatura ha deve finire nelle note, se no andando al tavolo manca.
+   Prima arrivavano solo tratti e azioni: caratteristiche, tiri salvezza,
+   resistenze, reazioni e azioni leggendarie si perdevano. */
+function notePerMostro(m){
+  const SIGLE = ['FOR','DES','COS','INT','SAG','CAR'];
+  const testa = [];
+  if (Array.isArray(m.ab) && m.ab.length === 6)
+    testa.push(m.ab.map((v, i) => SIGLE[i] + ' ' + v + ' (' + signStr(mod(v)) + ')').join(' · '));
+  testa.push('Velocità: ' + m.sp);
+  if (m.sv) testa.push('Tiri salvezza: ' + m.sv);
+  if (m.sk) testa.push('Abilità: ' + Object.keys(m.sk).map(k => { const s = SKILLS.find(x => x.key === k); return (s ? s.label : k) + ' ' + signStr(m.sk[k]); }).join(', '));
+  (m.dif || []).forEach(d => testa.push(d));
+  if (m.sen) testa.push('Sensi: ' + m.sen);
+  if (m.lang) testa.push('Lingue: ' + m.lang);
+  const azione = (a) => a[0] + (a[1] ? ' ' + a[1] : '') + (a[2] ? ' · ' + a[2] : '') + (a[3] && a[3] !== a[2] ? ' · ' + a[3] : '');
+  const blocchi = [testa.join('\n'),
+    (m.tr||[]).map(t => t[0] + ': ' + t[1]).join('\n'),
+    (m.act||[]).length ? 'AZIONI\n' + m.act.map(azione).join('\n') : '',
+    (m.bon||[]).length ? 'AZIONI BONUS\n' + m.bon.map(azione).join('\n') : '',
+    (m.rea||[]).length ? 'REAZIONI\n' + m.rea.map(t => t[0] + ': ' + t[1]).join('\n') : '',
+    (m.leg||[]).length ? 'AZIONI LEGGENDARIE\n' + (m.legDesc ? m.legDesc + '\n' : '') + m.leg.map(t => t[0] + ': ' + t[1]).join('\n') : '',
+    m.fonte ? 'Fonte: ' + m.fonte : ''];
+  return blocchi.filter(Boolean).join('\n\n');
+}
 function monsterToNpc(m){
   return { id: uid(), name: monsterName(m), type: m.sz + ' ' + m.t + ', GS ' + m.cr, avatar: monsterAvatar(m),
     ac: m.ac, hpMax: m.hp, hpCurrent: m.hp, speed: parseFloat(m.sp) || 9,
-    notes: [(m.tr||[]).map(t=>t[0]+': '+t[1]).join('\n'), (m.act||[]).map(a=>a[0]+' '+a[1]+' · '+a[2]+(a[3]?' · '+a[3]:'')).join('\n')].filter(Boolean).join('\n\n'),
+    notes: notePerMostro(m),
     srdId: m.id, createdAt: Date.now() };
 }
 function monsterAvatar(m){

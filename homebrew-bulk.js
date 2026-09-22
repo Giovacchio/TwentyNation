@@ -10,7 +10,10 @@
    Non cerchiamo nomi noti: cerchiamo la FORMA che hanno queste voci
    nei testi di gioco, così funziona con qualsiasi manuale o appunto. */
 
-const HB_STOP_HEAD = /^(chapter|capitolo|contents|indice|appendix|appendice|part |parte )/i;
+const HB_STOP_HEAD = /^(chapter|capitolo|contents|indice|appendix|appendice|part |parte |subclasses?\b|sottoclassi\b)/i;
+/* Separatore interno fra una voce «o» e i suoi dettagli «▪»: un carattere
+   che nei manuali non c'e', cosi' dopo si ritrovano le opzioni intatte. */
+const HB_SOTTO = ' \u2023 ';
 
 /* Ripulisce le spaziature rotte tipiche dei testi estratti da PDF */
 function hbTidy(raw){
@@ -140,6 +143,15 @@ function hbNormalizza(raw){
       grezze[i] = a + ' ' + b; grezze[i+1] = '';
     }
   }
+  /* Una guida fatta tutta a elenchi puntati («• Speed: 30ft.»): li' ogni
+     campo ha il suo pallino, e una riga SENZA pallino e' sempre il
+     seguito della voce sopra — anche se sembra un titolo («Undercommon»,
+     «Small», «Save)») o un campo («Ancestry: each creature…», che e'
+     «Draconic» + a capo + «Ancestry»). Solo un vero titolo «Nome (FONTE):»
+     apre qualcosa. */
+  const conPallino = grezze.filter(l => /^[•◦▪]\s*[A-ZÀ-Ý][^:]{1,40}:/.test(l)).length;
+  const senza = grezze.filter(l => /^[A-ZÀ-Ý][^:]{1,40}:\s*\S/.test(l)).length;
+  const tuttaAPallini = conPallino >= 30 && conPallino / (conPallino + senza) > 0.9;
   const voci = [];   // { marker:'•'|'o'|'', testo }
   const push = (marker, testo) => voci.push({ marker, testo: testo.trim() });
 
@@ -147,15 +159,58 @@ function hbNormalizza(raw){
     let l = grezze[i];
     if (!l) { push('', ''); continue; }
     if (/^\d{1,4}$/.test(l)) continue;                 // numero di pagina
+    if (/^((st|nd|rd|th)\s*)+$/.test(l)) continue;     // gli apici di "6th" finiti su una riga loro
     if (/^[•▪◦]$/.test(l) || /^o$/.test(l)) continue;   // pallino orfano
     let marker = '';
-    let m = /^([•▪◦])\s*(.*)$/.exec(l);
+    let m = /^([•◦])\s*(.*)$/.exec(l);
     if (m){ marker = '•'; l = m[2]; }
+    else if ((m = /^▪\s*(.*)$/.exec(l))){
+      /* «▪» e' il terzo livello: il dettaglio della voce «o» di sopra
+         (Shifter: «o Beasthide: Constitution +1» / «▪ Feature: …»).
+         Non e' un tratto nuovo della razza: si attacca a quella voce. */
+      const su = [...voci].reverse().find(v => v.testo);
+      if (su && su.marker === 'o'){ su.testo = su.testo.replace(/\s+$/, '') + HB_SOTTO + m[1].trim(); continue; }
+      marker = 'o'; l = m[1];
+    }
     else { m = /^o\s+(.+)$/.exec(l); if (m){ marker = 'o'; l = m[1]; } }
     l = l.trim();
     if (!l){ if (marker) push(marker, ''); continue; }
 
-    const prec = voci[voci.length-1];
+    let prec = voci[voci.length-1];
+    /* «You learn three» + a capo + «Alchemical Formula options:»: sembra un
+       titolo ma e' la fine della frase. Un titolo vero, qui, porta la fonte
+       fra parentesi, oppure arriva dopo una voce finita. */
+    const suPrima = (() => { let k = voci.length - 1; while (k >= 0 && !voci[k].testo) k--; return voci[k]; })();
+    const titoloDebole = hbTitolo(l) && !/\([^)]{1,30}\)\s*:\s*$/.test(l)
+      && suPrima && suPrima.marker && !/[.!?:)]$/.test(suPrima.testo);
+    if (tuttaAPallini && !marker && (!hbTitolo(l) || titoloDebole) && !hbApreVarianti(l) && !HB_STOP_HEAD.test(l)){
+      let k = voci.length - 1;
+      while (k >= 0 && !voci[k].testo && voci.length - k <= 3) k--;
+      const su = voci[k];
+      if (su && su.testo && su.marker && !hbTitolo(su.testo)){
+        voci.length = k + 1;
+        su.testo = hbUnisci(su.testo, l);
+        continue;
+      }
+    }
+    /* Una riga vuota in mezzo a una voce rimasta a meta' (fine colonna,
+       fine pagina) non la chiude: «Languages: Common, Dwarvish, and» +
+       riga vuota + «Undercommon» e' ancora la stessa voce. */
+    if (prec && !prec.testo){
+      let k = voci.length - 1;
+      while (k >= 0 && !voci[k].testo && voci.length - k <= 3) k--;
+      const su = voci[k];
+      const aMeta = su && su.testo && su.marker && !/[.!?:]$/.test(su.testo);
+      if (aMeta && !marker && /(,|\b(and|or|of|the|to|with|a|e|o|di|il|la|per))$/i.test(su.testo)){
+        voci.length = k + 1;              // finisce con «and», «,»: continua di sicuro
+        su.testo = hbUnisci(su.testo, l);
+        continue;
+      }
+      if (aMeta && !marker && /^[a-z(]/.test(l)){
+        voci.length = k + 1;
+        prec = su;
+      }
+    }
     /* «È rimasta a metà» vuol dire: c'è una riga prima, non finisce con
        un punto o due punti, e non è un titolo. Una riga che segue una
        frase a metà la sta continuando — anche se ha dei due punti in
@@ -288,7 +343,7 @@ function hbVariante(nome, testo){
   return { id: (typeof uid === 'function' ? uid() : 'var-' + Math.random().toString(36).slice(2)),
            name: String(nome||'').trim(),
            bonus: parseAbilityBonus(String(testo||'')),
-           traits: [[String(nome||'').trim(), String(testo||'').slice(0,500)]] };
+           traits: [[String(nome||'').trim(), String(testo||'').split(HB_SOTTO).join(' · ').slice(0,500)]] };
 }
 const HB_CAMPI_RAZZA = /^(ability scores?|ability score increase|aumento dei punteggi(?: di caratteristica)?|punteggi di caratteristica|incremento dei punteggi(?: di caratteristica)?|age|et[àa]|size|taglia|speed|velocit[àa]|languages?|lingue|linguaggi|alignment|allineamento)$/i;
 
@@ -345,12 +400,157 @@ function hbQuanteLingue(testo){
   return t ? 1 : 0;
 }
 
+/* ─── Le razze: quello che si SCEGLIE ───
+   Un manuale scrive le scelte come frasi («Intelligence or Charisma +1»,
+   «one skill of your choice», «either smith's tools or…»). Lette come
+   testo finivano fra i tratti e basta: la creazione guidata non chiedeva
+   niente e in scheda non arrivava niente. Qui diventano opzioni. */
+const HB_NUMERI = { one:1, a:1, an:1, two:2, three:3, four:4, five:5, six:6, un:1, uno:1, una:1, due:2, tre:3, quattro:4, cinque:5, sei:6 };
+const HB_ABIL_RX = '(strength|dexterity|constitution|intelligence|wisdom|charisma|forza|destrezza|costituzione|intelligenza|saggezza|carisma)';
+function hbNumero(w){ const n = parseInt(w); return isNaN(n) ? (HB_NUMERI[String(w||'').toLowerCase()] || 0) : n; }
+/* «Constitution +2, Wisdom +1», «Dexterity +2, Strength -2»,
+   «Strength, Constitution, and Charisma +1», «Intelligence or Charisma +1»,
+   «Charisma +2, Two other abilities +1», «Two ability scores increase by 2,
+   other four increase by 1», «Il tuo punteggio di Forza aumenta di 2». */
+function hbBonusRazza(testo){
+  const t = String(testo||'').replace(/[−–]/g, '-').replace(/\s+/g, ' ').trim();
+  const bonus = {};
+  let scelta = null;
+  const tutte = ['str','dex','con','int','wis','cha'];
+  const k = (w) => ABIL_WORDS[String(w||'').toLowerCase()];
+  // pezzi separati da virgola o «;», ma «A, B, and C +1» resta insieme
+  // si taglia solo dopo un valore: «A, B, and C +1» resta un pezzo solo
+  const pezzi = t.split(/(?<=\d)\s*[,;]\s*|;\s*/).map(x => x.trim()).filter(Boolean);
+  let tutteA = 0, altre = false;
+  for (const p of pezzi){
+    let m;
+    // «Two ability scores increase by 2, other four increase by 1» (una volta sola, tutto insieme)
+    if ((m = /\b(one|two|three|a|an|\d|uno|una|due|tre)\s+(?:other\s+|different\s+|altr[ie]\s+)?(?:ability scores?|abilities|scores?|punteggi(?: di caratteristica)?|caratteristiche)\s*(?:of your choice\s*|a (?:tua )?scelta\s*)?(?:increase|aumenta(?:no)?)?\s*(?:by|di)?\s*\+?\s*(\d)/i.exec(p))){
+      const quante = hbNumero(m[1]), di = parseInt(m[2]);
+      if (quante && di) scelta = { count: quante, amount: di, exclude: [] };
+      altre = /\b(other|different|altr[ie])\b/i.test(m[0]);
+      continue;
+    }
+    if ((m = /\b(?:other|the other|all(?: other)?|each(?: other)?|every|tutt[ie](?: gli altri)?|gli altri)\b.*?(?:increase|aumenta(?:no)?)\s*(?:by|di)\s*(\d)/i.exec(p))
+        || /^(?:all|each|every) (?:of your )?ability scores? (?:increase|increases) by (\d)/i.exec(p)){
+      const di = parseInt((m || [])[1] || /\d/.exec(p)[0]);
+      tutte.forEach(a => { if (!bonus[a]) bonus[a] = di; });
+      tutteA = di;
+      continue;
+    }
+    // «Your choice of Strength, Intelligence, or Wisdom +1», «Intelligence or Charisma +1»
+    if (/\bor\b|\boppure\b|\bo\b|choice of|a (?:tua )?scelta/i.test(p)){
+      const nomi = [...p.matchAll(new RegExp(HB_ABIL_RX, 'gi'))].map(x => k(x[1])).filter(Boolean);
+      const v = /([+\-])\s*(\d)/.exec(p) || /(?:increase|aumenta)\w*\s*(?:by|di)\s*()(\d)/i.exec(p);
+      if (nomi.length >= 2 && v){
+        scelta = { count: 1, amount: parseInt(v[2]), exclude: [], from: [...new Set(nomi)] };
+        continue;
+      }
+    }
+    // «A, B, and C +1» / «A +2»
+    const val = /([+\-])\s*(\d)\s*$/.exec(p) || /(?:increases?|aumenta)\s*(?:by|di)\s*()(\d)/i.exec(p);
+    if (val){
+      const n = (val[1] === '-' ? -1 : 1) * parseInt(val[2]);
+      const nomi = [...p.matchAll(new RegExp(HB_ABIL_RX, 'gi'))].map(x => k(x[1])).filter(Boolean);
+      nomi.forEach(a => { bonus[a] = n; });
+      continue;
+    }
+    // «Wisdom +1 Strength +2» senza virgole: la vecchia lettura
+    Object.assign(bonus, parseAbilityBonus(p));
+  }
+  /* «Two ability scores increase by 2, other four by 1»: tutte a +1, e
+     due a scelta prendono +1 in piu' (non +2 sopra al +1). */
+  if (scelta && tutteA){
+    scelta.amount = Math.max(1, scelta.amount - tutteA);
+  } else if (scelta && altre && !scelta.from){
+    // «Charisma +2, Two other abilities +1»: le altre, non il Carisma
+    scelta.exclude = Object.keys(bonus).filter(a => bonus[a] > 0);
+  }
+  return { bonus, bonusChoice: scelta };
+}
+
+/* Le abilita' che una razza da' o fa scegliere, lette dai tratti.
+   «Keen Senses: Proficient in Perception» la da';
+   «Stone Cunning: … if you are proficient in History» no. */
+function hbAbilitaRazza(tratti){
+  const EN = { acrobatics:'acrobatics', 'animal handling':'animalHandling', arcana:'arcana', athletics:'athletics',
+    deception:'deception', history:'history', insight:'insight', intimidation:'intimidation',
+    investigation:'investigation', medicine:'medicine', nature:'nature', perception:'perception',
+    performance:'performance', persuasion:'persuasion', religion:'religion',
+    'sleight of hand':'sleightOfHand', stealth:'stealth', survival:'survival' };
+  const lista = Object.keys(EN).join('|');
+  const out = { grantSkills: [], skillChoice: 0, skillChoiceFrom: null };
+  (tratti||[]).forEach(([nome, desc]) => {
+    const t = String(desc||'').replace(/\s+/g, ' ');
+    let m;
+    // «proficiency in two skills of your choice» / «one skill of your choice»
+    if ((m = /proficien\w*\s+(?:in|with)\s+(one|two|three|\d|a|an)\s+(?:additional\s+|other\s+)?skills?\s+of your choice/i.exec(t))
+        || (m = /competenz\w*\s+in\s+(una|due|tre|\d)\s+abilit\w*\s+a (?:tua )?scelta/i.exec(t))){
+      out.skillChoice += hbNumero(m[1]) || 1;
+      return;
+    }
+    // «proficiency in two of the following skills of your choice: Arcana, History…»
+    if ((m = /(?:proficien\w*|trained)\s+(?:in|with)\s+(?:your choice of\s+)?(one|two|three|\d)\s+of the following skills[^:]*:\s*([^.]+)/i.exec(t))){
+      const da = parseSkillList(m[2]);
+      if (da.length){ out.skillChoice += hbNumero(m[1]) || 1; out.skillChoiceFrom = da; return; }
+    }
+    // «You gain proficiency in the Intimidation skill», «Proficient in Perception»
+    const rx = new RegExp('(?:^|(?:you\\s+)?(?:gain|have|are)\\s+)(?:proficiency|proficient|trained)\\s+(?:in|with)\\s+(?:the\\s+)?((?:' + lista + ')(?:\\s*(?:,|and|or)\\s*(?:' + lista + '))*)', 'i');
+    if ((m = rx.exec(t)) && !/\b(if|unless|when)\s+$/i.test(t.slice(0, m.index)) && !/\bor\b/i.test(m[1])){
+      parseSkillList(m[1]).forEach(sk => { if (!out.grantSkills.includes(sk)) out.grantSkills.push(sk); });
+    }
+  });
+  return out;
+}
+
+/* Una scelta scritta in una riga sola: «You gain proficiency with either –
+   smith's tools, brewer's supplies, or mason's tools». Torna le opzioni. */
+function hbOpzioniInTesto(testo){
+  const t = String(testo||'').replace(/\s+/g, ' ');
+  const m = /\b(?:either|one of the following|your choice of|choice of|a (?:tua )?scelta fra|uno fra|una fra)\s*[–—:-]?\s*([^.;]+)/i.exec(t);
+  if (!m) return null;
+  const opz = m[1].split(/\s*,\s*(?:or\s+|and\s+|o\s+|e\s+)?|\s+or\s+|\s+oppure\s+/i)
+    .map(x => x.replace(/^(?:or|and|o|e)\s+/i, '').replace(/[\s.]+$/, '').trim())
+    .filter(x => x && x.length <= 40);
+  return opz.length >= 2 && opz.length <= 12 ? opz : null;
+}
+/* Frasi che dicono «qui si sceglie»: servono a capire se un elenco con
+   la «o» e' una scelta da fare creando il personaggio o solo un elenco
+   di esempi (i congegni dello gnomo delle rocce si scelgono giocando). */
+const HB_E_SCELTA = /\b(your choice|choose|choice:|pick one|select|a (?:tua )?scelta|scegli)\b/i;
+
+/* «Common and Dwarvish» → «Comune, Nanico»; «one extra of your choice» →
+   «Una a scelta»: la creazione guidata conta le lingue da scegliere
+   proprio da quel «a scelta». */
+const HB_LINGUE_EN = { common:'Comune', dwarvish:'Nanico', elvish:'Elfico', giant:'Gigante', gnomish:'Gnomesco',
+  goblin:'Goblin', halfling:'Halfling', orc:'Orchesco', orcish:'Orchesco', abyssal:'Abissale', celestial:'Celestiale',
+  draconic:'Draconico', 'deep speech':'Linguaggio delle Profondità', infernal:'Infernale', primordial:'Primordiale',
+  sylvan:'Silvano', undercommon:'Sottocomune', auran:'Auran', aquan:'Aquan', ignan:'Ignan', terran:'Terran', gith:'Gith' };
+function hbLingueRazza(testo){
+  let t = hbLingue(testo)
+    .replace(/^(?:you can )?read and write\s+/i, '')
+    .replace(/\s*,?\s*\bbut\b.*$/i, '');        // «…, but you can only speak using Mimicry»: e' un tratto
+  const parti = [];
+  let scelta = 0;
+  t = t.replace(/\b(one|two|three|a|an|1|2|3)\s+(?:extra|additional|other|more|others)?\s*(?:language|languages|others|other|extra|more)?\s*(?:language\s*)?of (?:your|their) choice\b/gi, (m, n) => { scelta += hbNumero(n) || 1; return ''; });
+  t = t.replace(/\byour choice of (one|two|three|\d)\s*(?:others?|other languages?|languages?|extra)?/gi, (m, n) => { scelta += hbNumero(n) || 1; return ''; });
+  t = t.replace(/\b(one|two|three)\s+(?:extra|additional|other|more)\s+languages?\b/gi, (m, n) => { scelta += hbNumero(n) || 1; return ''; });
+  t.split(/\s*,\s*|\s+and\s+|\s+e\s+/i).map(x => x.replace(/^(and|e)\s+/i, '').trim()).filter(Boolean).forEach(x => {
+    if (x.length > 30) return;               // una frase, non una lingua
+    parti.push(HB_LINGUE_EN[x.toLowerCase()] || x);
+  });
+  const nomi = ['','Una a scelta','Due a scelta','Tre a scelta'];
+  if (scelta) parti.push(nomi[Math.min(scelta, 3)]);
+  return [...new Set(parti)].join(', ') || 'Comune';
+}
+
 /* ─── Lettura delle guide («Nome (FONTE):» con elenchi puntati) ─── */
 function hbScanGuida(raw){
   const voci = hbNormalizza(raw);
   const out = [];
   const mappaClassi = hbMappaSottoclassi(voci);
   let sezioneClasse = '';   // classe della sezione in cui ci troviamo
+  let classeIgnota = '';    // una classe che l'app non ha (Artefice, Cacciatore di sangue…)
 
   for (let i = 0; i < voci.length; i++){
     const t = hbTitolo(voci[i].testo);
@@ -367,14 +567,43 @@ function hbScanGuida(raw){
 
     /* — intestazione di classe: apre una sezione, non si importa — */
     const idClasse = hbClasseDaNome(t.nome);
-    if (idClasse && hbSembraClasse(corpo)){ sezioneClasse = idClasse; continue; }
-    if (hbSembraClasse(corpo)){ sezioneClasse = ''; continue; }  // classe non nota (es. Artefice)
+    if (idClasse && hbSembraClasse(corpo)){ sezioneClasse = idClasse; classeIgnota = ''; continue; }
+    if (hbSembraClasse(corpo)){ sezioneClasse = ''; classeIgnota = t.nome; continue; }  // classe non nota (es. Artefice)
 
     /* — sottoclasse: ha almeno due «Livello N» — */
     const livelli = corpo.filter(v => /^(level|livello)\s*\d+/i.test(v.testo));
     if (livelli.length >= 2){
       const features = {};
+      const scelte = [];
       let lv = null, n = 0;
+      /* Un privilegio con le sue opzioni sotto («Totem Spirit: choose one» +
+         Bear, Eagle, Wolf; «Maneuvers: you learn three» + l'elenco): le
+         opzioni diventano una SCELTA, da fare quando arrivi a quel livello. */
+      const aggiungi = (nome, testo) => {
+        const pezzi = String(testo||'').split(HB_SOTTO).map(x => x.trim()).filter(Boolean);
+        let corpoP = pezzi[0] || '';
+        if (pezzi.length >= 3 || (pezzi.length >= 2 && HB_E_SCELTA.test(corpoP))){
+          const opz = pezzi.slice(1).map(o => { const c = hbCampo(o); return c ? c.campo + ': ' + c.valore : o; });
+          const nomi = opz.map(o => o.split(':')[0].trim());
+          /* solo se il testo dice di SCEGLIERE: «You gain the following two
+             Channel Divinity options» te le da' tutte e due, non e' una scelta */
+          /* e le opzioni devono avere un nome («Bear: …», «Archery: …»): un
+             elenco di frasi («You gain a bonus…», «Strength Score») e' la
+             lista di quello che il privilegio fa, non una scelta */
+          const conNome = pezzi.slice(1).filter(o => { const c = hbCampo(o); return c && c.campo.split(/\s+/).length <= 5 && c.valore.length >= 3; }).length;
+          if (/\b(choose|chosen|your choice|of your choice|choice of|pick|select|a (?:tua )?scelta|scegli)\b/i.test(corpoP)
+              && conNome >= Math.max(2, Math.ceil((pezzi.length - 1) * 0.7))){
+            const q = /\b(?:learn|choose|pick|select|gain|know)\s+(one|two|three|four|five|\d)\b/i.exec(corpoP);
+            scelte.push({ livello: lv, nome: String(nome).slice(0,60), quante: q ? (hbNumero(q[1]) || 1) : 1,
+                          opzioni: opz.map(o => o.slice(0,300)).slice(0,24) });
+            corpoP += ' Opzioni: ' + nomi.join(', ') + '.';
+          } else {
+            corpoP += ' ' + opz.map(o => '• ' + o).join(' ');
+          }
+        }
+        (features[lv] = features[lv] || []).push([nome, corpoP.slice(0,700)]);
+        n++;
+      };
       corpo.forEach(v => {
         const ml = /^(?:level|livello)\s*(\d+)\s*[.:)\-]?\s*(.*)$/i.exec(v.testo);
         if (ml){
@@ -385,23 +614,23 @@ function hbScanGuida(raw){
           const resto = (ml[2]||'').trim();
           if (resto.length > 12){
             const c = hbCampo(resto) || /^([A-ZÀ-Ý][A-Za-zÀ-ý' \-]{2,44})\s*[.]\s+(.{12,})$/.exec(resto);
-            if (c && c.campo) { (features[lv] = features[lv] || []).push([c.campo, c.valore.slice(0,700)]); n++; }
-            else if (c) { (features[lv] = features[lv] || []).push([c[1].trim(), c[2].trim().slice(0,700)]); n++; }
-            else { (features[lv] = features[lv] || []).push(['Privilegio di livello ' + lv, resto.slice(0,700)]); n++; }
+            if (c && c.campo) aggiungi(c.campo, c.valore);
+            else if (c) aggiungi(c[1].trim(), c[2].trim());
+            else aggiungi('Privilegio di livello ' + lv, resto);
           }
           return;
         }
         if (!lv) return;
         const c = hbCampo(v.testo);
-        if (c && c.valore.length > 12){
-          (features[lv] = features[lv] || []).push([c.campo, c.valore.slice(0,700)]);
-          n++;
-        }
+        if (c && c.valore.length > 12) aggiungi(c.campo, c.valore);
       });
       if (n >= 2){
-        out.push({ kind:'subclass', name: t.nome, source: t.fonte,
+        const sc = { kind:'subclass', name: t.nome, source: t.fonte,
                    classId: sezioneClasse || mappaClassi[norm(t.nome)] || hbIndovinaClasse(t.nome),
-                   features });
+                   features };
+        if (scelte.length) sc.scelte = scelte.slice(0,8);
+        if (!sc.classId && classeIgnota) sc.classeNelManuale = classeIgnota;
+        out.push(sc);
         continue;
       }
     }
@@ -410,16 +639,47 @@ function hbScanGuida(raw){
     const campi = {};
     const tratti = [];
     const varianti = [];
+    const scelte = [];
     let inVarianti = false;
+    /* Le voci «o» sotto un tratto sono le sue opzioni: si raccolgono
+       col tratto a cui appartengono invece di diventare tratti a se'. */
+    const gruppi = [];
     corpo.forEach(v => {
+      if (v.marker === 'o' && gruppi.length) gruppi[gruppi.length-1].opz.push(v.testo);
+      else gruppi.push({ v, opz: [] });
+    });
+    gruppi.forEach(({ v, opz }) => {
       if (hbApreVarianti(v.testo)){ inVarianti = true; }
       const c = hbCampo(v.testo);
       if (!c) return;
       if (HB_CAMPI_RAZZA.test(c.campo)){ campi[norm(c.campo)] = c.valore; return; }
-      if (hbApreVarianti(c.campo)){ inVarianti = true; return; }
-      if (c.valore.length <= 10) return;
-      if (inVarianti) varianti.push(hbVariante(c.campo, c.valore));
-      else tratti.push([c.campo, c.valore.slice(0,500)]);
+      if (hbApreVarianti(c.campo) && !opz.length){ inVarianti = true; return; }
+      if (inVarianti){ if (c.valore.length > 10) varianti.push(hbVariante(c.campo, c.valore)); return; }
+      if (opz.length){
+        const voci = opz.map(o => { const x = hbCampo(o); return x ? { nome: x.campo, testo: x.valore } : { nome: o.slice(0, 40), testo: o }; });
+        const conBonus = voci.filter(o => Object.keys(parseAbilityBonus(o.testo)).length).length;
+        if (conBonus >= Math.ceil(voci.length / 2) && !varianti.length){
+          // «Shift Form: Choose one form» con «Beasthide: Constitution +1»: sono varianti vere
+          tratti.push([c.campo, c.valore.slice(0,500)]);
+          voci.forEach(o => { const vv = hbVariante(o.nome, o.testo); vv.traits = [[c.campo + ' — ' + o.nome, o.testo.split(HB_SOTTO).join(' · ').slice(0,500)]]; varianti.push(vv); });
+          return;
+        }
+        if (HB_E_SCELTA.test(c.valore)){
+          // «Draconic Ancestry: … based on your choice:» → una scelta con le sue opzioni
+          tratti.push([c.campo, c.valore.slice(0,500)]);
+          scelte.push({ nome: c.campo, opzioni: voci.map(o => o.nome + (o.testo && o.testo !== o.nome ? ': ' + o.testo : '')).map(x => x.slice(0,160)).slice(0,16) });
+          return;
+        }
+        // un elenco di esempi: resta dentro al tratto
+        tratti.push([c.campo, (c.valore + ' ' + opz.map(o => '• ' + o).join(' ')).slice(0,700)]);
+        return;
+      }
+      if (c.valore.length <= 10 && !/\d/.test(c.valore)) return;
+      tratti.push([c.campo, c.valore.slice(0,500)]);
+      const inRiga = !/proficien|competenz/i.test(c.campo + ' ' + c.valore) || /tool|strument|kit|supplies|instrument/i.test(c.valore)
+        ? hbOpzioniInTesto(c.valore) : null;
+      if (inRiga && !/language|lingu|cantrip|trucchett|skill|abilit/i.test(c.campo + ' ' + c.valore.slice(0, 80)))
+        scelte.push({ nome: c.campo, opzioni: inRiga, strumento: /tool|strument|supplies|kit|instrument/i.test(c.valore) });
     });
     const haPunteggi = Object.keys(campi).some(k => /punteggi|ability/.test(k));
     const haVelocita = Object.keys(campi).some(k => /speed|velocit/.test(k));
@@ -428,12 +688,19 @@ function hbScanGuida(raw){
       const kVel = Object.keys(campi).find(k => /speed|velocit/.test(k));
       const kTaglia = Object.keys(campi).find(k => /size|taglia/.test(k));
       const kLingue = Object.keys(campi).find(k => /languages?|lingue|linguaggi/.test(k));
-      out.push({ kind:'race', name: t.nome, source: t.fonte,
-        bonus: parseAbilityBonus(campi[kPunteggi]),
+      const b = hbBonusRazza(campi[kPunteggi]);
+      const ab = hbAbilitaRazza(tratti);
+      const razza = { kind:'race', name: t.nome, source: t.fonte,
+        bonus: b.bonus,
         speed: kVel ? parseSpeedM(campi[kVel]) : 9,
         size: kTaglia ? parseSizeWord(campi[kTaglia]) : 'Media',
-        languages: kLingue ? hbLingue(campi[kLingue]) : 'Comune',
-        traits: tratti.slice(0,10), grantSkills: [], subraces: varianti.slice(0,12) });
+        languages: kLingue ? hbLingueRazza(campi[kLingue]) : 'Comune',
+        traits: tratti.slice(0,14), grantSkills: ab.grantSkills, subraces: varianti.slice(0,12) };
+      if (b.bonusChoice) razza.bonusChoice = b.bonusChoice;
+      if (ab.skillChoice) razza.skillChoice = Math.min(ab.skillChoice, 4);
+      if (ab.skillChoiceFrom) razza.skillChoiceFrom = ab.skillChoiceFrom;
+      if (scelte.length) razza.scelte = scelte.slice(0,6);
+      out.push(razza);
       continue;
     }
 
@@ -569,7 +836,7 @@ function hbScanText(raw){
       let x;
       if ((x = RX_RACE_SPEED.exec(l))){ rz.speed = parseSpeedM(x[2] + ' ' + (coda[j+1]||'')); continue; }
       if ((x = RX_RACE_SIZE.exec(l))){ rz.size = parseSizeWord(x[2] + ' ' + (coda[j+1]||'')); continue; }
-      if ((x = RX_RACE_LANG.exec(l))){ rz.languages = hbLingue(x[2]); continue; }
+      if ((x = RX_RACE_LANG.exec(l))){ rz.languages = hbLingueRazza(x[2]); continue; }
       if (RX_RACE_AGE.test(l) || RX_RACE_ALIGN.test(l) || RX_RACE_ASI.test(l)) continue;
       // «Sottorazze»: da qui in poi sono varianti, non tratti
       if (hbApreVarianti(l)){ inVarianti = true; continue; }
@@ -584,6 +851,14 @@ function hbScanText(raw){
     }
     rz.traits = tratti;
     rz.subraces = varianti;
+    /* anche nel testo in prosa: le scelte (bonus e abilita') diventano opzioni */
+    const nuovo = hbBonusRazza(mAsi[2] + ' ' + (coda[1]||''));
+    if (!Object.keys(rz.bonus).length) rz.bonus = nuovo.bonus;
+    if (nuovo.bonusChoice) rz.bonusChoice = nuovo.bonusChoice;
+    const ab = hbAbilitaRazza(tratti);
+    rz.grantSkills = ab.grantSkills;
+    if (ab.skillChoice) rz.skillChoice = Math.min(ab.skillChoice, 4);
+    if (ab.skillChoiceFrom) rz.skillChoiceFrom = ab.skillChoiceFrom;
     if (Object.keys(rz.bonus).length || tratti.length) trovati.push(rz);
   }
 
@@ -829,16 +1104,19 @@ function hbBulkHTML(){
        </div>
        ${bloccoLista('hbs:'+kind, perTipo[kind], riga, { modale:true, nome:'voci' })}` : '';
 
-  const nomeClasseDi = (k) => k
-    ? ((typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[k]) ? CLASS_BY_ID[k].name : k)
-    : 'Senza classe riconosciuta';
+  /* Le sottoclassi di una classe che l'app non ha (Artefice, Mistico…)
+     stanno nel gruppo di QUELLA classe, col suo nome: «Senza classe»
+     mescolava tutto, e assegnandole se ne spostavano anche di non loro. */
+  const nomeClasseDi = (k) => !k ? 'Senza classe riconosciuta'
+    : k.startsWith('?') ? k.slice(1) + ' — classe che l’app non ha'
+    : ((typeof CLASS_BY_ID !== 'undefined' && CLASS_BY_ID[k]) ? CLASS_BY_ID[k].name : k);
   /* Con un manuale intero le sottoclassi sono più di cento e le razze
      quasi cinquanta: si raccolgono per classe e per stirpe. */
   const sezioneSottoclassi = () => gruppi(
-    perTipo.subclass, 'Sottoclassi', x => x.classId || '', nomeClasseDi, 'hbBulkTutteSub',
-    (k) => k ? '' : `<div class="field" style="margin:8px 0">
+    perTipo.subclass, 'Sottoclassi', hbGruppoClasse, nomeClasseDi, 'hbBulkTutteSub',
+    (k) => (k && !k.startsWith('?')) ? '' : `<div class="field" style="margin:8px 0">
         <label>Assegna tutto il gruppo a una classe</label>
-        <select onchange="hbBulkAssegna(this.value)">
+        <select onchange="hbBulkAssegna(this.value, '${jsStr(k)}')">
           <option value="">— scegli la classe —</option>
           ${classiBase().map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
         </select>
@@ -912,10 +1190,15 @@ function hbBulkAll(kind, on, classId){
   renderModalRoot();
 }
 /* Dà in un colpo solo una classe a tutte le sottoclassi rimaste senza. */
-function hbBulkAssegna(classId){
+function hbGruppoClasse(x){ return x.classId || (x.classeNelManuale ? '?' + x.classeNelManuale : ''); }
+function hbBulkAssegna(classId, gruppo){
   if (!classId) return;
   let n = 0;
-  hbBulk.trovati.forEach(x => { if (x.kind==='subclass' && !x.classId){ x.classId = classId; n++; } });
+  hbBulk.trovati.forEach(x => {
+    if (x.kind !== 'subclass' || x.classId) return;
+    if (gruppo != null && hbGruppoClasse(x) !== gruppo) return;
+    x.classId = classId; n++;
+  });
   if (hbBulk.aperti) hbBulk.aperti.add('Sottoclassi:'+classId);
   if (hbBulk.chiusi) hbBulk.chiusi.delete('Sottoclassi:'+classId);
   renderModalRoot();
@@ -931,8 +1214,11 @@ function hbBulkApri(chiave, quante, unoSolo){
   renderModalRoot();
 }
 /* Scorciatoie usate dai pulsanti dei gruppi. */
-function hbBulkTutteSub(on, classId){
-  hbBulkAll('subclass', on, classId);
+function hbBulkTutteSub(on, gruppo){
+  hbBulk.trovati
+    .filter(x => x.kind === 'subclass' && (gruppo === undefined || hbGruppoClasse(x) === gruppo))
+    .forEach(x => on ? hbBulk.scelti.add(x.id) : hbBulk.scelti.delete(x.id));
+  renderModalRoot();
 }
 function hbBulkTutteRazze(on, stirpe){
   hbBulk.trovati

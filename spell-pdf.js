@@ -39,23 +39,48 @@ function corridoiVerticali(pezzi, larghezza){
   let ultimo = celle.length - 1; while (ultimo > 0 && !celle[ultimo]) ultimo--;
   if (primo < 0 || ultimo - primo < 10) return [];
   const minLargo = Math.max(2, Math.round((larghezza * 0.035) / passo));  // ~3,5% della pagina
-  const tagli = [];
-  let i = primo;
-  while (i <= ultimo){
-    if (celle[i] === 0){
-      let j = i; while (j <= ultimo && celle[j] === 0) j++;
-      if (j - i >= minLargo) tagli.push(((i + j) / 2) * passo);
-      i = j;
-    } else i++;
-  }
-  /* Un corridoio va bene solo se le colonne che ritaglia hanno davvero
-     del testo per conto loro: un rientro largo o un titolo centrato
-     lasciano buchi che non sono colonne. */
-  return tagli.filter(x => {
-    const sin = pezzi.filter(p => p.x + (p.w||0) <= x).length;
-    const des = pezzi.filter(p => p.x > x).length;
-    return sin >= 12 && des >= 12;
-  });
+  const cerca = (soglia, largo = minLargo) => {
+    const tagli = [];
+    let i = primo;
+    while (i <= ultimo){
+      if (celle[i] <= soglia){
+        let j = i; while (j <= ultimo && celle[j] <= soglia) j++;
+        if (j - i >= largo) tagli.push({ x: ((i + j) / 2) * passo, largo: j - i });
+        i = j;
+      } else i++;
+    }
+    /* Un corridoio va bene solo se le colonne che ritaglia hanno davvero
+       del testo per conto loro: un rientro largo o un titolo centrato
+       lasciano buchi che non sono colonne. */
+    return tagli.filter(({ x }) => {
+      const sin = pezzi.filter(p => p.x + (p.w||0) <= x).length;
+      const des = pezzi.filter(p => p.x > x).length;
+      return sin >= 12 && des >= 12;
+    });
+  };
+  const netti = cerca(0);
+  if (netti.length) return netti.map(t => t.x);
+  /* Nessun corridoio pulito: capita quando in cima alla pagina c'e' una
+     riga larga quanto il foglio (un'intestazione, una tabella) che
+     attraversa le due colonne, o quando le colonne sono a un centimetro
+     l'una dall'altra. Si riprova tollerando pochissime righe che passano
+     sopra al corridoio, e se ne prende UNO solo, vicino al centro: il
+     piu' largo. E' il caso dei manuali a due colonne, non altro. */
+  const soglia = Math.max(1, Math.round(pezzi.length * 0.04));
+  const quasi = cerca(soglia, Math.max(2, Math.round((larghezza * 0.012) / passo))).filter(({ x }) => {
+    const rel = (x - primo * passo) / ((ultimo - primo) * passo);
+    return rel > 0.35 && rel < 0.65;
+  }).sort((a, b) => b.largo - a.largo);
+  return quasi.length ? [quasi[0].x] : [];
+}
+
+/* Da che parte del taglio sta un pezzo di testo. Un titolo scritto piu'
+   grande puo' cominciare un paio di punti prima del corridoio (la sua
+   prima lettera sporge): conta dove sta la sua meta', non il suo inizio,
+   se no finisce nella colonna accanto, incollato a una frase non sua. */
+function dopoIlTaglio(x, w, taglio){
+  if (x >= taglio) return true;
+  return x > taglio - 40 && x + (w || 0) / 2 > taglio;
 }
 
 /* Da una pagina di pdf.js alle sue righe, colonna per colonna.
@@ -69,7 +94,7 @@ function pdfRighePagina(tc, larghezza){
   if (!pezzi.length) return [];
 
   const tagli = corridoiVerticali(pezzi, larghezza || 595);
-  const colonnaDi = (p) => { let n = 0; tagli.forEach(x => { if (p.x >= x) n++; }); return n; };
+  const colonnaDi = (p) => { let n = 0; tagli.forEach(x => { if (dopoIlTaglio(p.x, p.w, x)) n++; }); return n; };
 
   const perCol = new Map();
   pezzi.forEach(p => {
@@ -157,10 +182,10 @@ async function extractPdfColumns(buffer, from, to, onProgress){
                     w: it.width || 0, h: it.height || 10 }))
       .filter(it => it.s && it.s.trim());
     const tagli = corridoiVerticali(pezzi.map(p => ({ x:p.x, w:p.w })), vp.width);
-    const quale = (x) => { let n = 0; tagli.forEach(t => { if (x >= t) n++; }); return n; };
+    const quale = (x, w) => { let n = 0; tagli.forEach(t => { if (dopoIlTaglio(x, w, t)) n++; }); return n; };
     const cols = [];
     for (let i = 0; i <= tagli.length; i++) cols.push([]);
-    pezzi.forEach(it => cols[quale(it.x)].push(it));
+    pezzi.forEach(it => cols[quale(it.x, it.w)].push(it));
 
     /* Molti PDF spezzano le parole in tanti pezzetti ("c rac kling"):
        non sono spazi veri, sono solo frammenti vicini. Invece di
@@ -219,6 +244,7 @@ function findSplitLetter(text){
   }
   return bestN >= 25 ? best : null;
 }
+const SUFFISSI = /^(al|ally|ed|es|er|ers|est|ing|ings|ion|ions|tion|tions|sion|ly|ness|ment|ments|able|ible|ous|ive|ity|ies|ied|ial|ian|ize|ized|ise|ised|ist|ism|ure|ures|ant|ance|ence|ent|ency|ancy|ful|less|ward|wards|ship|hood|ic|ical|ics|ify|ified|en|ened)$/i;
 function deSpace(text){
   const L = findSplitLetter(text);
   if (!L) return text;
@@ -228,26 +254,75 @@ function deSpace(text){
      Scorriamo le parole e teniamo solo quelle che NON hanno la lettera
      sospetta più spazio subito prima: quelle sono scritte intere di
      sicuro, e bastano a riconoscere le vere dalle code. */
-  const clean = new Set();
-  const low = String(text).toLowerCase();
-  for (const m of low.matchAll(/[a-z]{2,}/g)){
-    const i = m.index;
-    if (i >= 2 && low[i-1] === ' ' && low[i-2] === L) continue; // possibile coda
-    clean.add(m[0]);
-  }
+  /* conta quante volte ogni parola compare intera e quante come "coda"
+     (subito dopo la lettera colpevole e uno spazio o un a capo) */
+  const vocab = (t, lettera) => {
+    const v = new Map(), code = new Map();
+    const low = String(t).toLowerCase();
+    for (const m of low.matchAll(/[a-z]{2,}/g)){
+      const i = m.index, w = m[0];
+      const map = (i >= 2 && /\s/.test(low[i-1]) && low[i-2] === lettera) ? code : v;
+      map.set(w, (map.get(w) || 0) + 1);
+    }
+    v.code = code;
+    return v;
+  };
+  /* un pezzo e' una coda se compare piu' spesso attaccato alla lettera
+     che da solo ("tion": 325 volte dopo "c ", una volta sola intero) */
+  const eCoda = (v, w) => { w = w.toLowerCase(); return (v.code.get(w) || 0) > (v.get(w) || 0); };
+  const clean = vocab(text, L);
 
   const join = (m, left, right) => {
-    if (left.length === 1) return left + right;        // "c reature"
+    if (clean.has((left + right).toLowerCase())) return left + right; // "ac tion": "action" c'e' altrove
+    if (left.length === 1) return left + right;        // "c reature", "C onjuration"
     if (right.length === 1) return left + right;       // "attac k"
+    /* "telekinetic grip", "psychic damage": le parole inglesi che finiscono
+       per c sono quasi tutte in -ic, e dopo hanno una parola vera. Si
+       riattacca solo un suffisso ("magic al"). */
+    if (L === 'c' && left.length >= 4 && /ic$/i.test(left) && right.length >= 3 && !SUFFISSI.test(right)
+        && ((clean.has(right.toLowerCase()) && !eCoda(clean, right)) || /^[^aeiouykt]/i.test(right))) return m;
+    if (eCoda(clean, right)) return left + right;     // "direc tion"
     if (!clean.has(right.toLowerCase())) return left + right; // "magic al"
+    if (L === 'c' && !/[ia]c$/i.test(left)) return left + right; // "desc ends", "bec omes"
     return m;                                          // "magic item"
   };
-  let out = String(text), prev = null, guard = 0;
-  const rx = new RegExp('([A-Za-z]*' + L + ') ([a-z]+)', 'g');
-  while (out !== prev && guard++ < 6){
-    prev = out;
-    out = out.replace(rx, join);
+  /* la lettera non deve venire dopo un apostrofo: "can't regain" è giusto */
+  const regola = (l) => new RegExp("(?<![A-Za-z'’])([A-Za-z]*[" + l + l.toUpperCase() + "]) ([a-z]+)", 'g');
+  const passa = (t, rx, fn) => {
+    let out = t, prev = null, guard = 0;
+    while (out !== prev && guard++ < 6){ prev = out; out = out.replace(rx, fn); }
+    return out;
+  };
+  /* la lettera rimasta sola in fondo alla riga («… that succeeds c» +
+     a capo + «an act…»): va in testa alla riga dopo, attaccata al suo pezzo */
+  let out = String(text).replace(new RegExp('(^|[ \\t])' + L + '[ \\t]*\\n([a-z])', 'g'), '$1\n' + L + '$2');
+  out = passa(out, regola(L), join);
+
+  /* Seconda lettera colpevole, piu' rara ("siz ed", "daz z ling"): la si
+     riconosce perche' quasi tutto quello che le viene dopo non esiste
+     come parola da solo. Con la "t" di "at the" non succede mai. */
+  for (const ch of 'abcdefghijklmnopqrstuvwxyz'){
+    if (ch === L || LONE_WORDS.has(ch)) continue;
+    /* serve la stessa prova della prima: la lettera che compare da sola
+       davanti a un pezzo di parola. Senza questa, in un documento corto
+       (dove ogni parola compare una volta sola) sembrava colpevole
+       qualunque lettera, e «Casting time» diventava «Castingtime». */
+    const sole = (out.match(new RegExp('(^|[^A-Za-z\'’])' + ch + ' [a-z]{2,}', 'g')) || []).length;
+    if (sole < 3) continue;
+    const v = vocab(out, ch);
+    const rx = regola(ch);
+    const buona = (left, right) => left.length === 1 || right.length === 1
+      || v.has((left + right).toLowerCase()) || !v.has(right.toLowerCase()) || eCoda(v, right);
+    let n = 0, code = 0;
+    for (const m of out.matchAll(rx)){ n++; if (buona(m[1], m[2])) code++; }
+    if (n < 5 || code / n < 0.6) continue;
+    out = passa(out, rx, (m, left, right) => buona(left, right) ? left + right : m);
   }
+
+  /* Maiuscola staccata a inizio parola: "S trength", "C onjuration". */
+  const tutto = vocab(out, '#');
+  out = out.replace(/(?<![A-Za-z'’.])([B-HJ-Z]) ([a-z]{2,})/g, (m, a, b) =>
+    (tutto.has((a + b).toLowerCase()) || !tutto.has(b)) ? a + b : m);
   return out;
 }
 /* Ripulitura innocua: spazi doppi e bordi. */
@@ -265,10 +340,22 @@ const SCHOOL_IT = (typeof SCHOOLS_IT !== 'undefined') ? SCHOOLS_IT : {
 
 /* Riconosce i blocchi di incantesimo dentro al testo */
 function parseSpellsFromText(raw){
-  const lines = deSpace(String(raw)).split(/\r?\n/).map(healSpacing);
+  const SPAZZATURA = /^-?\s*Generated and printed at\b|^Page \d+$|^\d{1,3}$/i;
+  const lines = deSpace(String(raw)).split(/\r?\n/).map(healSpacing).filter(l => !SPAZZATURA.test(l));
   const isLevel = (l) => /^Level\s*:/i.test(l) || /^Livello\s*:/i.test(l);
-  const isSchool = (l) => SPELL_SCHOOLS_EN.some(s => new RegExp('^' + s + '\\b', 'i').test(l))
-                        || Object.values(SCHOOL_IT).some(s => new RegExp('^' + s + '\\b', 'i').test(l));
+  const schoolKeys = {};
+  SPELL_SCHOOLS_EN.forEach(x => { schoolKeys[x.toLowerCase()] = x; });
+  Object.keys(SCHOOL_IT).forEach(en => { schoolKeys[SCHOOL_IT[en].toLowerCase()] = en; });
+  /* "Evocation", "C onjuration", "Transmutation (ritual)", "Evocation cantrip":
+     torna la scuola in inglese (la chiave di SCHOOL_IT) oppure ''. */
+  const schoolOf = (l) => {
+    const t = String(l || '').trim();
+    const tutto = t.replace(/\s+/g, '').toLowerCase();
+    if (schoolKeys[tutto]) return schoolKeys[tutto];
+    const primo = t.split(/[\s(]+/)[0].toLowerCase();
+    if (schoolKeys[primo] && t.length < 40) return schoolKeys[primo];
+    return '';
+  };
   const field = (l, ...keys) => {
     for (const k of keys){
       const m = new RegExp('^' + k + '\\s*:\\s*(.*)$', 'i').exec(l);
@@ -276,6 +363,8 @@ function parseSpellsFromText(raw){
     }
     return null;
   };
+  const HEAD = /^(Casting time|Casting|Range|Components|Duration|Tempo di lancio|Tempo|Gittata|Componenti|Durata)\s*:/i;
+  const HIGHER = /^(At higher levels?\.?|A livelli superiori\.?)\s*/i;
 
   // indici delle righe "Level:" — ognuna apre un incantesimo
   const starts = [];
@@ -285,62 +374,130 @@ function parseSpellsFromText(raw){
   // Per ogni incantesimo troviamo dove sta il suo nome: serve anche a
   // sapere dove finisce quello prima, senza tagliargli la coda.
   const heads = starts.map(li => {
-    let name = '', school = '', nameAt = li;
+    let name = '', school = '', nameAt = li, ritual = false;
     for (let j = li - 1; j >= Math.max(0, li - 5); j--){
       const l = lines[j];
       if (!l) continue;
-      // «Evocation cantrip» / «Transmutation ritual»: la scuola è la prima
-    // parola, il resto è una qualifica e va tolta o non si traduce più.
-    if (isSchool(l) && !school){ school = (l.trim().split(/\s+/)[0] || '').trim(); nameAt = j; continue; }
-      if (/^(Casting|Range|Components|Duration|Tempo|Gittata|Componenti|Durata)\s*:/i.test(l)) continue;
+      if (!school && schoolOf(l)){
+        school = schoolOf(l); nameAt = j;
+        if (/\britual\b|\brituale\b/i.test(l)) ritual = true;
+        continue;
+      }
+      if (HEAD.test(l)) continue;
       if (l.length > 60) break;
       name = l.trim(); nameAt = j;
       break;
     }
-    return { li, name, school, nameAt };
+    // "Alarm (Ritual)": il rituale e' un'informazione, non parte del nome
+    if (/\((ritual|rituale)\)\s*$/i.test(name)){ ritual = true; name = name.replace(/\s*\((ritual|rituale)\)\s*$/i, '').trim(); }
+    return { li, name, school, nameAt, ritual };
   });
-
-  /* Una riga che è solo il nome di una scuola (magari spezzata in
-     "C onjuration") non è un incantesimo: è un'intestazione. */
-  const schoolKeys = new Set(SPELL_SCHOOLS_EN.concat(Object.values(SCHOOL_IT)).map(x => norm(x)));
-  const looksLikeSchool = (t) => schoolKeys.has(norm(String(t).replace(/\s+/g,'')));
 
   const out = [];
   heads.forEach((head, idx) => {
-    const li = head.li, name = head.name, school = head.school;
-    if (!name || looksLikeSchool(name) || norm(name).length < 3) return;
+    const li = head.li, name = head.name;
+    if (!name || schoolOf(name) === name.replace(/\s+/g,'') || norm(name).length < 3) return;
+    if (schoolOf(name) && name.replace(/\s+/g,'').length < 16) return;
 
     // il corpo arriva fino al nome del prossimo incantesimo
     const stop = idx + 1 < heads.length ? Math.max(li + 1, heads[idx+1].nameAt) : lines.length;
-    const sp = { name, school, desc: '', higher: '' };
+    const sp = { name, school: head.school, desc: '', higher: '', ritual: head.ritual };
     const body = [];
-    let higher = false;
+    let higher = false, inTesta = true, j = li;
 
-    for (let j = li; j < stop; j++){
+    /* 1) L'intestazione: Livello, Tempo, Gittata, Componenti, Durata.
+       I campi si leggono solo qui: una "range:" dentro al testo non deve
+       sovrascrivere la gittata vera. */
+    const aCapo = (v, k) => {        // un campo che va a capo prosegue sulla riga dopo
+      while (k + 1 < stop && lines[k+1] && !HEAD.test(lines[k+1]) && !isLevel(lines[k+1])
+             && (/\([^)]*$/.test(v) || /,\s*$/.test(v))){
+        v += ' ' + lines[++k];
+      }
+      return [v, k];
+    };
+    for (; j < stop && inTesta; j++){
       const l = lines[j];
-      if (!l) { if (body.length) body.push(''); continue; }
+      if (!l) continue;
       let v;
       if ((v = field(l, 'Level', 'Livello')) != null){
         sp.level = /cantrip|trucchetto/i.test(v) ? 0 : (parseInt(v) || 0);
         continue;
       }
-      if ((v = field(l, 'Casting time', 'Casting', 'Tempo di lancio', 'Tempo')) != null){ sp.cast = v; continue; }
+      if ((v = field(l, 'Casting time', 'Casting', 'Tempo di lancio', 'Tempo')) != null){
+        [v, j] = aCapo(v, j);
+        if (/\((ritual|rituale)\)/i.test(v)){ sp.ritual = true; v = v.replace(/\s*\((ritual|rituale)\)/i, '').trim(); }
+        sp.cast = v; continue;
+      }
       if ((v = field(l, 'Range', 'Gittata')) != null){ sp.range = v; continue; }
       if ((v = field(l, 'Components', 'Componenti')) != null){
-        const m = /\(([^)]*)\)/.exec(v);
+        [v, j] = aCapo(v, j);
+        const m = /\(([^)]*)\)?/.exec(v);
         if (m) sp.mat = m[1].trim();
-        sp.comp = v.replace(/\s*\([^)]*\)/, '').trim();
+        /* "V,S,M", "V. S, M", "V, S M": contano solo le lettere */
+        const lett = v.replace(/\s*\(.*$/, '');
+        sp.comp = ['V','S','M'].filter(x => new RegExp('\\b' + x + '\\b').test(lett)).join(', ') || lett.trim();
         continue;
       }
-      if ((v = field(l, 'Duration', 'Durata')) != null){ sp.dur = v; continue; }
-      if (/^(At higher level|At Higher Levels?|A livelli superiori)/i.test(l)){ higher = true; continue; }
+      if ((v = field(l, 'Duration', 'Durata')) != null){
+        [v, j] = aCapo(v, j);
+        if (/^ritual\b/i.test(v)) sp.ritual = true;
+        sp.dur = v; continue;
+      }
+      inTesta = false; j--;          // prima riga del testo: si esce
+    }
+
+    /* 2) Subito dopo la durata, certe schede mettono il materiale fra
+       parentesi su una riga sua, e il tempo "Special" spiegato per esteso
+       (la reazione e cosa la fa scattare). */
+    while (j < stop && !lines[j]) j++;
+    if (j < stop && /^\(/.test(lines[j]) && /\bM\b/.test(sp.comp || '') && !sp.mat){
+      let v = lines[j];
+      while (!/\)/.test(v) && j + 1 < stop && lines[j+1]) v += ' ' + lines[++j];
+      sp.mat = v.replace(/^\(|\)\s*$/g, '').trim();
+      j++;
+    }
+    if (/^special$/i.test(sp.cast || '') && j < stop){
+      const l = lines[j] || '';
+      const r = /^(1\s+reaction\b.*|reaction(\s+trigger)?\s*:\s*.*)$/i.exec(l);
+      if (r){
+        let v = l;
+        while (j + 1 < stop && lines[j+1] && /^[a-z(]/.test(lines[j+1])) v += ' ' + lines[++j];
+        v = v.replace(/^reaction(\s+trigger)?\s*:\s*/i, '');
+        sp.cast = /^1\s+reaction/i.test(v) ? v : '1 reaction, ' + v.charAt(0).toLowerCase() + v.slice(1);
+        j++;
+      }
+    }
+
+    /* 3) Il testo, fino al prossimo incantesimo. "At Higher Levels." puo'
+       stare su una riga sua o a meta' riga: quello che segue e' la parte
+       ai livelli superiori, e non si butta. */
+    for (; j < stop; j++){
+      let l = lines[j];
+      if (!l){ if (body.length && !higher) body.push(''); continue; }
+      if (!higher){
+        const mid = /(^|[.!?)]\s+)(At Higher Levels?\.|A livelli superiori\.)\s*/i.exec(l);
+        if (/^at higher levels?(\.|:|$)/i.test(l) || /^a livelli superiori/i.test(l)){
+          higher = true; l = l.replace(HIGHER, '');
+          if (!l) continue;
+        } else if (mid){
+          const prima = l.slice(0, mid.index + mid[1].length).trim();
+          if (prima) body.push(prima);
+          higher = true; l = l.slice(mid.index + mid[0].length).trim();
+          if (!l) continue;
+        }
+      }
       // la riga di un altro incantesimo che sconfina: ci fermiamo
-      if (isSchool(l) && j > li + 1 && lines[j+1] && isLevel(lines[j+1])) break;
+      if (schoolOf(l) && lines[j+1] && isLevel(lines[j+1])) break;
       (higher ? (sp.higher += (sp.higher ? ' ' : '') + l) : body.push(l));
     }
-    sp.desc = body.join(' ').replace(/\s{2,}/g, ' ').trim();
+    sp.desc = body.join(' ').replace(/\s{2,}/g, ' ').replace(/([a-z])- ([a-z])/g, '$1$2').trim();
+    sp.higher = sp.higher.replace(/([a-z])- ([a-z])/g, '$1$2').trim();
     if (!sp.desc && !sp.higher) return;
+    // una scheda senza gittata, componenti e durata e' un segnaposto, non un incantesimo
+    if (!sp.range && !sp.comp && !sp.dur) return;
     if (sp.level == null) sp.level = 0;
+    if (sp.mat && !/\bM\b/.test(sp.comp || '')) sp.comp = (sp.comp ? sp.comp + ', ' : '') + 'M';
+    if (/^concentration|^concentrazione/i.test(sp.dur || '')) sp.conc = true;
     if (sp.school && SCHOOL_IT[sp.school]) sp.schoolIt = SCHOOL_IT[sp.school];
     out.push(sp);
   });
@@ -444,6 +601,7 @@ async function spellPdfRun(){
       name: s.name, level: s.level, school: s.schoolIt || s.school || '',
       cast: s.cast || '', range: s.range || '', comp: s.comp || '', mat: s.mat || '',
       dur: s.dur || '', desc: s.desc || '', higher: s.higher || '',
+      ritual: !!s.ritual, conc: !!s.conc,
     }))));
   } catch(e){
     console.error('Lettura PDF fallita', e);
