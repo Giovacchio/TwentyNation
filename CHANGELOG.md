@@ -1,5 +1,27 @@
 # TwentyNation — lista dei cambiamenti
 
+## v10.2 — 22 settembre 2026
+**Ho giocato l'app da capo, come chi la installa oggi, e ho trovato tre cose che dalla console non si vedono.**
+
+Non un test di funzioni: un giro vero, cliccando solo quello che si vede in schermo. Registrazione saltata, personaggio creato dalla procedura guidata (elfo alto chierico, con tutte le scelte che chiede), scheda giocata, livello salito, grimorio sfogliato, bestiario e oggetti magici aperti, materiale caricato e tolto, tema e sistema cambiati, personaggio eliminato e recuperato, app chiusa e riaperta. **57 controlli.** Tre sono partiti rossi.
+
+### 🗑️ L'avviso di eliminazione diceva una cosa falsa
+Cancellando un personaggio l'app chiedeva conferma così: *«La scheda e tutti i suoi dati andranno persi definitivamente.»* **Non è vero dalla v8**: la scheda finisce nel cestino e si recupera per 30 giorni — l'ho verificato cancellando e recuperando. Un avviso che spaventa più del dovuto fa danno due volte: blocca chi vorrebbe fare pulizia, e insegna a non fidarsi degli avvisi veri. Ora dice quello che succede davvero, e lo dicono anche l'eliminazione di un incantesimo tuo e quella di un contenuto del manuale, che tacevano.
+
+### 📥 «Materiale → Un backup di TwentyNation» non apriva niente
+Il tasto c'era, si premeva, non succedeva nulla. La casella per scegliere il file viveva **dentro la schermata Opzioni**: chiamata da un'altra schermata — cioè dal centro del materiale, che è esattamente il posto dove uno la cerca — non esisteva, e il codice usciva in silenzio. Adesso la casella si crea al volo e funziona da ovunque.
+
+### ✦ Dal Grimorio non si poteva aggiungere un incantesimo a nessuno
+Sfogli i 319 incantesimi, ne trovi uno che ti serve, lo apri… e non c'è modo di metterlo nella tua scheda. L'unica strada era partire dalla scheda: *Magie → Aggiungi dal Grimorio*. Una porta che si apriva da un lato solo — e dal lato sbagliato, perché è sfogliando che uno decide.
+
+Ora la scheda dell'incantesimo ha **«Aggiungi a…»**: col nome del personaggio se ne hai uno, e con l'elenco se ne hai più d'uno. Se ce l'ha già te lo dice, invece di toglierglielo di nascosto (il tasto della scheda fa da interruttore: lì ha senso, qui no).
+
+### La stessa domanda, una risposta sola
+«Di chi è il turno?» della v10.1 e «A chi lo aggiungo?» sono la stessa domanda, e ora la fa **una funzione sola** (`scegliPersonaggio`): con un personaggio non chiede niente, con più di uno mostra l'elenco con nome, classe e livello. La prossima azione che varrà per un personaggio solo non dovrà reinventarla — ed è così che nascono le risposte a caso come «prendi il primo dell'elenco».
+
+### Cosa ho verificato
+Il giro del giocatore è diventato una prova che resta: **`test-giocatore.mjs`, 57 controlli**, dalla schermata di accesso al recupero dal cestino. Fa tutto premendo pulsanti veri, quindi un percorso che esiste solo chiamando una funzione da fuori per lui **non esiste** — è il modo in cui sono usciti i tre difetti qui sopra. Più le 65 serie di prima e l'audit, ancora a zero su tutte le voci.
+
 ## v10.1 — 22 settembre 2026
 **La schermata dei personaggi diceva per prima la cosa più rara.**
 

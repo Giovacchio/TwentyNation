@@ -1,6 +1,6 @@
 # TwentyNation — punto della situazione
 
-**Versione corrente: 10.1** · app in `github.com/Giovacchio/TwentyNation`, online su
+**Versione corrente: 10.2** · app in `github.com/Giovacchio/TwentyNation`, online su
 `giovacchio.github.io/TwentyNation` (GitHub Pages).
 Cartella locale: `C:\Users\Tizia\Documents\GitHub\TwentyNation`.
 
@@ -513,6 +513,12 @@ funzionato al primo colpo.
 - **Ogni consegna è testata prima**: `/root/t/*.mjs` con Playwright, più `audit/audit.mjs`
   che scatta 99 schermate e cerca testo tagliato, elementi troppo piccoli e sovrapposizioni.
   `test-tremila.mjs` è la prova di carico: 4.000 creature vere e 500 voci di contenuti.
+- **`test-giocatore.mjs`** (il giro del giocatore): un utente nuovo che apre l'app e prova
+  tutto **premendo solo pulsanti veri**, dalla schermata di accesso al recupero dal cestino.
+  Non chiama mai una funzione da fuori: un percorso raggiungibile solo dalla console, per
+  lui, non esiste. Ha trovato in un colpo tre difetti che 65 serie di test non vedevano —
+  un tasto morto fuori dalla sua schermata, un avviso che diceva il falso e una porta che
+  si apriva da un lato solo. **Lancialo prima di ogni versione**: costa tre minuti.
 - **`check-interazioni.mjs`** (statico, istantaneo): legge tutti i gestori inline del codice
   — `onclick`, `oninput`, `onchange`, `onkeydown` — e verifica che ogni funzione chiamata
   esista, che nessun `<button>` sia senza gestore, che nessuna funzione sia definita due

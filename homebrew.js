@@ -375,7 +375,7 @@ function homebrewListHTML(){
 }
 function confirmDeleteHomebrew(id){
   const h = (state.homebrew||[]).find(x=>x.id===id);
-  confirmDialog('Eliminare ' + (h?h.name:'questo contenuto') + '?', 'I personaggi già creati non cambiano: perdi solo la voce nella creazione guidata.', () => { deleteHomebrew(id); openHomebrew(); }, 'Elimina');
+  confirmDialog('Eliminare ' + (h?h.name:'questo contenuto') + '?', 'I personaggi già creati non cambiano: perdi solo la voce nella creazione guidata. Finisce nel cestino: puoi rimetterla a posto entro 30 giorni.', () => { deleteHomebrew(id); openHomebrew(); }, 'Elimina');
 }
 
 /* ─── Editor ─── */

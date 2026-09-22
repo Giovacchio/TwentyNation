@@ -5,7 +5,7 @@
    con cache locale (l'app funziona anche completamente offline).
    ══════════════════════════════════════════════════════════════ */
 
-const APP_VERSION = '10.1';
+const APP_VERSION = '10.2';
 
 /* ─── 1. CONFIGURAZIONE FIREBASE ─────────────────────────────── */
 const FIREBASE_CONFIG = {
@@ -2205,15 +2205,20 @@ function renderParty(){
     ${(typeof compagniCampagnaHTML === 'function') ? compagniCampagnaHTML() : ''}
   `;
 }
-/* «Il tuo turno» vale per UN personaggio alla volta. Con uno solo si
-   apre e basta; con piu' di uno la scelta e' di chi gioca — prima
-   partiva sempre il primo dell'elenco, che e' una risposta a caso. */
-function turnoDaParty(){
+/* ─── A quale personaggio? ───
+   Ogni volta che un'azione vale per UN personaggio e ce n'e' piu' di
+   uno, la scelta e' di chi gioca. Prima ognuna se la cavava da sola, e
+   «Il tuo turno» prendeva il primo dell'elenco: una risposta a caso.
+   Con uno solo non si chiede niente, perche' non c'e' niente da
+   scegliere. */
+let __sceltaPgAzione = null;
+function scegliPersonaggio(titolo, sottotitolo, azione){
   const chars = (state.characters || []).slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-  if (!chars.length) return;
-  if (chars.length === 1) return openTurno(chars[0].id);
+  if (!chars.length){ toast('Non hai ancora un personaggio'); return false; }
+  if (chars.length === 1){ azione(chars[0].id); return true; }
+  __sceltaPgAzione = azione;
   openModal({ render: () => {
-    const riga = (c) => `<button class="mat-riga" onclick="closeModal(); openTurno('${c.id}')">
+    const riga = (c) => `<button class="mat-riga" onclick="sceltaPgFatta('${c.id}')">
       <span class="seal">${c.portrait ? `<img src="${attr(c.portrait)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : escapeHtml(c.avatar || '⚔')}</span>
       <span class="mat-corpo">
         <span class="mat-nome">${escapeHtml(c.name || 'Senza nome')}</span>
@@ -2221,12 +2226,23 @@ function turnoDaParty(){
       </span>
       <span class="char-card-chevron">›</span>
     </button>`;
-    return modalShell('⚔ Di chi è il turno?', `
+    return modalShell(titolo, `
       <div class="modal-body">
-        <p class="muted" style="font-size:.82rem; margin-bottom:14px">Le azioni, gli incantesimi e i movimenti sono quelli di un personaggio solo.</p>
+        ${sottotitolo ? `<p class="muted" style="font-size:.82rem; margin-bottom:14px">${escapeHtml(sottotitolo)}</p>` : ''}
         <div class="list-gap">${chars.map(riga).join('')}</div>
       </div>`);
   } });
+  return true;
+}
+function sceltaPgFatta(id){
+  const f = __sceltaPgAzione; __sceltaPgAzione = null;
+  closeModal();
+  if (f) f(id);
+}
+function turnoDaParty(){
+  scegliPersonaggio('⚔ Di chi è il turno?',
+    'Le azioni, gli incantesimi e i movimenti sono quelli di un personaggio solo.',
+    (id) => openTurno(id));
 }
 /* Dove sei, e come andare altrove. Sta sotto il titolo perché il
    sistema di gioco decide TUTTO quello che vedi sotto: senza un segno
@@ -2507,7 +2523,7 @@ function duplicateCharacter(id){
 }
 function confirmDeleteCharacter(id){
   const c = charById(id);
-  confirmDialog('Eliminare ' + (c?c.name:'questo personaggio') + '?', 'La scheda e tutti i suoi dati andranno persi definitivamente.', () => doDeleteCharacter(id), 'Elimina');
+  confirmDialog('Eliminare ' + (c?c.name:'questo personaggio') + '?', 'Finisce nel cestino: puoi rimetterla a posto entro 30 giorni.', () => doDeleteCharacter(id), 'Elimina');
 }
 function doDeleteCharacter(id){
   const c = state.characters.find(x=>x.id===id);
@@ -4603,6 +4619,10 @@ async function shareOneSpell(id){
 function spellDetailHTML(sp, source, charId){
   const c = charId ? charById(charId) : null;
   const has = c && (c.knownSpells||[]).some(k=>k.id===sp.id && k.source===source);
+  /* Aperto dal Grimorio non c'e' nessun personaggio nel contesto, e
+     prima non c'era nemmeno un modo di aggiungerlo: l'unica strada era
+     partire dalla scheda. Una porta sola che si apre da un lato. */
+  const liberi = !c ? (state.characters || []) : [];
   const spClasses = spellClasses(sp);
   const classesIt = spClasses.map(en=>CLASSES_IT[en]||en);
   const alt = spellAltName(sp);
@@ -4646,6 +4666,7 @@ function spellDetailHTML(sp, source, charId){
       ${source==='srd' ? `<div class="spell-source-note">Testo dal System Reference Document 5.1 di Wizards of the Coast, licenza Creative Commons Attribution 4.0.${tradotto?' Traduzione d\'uso al tavolo, non ufficiale.':' Lingua originale inglese.'}</div>` : ''}
       <div class="list-gap" style="margin-top:16px;">
         ${c ? `<button class="btn ${has?'btn-ghost':'btn-primary'} btn-block" onclick="toggleSpellFromDetail('${sp.id}','${source}','${c.id}')">${has?'✓ Nella scheda — togli':'✦ Aggiungi a '+escapeHtml(c.name)}</button>` : ''}
+        ${liberi.length ? `<button class="btn btn-primary btn-block" onclick="aggiungiIncantesimoAScelta('${sp.id}','${source}')">✦ Aggiungi a ${liberi.length===1 ? escapeHtml(liberi[0].name || 'un personaggio') : 'un personaggio'}</button>` : ''}
         ${c && sp.conc ? `<button class="btn btn-arcane btn-block" onclick="setConcentration('${c.id}','${jsStr(spellName(sp))}')">${ic('concentra')} Concentrati su questo</button>` : ''}
         <button class="btn btn-ghost btn-block" onclick="openSpellClassEditor('${sp.id}','${source}')">${ic('etichetta')} Liste di classe${isSpellTagged(sp)?' (modificate)':''}</button>
         ${source==='custom' ? `<div class="btn-row">
@@ -4655,6 +4676,20 @@ function spellDetailHTML(sp, source, charId){
         ${spellShareRow(sp, source)}
       </div>`;
   return modalShell(levelLabel(sp.level), inner);
+}
+/* Dal Grimorio: si sceglie a chi, e se ce l'ha gia' lo si dice invece
+   di toglierglielo di nascosto. */
+function aggiungiIncantesimoAScelta(spellId, source){
+  scegliPersonaggio('✦ A chi lo aggiungo?', 'L\'incantesimo entra nella sua scheda, fra quelli conosciuti.', (id) => {
+    const c = charById(id); if (!c) return;
+    if ((c.knownSpells||[]).some(k=>k.id===spellId && k.source===source)){
+      toast(c.name + ' ce l\'ha già');
+      closeModal(); return;
+    }
+    addKnownSpell(id, spellId, source);
+    toast('✨ Aggiunto a ' + c.name);
+    closeModal(); render();
+  });
 }
 function toggleSpellFromDetail(spellId, source, charId){
   const added = addKnownSpell(charId, spellId, source);
@@ -4852,7 +4887,7 @@ function resetSpellClasses(){
 }
 
 function confirmDeleteCustomSpell(id){
-  confirmDialog('Eliminare questo incantesimo?', 'Verrà rimosso anche dalle schede dei personaggi che lo conoscono.', () => {
+  confirmDialog('Eliminare questo incantesimo?', 'Verrà tolto anche dalle schede dei personaggi che lo conoscono. Finisce nel cestino: puoi rimetterlo a posto entro 30 giorni.', () => {
     if (typeof nelCestino === 'function') nelCestino('customSpells', state.customSpells.find(s=>s.id===id));
     state.customSpells = state.customSpells.filter(s=>s.id!==id);
     fsDelete('customSpells', id);
@@ -5574,7 +5609,6 @@ function renderSettings(){
       <p class="muted" style="margin-bottom:12px">Salva una copia di tutto (personaggi, bestiario, incantesimi personalizzati) in un file sul dispositivo, da reimportare quando vuoi.</p>
       <button class="btn btn-gold btn-block" onclick="exportData()">${ic('scarica')} Esporta un backup</button>
       <p class="muted" style="font-size:.75rem; margin-top:10px">Per rimetterlo dentro, e per qualunque altra cosa da caricare, c'è <b>Materiale → Aggiungi</b> qui sopra.</p>
-      <input type="file" id="import-file" accept="application/json,.json,application/pdf,.pdf,.txt,text/plain,.md" style="display:none" onchange="handleImportFile(this)">
     </div>
 
     <div class="divider"><span class="flourish">❧</span><span>Informazioni</span></div>
@@ -5705,7 +5739,25 @@ function exportCustomSpells(){
   downloadJSON({ app:'grimorio', type:'spells', version: APP_VERSION, spells: state.customSpells }, 'grimorio-incantesimi');
   toast('⤓ Incantesimi esportati');
 }
-function triggerImport(){ const el = document.getElementById('import-file'); if (el) el.click(); }
+/* Il campo per scegliere il file viveva dentro la schermata Opzioni:
+   chiamato da altrove — per esempio da «Materiale → Un backup», che e'
+   il posto dove uno lo cerca — non esisteva, e il tasto non apriva
+   niente. Adesso se ne fa uno al volo, una volta sola, fuori dalle
+   schermate. */
+function casellaImport(){
+  let el = document.getElementById('import-file');
+  if (!el){
+    el = document.createElement('input');
+    el.type = 'file';
+    el.id = 'import-file';
+    el.accept = 'application/json,.json,application/pdf,.pdf,.txt,text/plain,.md';
+    el.style.display = 'none';
+    el.addEventListener('change', () => handleImportFile(el));
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function triggerImport(){ casellaImport().click(); }
 /* Il tasto «Importa» accetta qualsiasi cosa l'app sappia leggere e sceglie
    da sé la strada: backup JSON, scheda PDF compilabile, oppure manuale
    (PDF o testo) da cui pescare sottoclassi, razze e background. */
@@ -6300,6 +6352,7 @@ function boot(){
   spawnEmbers();
   installWheelForwarding();
   installFabAutoHide();
+  casellaImport();          // esiste da subito, non solo dentro le Opzioni
   applyWakeLock();
   if (localStorage.getItem('grimorio-offline') === '1') state.offlineMode = true;
   replaceNav();
