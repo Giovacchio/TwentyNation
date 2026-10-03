@@ -606,7 +606,7 @@ async function drawSheet(S, c, lib, doc, fonts){
 
   /* ── Nota di licenza, ancorata al fondo dell'ultima pagina:
         così non è mai lei ad aprire un foglio nuovo ── */
-  const note = 'Generata con Grimorio. Il materiale di regole proviene dal System Reference Document 5.1 (Creative Commons Attribution 4.0).';
+  const note = 'Generata con TwentyNation. ' + (typeof NOTA_SRD === 'string' ? NOTA_SRD : 'Regole dal System Reference Document 5.1 (CC-BY-4.0).') + ' Testi tradotti e adattati in italiano.';
   S.page.drawLine({ start:{x:S.left,y:46}, end:{x:S.right,y:46}, thickness:0.6, color:rgb(...PDFX.gold), opacity:0.6 });
   S.page.drawText(wa(note), { x:S.left, y:38, size:6.4, font:fonts.obl, color:rgb(...PDFX.soft) });
 }
@@ -665,8 +665,7 @@ async function exportSpellBook(charId){
 
     const S = pdfDoc(lib, doc, fonts,
       (c.name || 'Senza nome') + ' · libretto degli incantesimi');
-    S.colonne = 2;
-    S.newPage();
+    S.colonne = 2;   // pdfDoc ha già aperto la prima pagina: un'altra la lasciava bianca
 
     /* Intestazione a tutta pagina, prima di scendere in colonna. */
     S.colonne = 0;
@@ -727,7 +726,7 @@ async function exportSpellBook(charId){
     /* La nota di licenza va anche qui: questo foglio E' testo SRD. */
     S.colonne = 0;
     S.space(40); S.gap(8);
-    S.text('Testi degli incantesimi: SRD 5.1, Wizards of the Coast, Creative Commons Attribution 4.0. Traduzione italiana a cura di TwentyNation.',
+    S.text((typeof NOTA_SRD === 'string' ? NOTA_SRD : 'Testi dal System Reference Document 5.1 (CC-BY-4.0).') + ' Testi tradotti e adattati in italiano da TwentyNation.',
       { size:6.8, color:PDFX.soft });
 
     const bytes = await doc.save();
